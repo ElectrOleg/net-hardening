@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Scans{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-3">
+    <h2>Сканирования</h2>
+    <button class="btn btn-primary" onclick="startScan()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3" />
+        </svg>
+        Новое сканирование
+    </button>
+</div>
+
+<div class="card fade-in">
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Дата запуска</th>
+                    <th>Запустил</th>
+                    <th>Статус</th>
+                    <th>Устройств</th>
+                    <th>Pass</th>
+                    <th>Fail</th>
+                    <th>Score</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for scan in scans %}
+                <tr>
+                    <td class="font-mono text-sm text-muted">{{ scan.id | string | truncate(8, True, '') }}</td>
+                    <td>{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>{{ scan.started_by or '-' }}</td>
+                    <td>
+                        {% if scan.status == 'completed' %}
+                        <span class="badge badge-success">completed</span>
+                        {% elif scan.status == 'running' %}
+                        <span class="badge badge-warning"><span class="status-dot running"></span>running</span>
+                        {% elif scan.status == 'failed' %}
+                        <span class="badge badge-danger">failed</span>
+                        {% else %}
+                        <span class="badge badge-neutral">{{ scan.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ scan.total_devices }}</td>
+                    <td class="text-success font-bold">{{ scan.passed_count }}</td>
+                    <td class="text-danger font-bold">{{ scan.failed_count }}</td>
+                    <td>
+                        <strong
+                            class="{% if scan.score >= 80 %}text-success{% elif scan.score >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                            {{ scan.score }}%
+                        </strong>
+                    </td>
+                    <td class="text-right">
+                        <a href="{{ url_for('web.scan_detail', scan_id=scan.id) }}" class="btn btn-ghost btn-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="9">
+                        <div class="empty-state">
+                            <p>Сканирований пока нет</p>
+                            <button class="btn btn-primary" onclick="startScan()">Запустить первое</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+{% block title %}Compliance Matrix{% endblock %}
+
+{% block extra_css %}
+<style>
+    .matrix-wrapper {
+        overflow-x: auto;
+        margin: -1.25rem;
+    }
+
+    .matrix-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8125rem;
+    }
+
+    .matrix-table th,
+    .matrix-table td {
+        padding: 0.5rem 0.75rem;
+        text-align: center;
+        border: 1px solid var(--hcs-bg-tertiary);
+        min-width: 100px;
+    }
+
+    .matrix-table th {
+        background: var(--hcs-bg-tertiary);
+        font-weight: 500;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .matrix-table th:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 20;
+        text-align: left;
+    }
+
+    .matrix-table td:first-child {
+        position: sticky;
+        left: 0;
+        background: var(--hcs-bg-card);
+        text-align: left;
+        font-weight: 500;
+        z-index: 5;
+    }
+
+    .matrix-table tbody tr:hover td {
+        background: var(--hcs-bg-hover);
+    }
+
+    .matrix-table tbody tr:hover td:first-child {
+        background: var(--hcs-bg-tertiary);
+    }
+
+    .cell-pass {
+        background: var(--hcs-success-bg) !important;
+        color: var(--hcs-success);
+    }
+
+    .cell-fail {
+        background: var(--hcs-danger-bg) !important;
+        color: var(--hcs-danger);
+    }
+
+    .cell-partial {
+        background: var(--hcs-warning-bg) !important;
+        color: var(--hcs-warning);
+    }
+
+    .cell-value {
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+
+    .legend {
+        display: flex;
+        gap: 1.5rem;
+        padding: 1rem;
+        background: var(--hcs-bg-tertiary);
+        border-radius: var(--hcs-radius-md);
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-3">
+    <h2>Compliance Matrix</h2>
+    <div class="flex gap-2">
+        <select class="form-select" style="width: auto;" id="scanSelect" onchange="loadMatrix()">
+            <option value="">Последнее сканирование</option>
+            {% for scan in scans %}
+            <option value="{{ scan.id }}">{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }} ({{ scan.score }}%)</option>
+            {% endfor %}
+        </select>
+        <button class="btn btn-secondary" onclick="exportMatrix('csv')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            CSV
+        </button>
+        <button class="btn btn-secondary" onclick="exportMatrix('pdf')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+            </svg>
+            PDF
+        </button>
+    </div>
+</div>
+
+<!-- Legend -->
+<div class="legend mb-3 fade-in">
+    <div class="legend-item">
+        <div class="legend-dot" style="background: var(--hcs-success);"></div>
+        <span>100% Pass</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-dot" style="background: var(--hcs-warning);"></div>
+        <span>Partial (есть Fail)</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-dot" style="background: var(--hcs-danger);"></div>
+        <span>0% Pass</span>
+    </div>
+</div>
+
+<!-- Matrix Card -->
+<div class="card fade-in">
+    <div class="matrix-wrapper">
+        <table class="matrix-table" id="matrixTable">
+            <thead>
+                <tr>
+                    <th>Device</th>
+                    <!-- Policy columns will be added dynamically -->
+                </tr>
+            </thead>
+            <tbody id="matrixBody">
+                <tr>
+                    <td colspan="10" class="text-center text-muted p-3">Загрузка...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Summary Stats -->
+<div class="grid grid-4 gap-2 mt-3" id="summaryStats">
+    <!-- Will be populated dynamically -->
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let matrixData = null;
+    let policyNames = {};
+
+    async function loadMatrix() {
+        const scanId = document.getElementById('scanSelect').value;
+        const url = scanId ? `/api/results/matrix?scan_id=${scanId}` : '/api/results/matrix';
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                document.getElementById('matrixBody').innerHTML = `
+                <tr><td colspan="10" class="text-center text-muted p-3">Нет данных</td></tr>
+            `;
+                return;
+            }
+
+            matrixData = await response.json();
+            await loadPolicyNames();
+            renderMatrix();
+            renderSummary();
+        } catch (e) {
+            console.error('Failed to load matrix:', e);
+        }
+    }
+
+    async function loadPolicyNames() {
+        try {
+            const response = await fetch('/api/policies');
+            const policies = await response.json();
+            policies.forEach(p => {
+                policyNames[p.id] = p.name;
+            });
+        } catch (e) {
+            console.error('Failed to load policies:', e);
+        }
+    }
+
+    function renderMatrix() {
+        if (!matrixData || !matrixData.matrix) return;
+
+        const thead = document.querySelector('#matrixTable thead tr');
+        const tbody = document.getElementById('matrixBody');
+
+        // Build header
+        thead.innerHTML = '<th>Device</th>';
+        matrixData.policies.forEach(policyId => {
+            thead.innerHTML += `<th>${policyNames[policyId] || policyId.substring(0, 8)}</th>`;
+        });
+        thead.innerHTML += '<th>Total</th>';
+
+        // Build rows
+        const devices = Object.keys(matrixData.matrix).sort();
+
+        if (devices.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${matrixData.policies.length + 2}" class="text-center text-muted p-3">Нет данных</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = devices.map(device => {
+            const deviceData = matrixData.matrix[device];
+            let totalPass = 0;
+            let totalFail = 0;
+
+            let cells = `<td><code>${device}</code></td>`;
+
+            matrixData.policies.forEach(policyId => {
+                const cell = deviceData[policyId] || { pass: 0, fail: 0, total: 0 };
+                totalPass += cell.pass;
+                totalFail += cell.fail;
+
+                const percent = cell.total > 0 ? Math.round((cell.pass / cell.total) * 100) : 100;
+                let cellClass = 'cell-pass';
+                if (percent === 0 && cell.total > 0) cellClass = 'cell-fail';
+                else if (percent < 100) cellClass = 'cell-partial';
+
+                cells += `<td class="${cellClass}"><span class="cell-value">${percent}%</span><br><small>${cell.pass}/${cell.total}</small></td>`;
+            });
+
+            // Total column
+            const totalPercent = (totalPass + totalFail) > 0
+                ? Math.round((totalPass / (totalPass + totalFail)) * 100)
+                : 100;
+            let totalClass = 'cell-pass';
+            if (totalPercent === 0) totalClass = 'cell-fail';
+            else if (totalPercent < 100) totalClass = 'cell-partial';
+
+            cells += `<td class="${totalClass}"><span class="cell-value">${totalPercent}%</span></td>`;
+
+            return `<tr>${cells}</tr>`;
+        }).join('');
+    }
+
+    function renderSummary() {
+        if (!matrixData || !matrixData.matrix) return;
+
+        const devices = Object.keys(matrixData.matrix);
+        let totalPass = 0;
+        let totalFail = 0;
+        let compliantDevices = 0;
+
+        devices.forEach(device => {
+            let deviceFails = 0;
+            Object.values(matrixData.matrix[device]).forEach(cell => {
+                totalPass += cell.pass;
+                totalFail += cell.fail;
+                deviceFails += cell.fail;
+            });
+            if (deviceFails === 0) compliantDevices++;
+        });
+
+        const overallScore = (totalPass + totalFail) > 0
+            ? Math.round((totalPass / (totalPass + totalFail)) * 100)
+            : 100;
+
+        document.getElementById('summaryStats').innerHTML = `
+        <div class="stat-card">
+            <div class="stat-value">${devices.length}</div>
+            <div class="stat-label">Устройств</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value success">${compliantDevices}</div>
+            <div class="stat-label">Полностью compliant</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value danger">${totalFail}</div>
+            <div class="stat-label">Нарушений</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value ${overallScore >= 80 ? 'success' : overallScore >= 50 ? 'warning' : 'danger'}">
+                ${overallScore}%
+            </div>
+            <div class="stat-label">Общий Score</div>
+        </div>
+    `;
+    }
+
+    function exportMatrix(format) {
+        if (!matrixData) {
+            showNotification('Нет данных для экспорта', 'warning');
+            return;
+        }
+
+        if (format === 'csv') {
+            exportCSV();
+        } else if (format === 'pdf') {
+            exportPDF();
+        }
+    }
+
+    function exportCSV() {
+        const devices = Object.keys(matrixData.matrix).sort();
+        const policies = matrixData.policies;
+
+        // Header
+        let csv = 'Device,' + policies.map(p => policyNames[p] || p).join(',') + ',Total\n';
+
+        // Rows
+        devices.forEach(device => {
+            const deviceData = matrixData.matrix[device];
+            let row = [device];
+            let totalPass = 0, totalFail = 0;
+
+            policies.forEach(policyId => {
+                const cell = deviceData[policyId] || { pass: 0, fail: 0, total: 0 };
+                totalPass += cell.pass;
+                totalFail += cell.fail;
+                const percent = cell.total > 0 ? Math.round((cell.pass / cell.total) * 100) : 100;
+                row.push(`${percent}%`);
+            });
+
+            const totalPercent = (totalPass + totalFail) > 0
+                ? Math.round((totalPass / (totalPass + totalFail)) * 100) : 100;
+            row.push(`${totalPercent}%`);
+
+            csv += row.join(',') + '\n';
+        });
+
+        // Download
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `compliance_matrix_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        showNotification('CSV экспортирован', 'success');
+    }
+
+    function exportPDF() {
+        // Simple print-based PDF export
+        window.print();
+        showNotification('Используйте Print → Save as PDF', 'success');
+    }
+
+    // Load on init
+    loadMatrix();
+</script>
+{% endblock %}

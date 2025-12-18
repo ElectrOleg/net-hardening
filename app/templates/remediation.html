@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Remediation{% endblock %}
+
+{% block extra_css %}
+<style>
+    .playbook-code {
+        background: var(--hcs-bg-primary);
+        border: 1px solid var(--hcs-bg-tertiary);
+        border-radius: var(--hcs-radius-md);
+        padding: 1rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8125rem;
+        line-height: 1.6;
+        overflow-x: auto;
+        max-height: 500px;
+        color: var(--hcs-text-primary);
+    }
+
+    .task-item {
+        padding: 1rem;
+        border-bottom: 1px solid var(--hcs-bg-tertiary);
+    }
+
+    .task-item:last-child {
+        border-bottom: none;
+    }
+
+    .command-list {
+        background: var(--hcs-bg-primary);
+        padding: 0.5rem 1rem;
+        border-radius: var(--hcs-radius-sm);
+        font-family: monospace;
+        font-size: 0.8125rem;
+        margin-top: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-3">
+    <div class="flex items-center gap-2">
+        <a href="{{ url_for('web.scan_detail', scan_id=scan_id) }}" class="btn btn-ghost btn-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6" />
+            </svg>
+        </a>
+        <h2>Remediation Playbook</h2>
+    </div>
+    <div class="flex gap-2">
+        <button class="btn btn-secondary" onclick="copyPlaybook()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+            </svg>
+            Копировать
+        </button>
+        <a href="/api/remediation/scan/{{ scan_id }}/playbook?format=yaml" class="btn btn-primary" download>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Скачать .yml
+        </a>
+    </div>
+</div>
+
+<div class="grid grid-2 gap-3">
+    <!-- Tasks Summary -->
+    <div class="card fade-in">
+        <div class="card-header">
+            <h4 style="margin: 0;">Задачи для исправления</h4>
+            <span class="badge badge-warning" id="tasksCount">-</span>
+        </div>
+        <div class="card-body" id="tasksList" style="max-height: 500px; overflow-y: auto;">
+            <div class="text-center text-muted p-3">Загрузка...</div>
+        </div>
+    </div>
+
+    <!-- Playbook Preview -->
+    <div class="card fade-in" style="animation-delay: 100ms;">
+        <div class="card-header">
+            <h4 style="margin: 0;">Ansible Playbook</h4>
+        </div>
+        <pre class="playbook-code" id="playbookCode">Загрузка...</pre>
+    </div>
+</div>
+
+<!-- Instructions -->
+<div class="card mt-3 fade-in" style="animation-delay: 200ms;">
+    <div class="card-header">
+        <h4 style="margin: 0;">Как применить</h4>
+    </div>
+    <div class="card-body">
+        <ol style="margin: 0; padding-left: 1.5rem; line-height: 2;">
+            <li>Скачайте playbook как <code>.yml</code> файл</li>
+            <li>Создайте inventory файл с вашими устройствами</li>
+            <li>Проверьте переменные подключения (credentials)</li>
+            <li>Запустите: <code>ansible-playbook -i inventory.ini remediation.yml --check</code> (dry-run)</li>
+            <li>Если всё ок: <code>ansible-playbook -i inventory.ini remediation.yml</code></li>
+        </ol>
+
+        <div class="alert alert-warning mt-2"
+            style="background: var(--hcs-warning-bg); border: 1px solid var(--hcs-warning);">
+            <strong>⚠️ Внимание:</strong> Всегда проверяйте playbook перед применением! Используйте <code>--check</code>
+            для dry-run.
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const scanId = "{{ scan_id }}";
+
+    async function loadPlaybook() {
+        try {
+            const response = await fetch(`/api/remediation/scan/${scanId}/playbook?format=json`);
+
+            if (!response.ok) {
+                const error = await response.json();
+                document.getElementById('playbookCode').textContent = '# ' + (error.message || 'No remediation available');
+                document.getElementById('tasksList').innerHTML = `
+                <div class="empty-state">
+                    <div class="text-success">✓ Нет нарушений с remediation</div>
+                </div>
+            `;
+                document.getElementById('tasksCount').textContent = '0';
+                return;
+            }
+
+            const data = await response.json();
+
+            // Update playbook
+            document.getElementById('playbookCode').textContent = data.playbook;
+            document.getElementById('tasksCount').textContent = data.tasks_count;
+
+            // Update tasks list
+            if (data.tasks && data.tasks.length > 0) {
+                document.getElementById('tasksList').innerHTML = data.tasks.map(task => `
+                <div class="task-item">
+                    <div class="flex justify-between items-center">
+                        <strong>${task.rule_title}</strong>
+                        <span class="badge badge-neutral">${task.vendor}</span>
+                    </div>
+                    <div class="text-sm text-muted">Device: <code>${task.device_id}</code></div>
+                    <div class="command-list">
+                        ${task.commands.map(cmd => `<div>${cmd}</div>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+            } else {
+                document.getElementById('tasksList').innerHTML = '<div class="empty-state">Нет задач</div>';
+            }
+
+        } catch (e) {
+            document.getElementById('playbookCode').textContent = '# Error: ' + e.message;
+        }
+    }
+
+    function copyPlaybook() {
+        const playbook = document.getElementById('playbookCode').textContent;
+        navigator.clipboard.writeText(playbook).then(() => {
+            showNotification('Playbook скопирован!', 'success');
+        });
+    }
+
+    loadPlaybook();
+</script>
+{% endblock %}

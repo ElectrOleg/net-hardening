@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+{% block title %}Rule Builder{% endblock %}
+
+{% block extra_css %}
+<style>
+    .builder-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1024px) {
+        .builder-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .payload-editor {
+        font-family: 'JetBrains Mono', monospace;
+        min-height: 200px;
+    }
+
+    .test-result {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-3">
+    <div class="flex items-center gap-2">
+        <a href="{{ url_for('web.rules_list') }}" class="btn btn-ghost btn-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6" />
+            </svg>
+        </a>
+        <h2>Конструктор правил</h2>
+    </div>
+</div>
+
+<div class="builder-grid">
+    <!-- Rule Form -->
+    <div class="card fade-in">
+        <div class="card-header">
+            <h4 style="margin: 0;">Настройка правила</h4>
+        </div>
+        <div class="card-body">
+            <form id="ruleForm">
+                <div class="form-group">
+                    <label class="form-label">Название *</label>
+                    <input type="text" class="form-input" id="title" placeholder="e.g., No Telnet" required>
+                </div>
+
+                <div class="grid grid-2 gap-2">
+                    <div class="form-group">
+                        <label class="form-label">Политика *</label>
+                        <select class="form-select" id="policy_id" required>
+                            {% for policy in policies %}
+                            <option value="{{ policy.id }}">{{ policy.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Вендор *</label>
+                        <select class="form-select" id="vendor_code" required>
+                            {% for vendor in vendors %}
+                            <option value="{{ vendor.code }}">{{ vendor.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Тип логики *</label>
+                    <select class="form-select" id="logic_type" onchange="updatePayloadTemplate()">
+                        <option value="simple_match">Simple Match (Regex)</option>
+                        <option value="block_match">Block Context Match</option>
+                        <option value="structure_check">Structure Check (JSON)</option>
+                        <option value="advanced_block_check">Advanced Block Check</option>
+                        <option value="textfsm_check">TextFSM Check</option>
+                        <option value="xml_check">XML/XPath Check</option>
+                        <option value="version_check">Version Check</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Logic Payload (JSON) *</label>
+                    <textarea class="form-textarea payload-editor" id="logic_payload" required></textarea>
+                    <small class="text-muted">Параметры проверки в формате JSON</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Описание</label>
+                    <textarea class="form-textarea" id="description" rows="2"
+                        placeholder="Почему важна эта проверка?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Remediation</label>
+                    <textarea class="form-textarea" id="remediation" rows="2"
+                        placeholder="CLI команды для исправления"></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="card-footer flex justify-between">
+            <button class="btn btn-secondary" type="button" onclick="history.back()">Отмена</button>
+            <button class="btn btn-primary" type="button" onclick="saveRule()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                    <polyline points="17,21 17,13 7,13 7,21" />
+                    <polyline points="7,3 7,8 15,8" />
+                </svg>
+                Сохранить
+            </button>
+        </div>
+    </div>
+
+    <!-- Live Test Sandbox -->
+    <div class="card fade-in" style="animation-delay: 100ms;">
+        <div class="card-header flex justify-between items-center">
+            <h4 style="margin: 0;">Песочница (Live Test)</h4>
+            <button class="btn btn-success" type="button" onclick="testRule()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                Тест
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="form-group">
+                <label class="form-label">Пример конфигурации</label>
+                <textarea class="form-textarea" id="test_config" rows="12"
+                    placeholder="Вставьте сюда пример конфигурации для теста..."></textarea>
+            </div>
+
+            <div id="testResult" class="test-result" style="display: none;">
+                <label class="form-label">Результат:</label>
+                <div id="testResultContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const PAYLOAD_TEMPLATES = {
+        simple_match: {
+            pattern: "^service password-encryption",
+            match_mode: "must_exist",
+            is_regex: true
+        },
+        block_match: {
+            parent_block_start: "^interface (GigabitEthernet|TenGig)",
+            exclude_filter: "description .*UPLINK.*",
+            child_rules: [
+                { pattern: "no ip redirects", mode: "must_exist" },
+                { pattern: "ip proxy-arp", mode: "must_not_exist" }
+            ],
+            logic: "ALL"
+        },
+        structure_check: {
+            path: "network.interfaces[?type=='external'].security_profile",
+            operator: "eq",
+            value: "strict-profile"
+        },
+        advanced_block_check: {
+            block: {
+                start: "^interface (GigabitEthernet|TenGig)",
+                filter: { exclude: "Loopback" }
+            },
+            checks: [
+                {
+                    group: [
+                        "switchport mode access",
+                        "switchport access vlan \\d+",
+                        "spanning-tree portfast"
+                    ],
+                    mode: "all_must_exist"
+                },
+                {
+                    pattern: "no ip redirects",
+                    mode: "must_exist"
+                }
+            ]
+        },
+        textfsm_check: {
+            template_name: "cisco_ios_show_interfaces",
+            checks: [
+                { field: "protocol", operator: "eq", value: "up", on_all: true },
+                { field: "duplex", operator: "ne", value: "Half", on_all: true }
+            ]
+        },
+        xml_check: {
+            xpath: ".//interface/name",
+            operator: "exists",
+            checks: [
+                { xpath: ".//mtu", operator: "gt", value: "1200" }
+            ]
+        },
+        version_check: {
+            pattern: "version (\\d+\\.\\d+\\.\\d+)",
+            operator: "ge",
+            value: "15.2.4",
+            version_format: "semver"
+        }
+    };
+
+    function updatePayloadTemplate() {
+        const type = document.getElementById('logic_type').value;
+        const template = PAYLOAD_TEMPLATES[type] || {};
+        document.getElementById('logic_payload').value = JSON.stringify(template, null, 2);
+    }
+
+    async function testRule() {
+        const config = document.getElementById('test_config').value;
+        if (!config.trim()) {
+            showNotification('Введите пример конфигурации', 'warning');
+            return;
+        }
+
+        const logicType = document.getElementById('logic_type').value;
+        let logicPayload;
+
+        try {
+            logicPayload = JSON.parse(document.getElementById('logic_payload').value);
+        } catch (e) {
+            showNotification('Невалидный JSON в payload', 'danger');
+            return;
+        }
+
+        const resultDiv = document.getElementById('testResult');
+        const resultContent = document.getElementById('testResultContent');
+
+        resultDiv.style.display = 'block';
+        resultContent.innerHTML = '<div class="text-muted">Проверка...</div>';
+
+        try {
+            const response = await fetch('/api/test/rule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    config: config,
+                    logic_type: logicType,
+                    logic_payload: logicPayload
+                })
+            });
+
+            const data = await response.json();
+
+            let html = '';
+            if (data.passed) {
+                html = `<div class="alert alert-success">
+                <strong>✓ PASS:</strong> ${data.message}
+            </div>`;
+            } else if (data.status === 'ERROR') {
+                html = `<div class="alert alert-warning">
+                <strong>⚠ ERROR:</strong> ${data.message}
+            </div>`;
+            } else {
+                html = `<div class="alert alert-danger">
+                <strong>✗ FAIL:</strong> ${data.message}
+            </div>`;
+                if (data.diff_data) {
+                    html += `<pre style="margin-top: 0.5rem; font-size: 0.75rem;">${data.diff_data}</pre>`;
+                }
+            }
+
+            resultContent.innerHTML = html;
+
+        } catch (e) {
+            resultContent.innerHTML = `<div class="alert alert-danger">Ошибка: ${e.message}</div>`;
+        }
+    }
+
+    async function saveRule() {
+        let logicPayload;
+        try {
+            logicPayload = JSON.parse(document.getElementById('logic_payload').value);
+        } catch (e) {
+            showNotification('Невалидный JSON в payload', 'danger');
+            return;
+        }
+
+        const rule = {
+            title: document.getElementById('title').value,
+            policy_id: document.getElementById('policy_id').value,
+            vendor_code: document.getElementById('vendor_code').value,
+            logic_type: document.getElementById('logic_type').value,
+            logic_payload: logicPayload,
+            description: document.getElementById('description').value,
+            remediation: document.getElementById('remediation').value
+        };
+
+        if (!rule.title) {
+            showNotification('Введите название правила', 'warning');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(rule)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showNotification('Правило сохранено!', 'success');
+                setTimeout(() => window.location.href = '/rules', 1000);
+            } else {
+                showNotification('Ошибка: ' + data.error, 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', async () => {
+        updatePayloadTemplate();
+
+        // Check for clone or edit params
+        const urlParams = new URLSearchParams(window.location.search);
+        const cloneId = urlParams.get('clone');
+
+        if (cloneId) {
+            try {
+                const response = await fetch(`/api/rules/${cloneId}`);
+                if (response.ok) {
+                    const rule = await response.json();
+
+                    // Populate fields
+                    document.getElementById('title').value = rule.title + " (Copy)";
+                    document.getElementById('policy_id').value = rule.policy_id;
+                    document.getElementById('vendor_code').value = rule.vendor_code;
+                    document.getElementById('logic_type').value = rule.logic_type;
+                    document.getElementById('description').value = rule.description || '';
+                    document.getElementById('remediation').value = rule.remediation || '';
+
+                    if (rule.logic_payload) {
+                        document.getElementById('logic_payload').value = JSON.stringify(rule.logic_payload, null, 2);
+                    }
+
+                    showNotification('Данные скопированы из существующего правила', 'info');
+                }
+            } catch (e) {
+                console.error("Failed to load clone data", e);
+            }
+        }
+    });
+</script>
+{% endblock %}

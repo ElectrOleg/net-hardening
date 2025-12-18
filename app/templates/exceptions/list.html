@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}Исключения{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-3">
+    <h2>Исключения (Waivers)</h2>
+    <button class="btn btn-primary" onclick="openAddModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
+        </svg>
+        Добавить исключение
+    </button>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3 fade-in">
+    <div class="card-body flex gap-2 items-center">
+        <label class="text-sm text-muted">Фильтры:</label>
+        <select class="form-select" style="width: auto;" id="filterStatus" onchange="applyFilters()">
+            <option value="active">Активные</option>
+            <option value="expired">Истёкшие</option>
+            <option value="all">Все</option>
+        </select>
+        <input type="text" class="form-input" style="width: 200px;" placeholder="Поиск по устройству..."
+            id="filterDevice" oninput="applyFilters()">
+    </div>
+</div>
+
+<!-- Exceptions Table -->
+<div class="card fade-in">
+    <div class="table-wrapper">
+        <table class="table" id="exceptionsTable">
+            <thead>
+                <tr>
+                    <th>Устройство</th>
+                    <th>Правило</th>
+                    <th>Причина</th>
+                    <th>Одобрил</th>
+                    <th>Истекает</th>
+                    <th>Статус</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="exceptionsBody">
+                <!-- Dynamic content -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="exceptionModal" class="modal" style="display: none;">
+    <div class="modal-backdrop" onclick="closeModal()"></div>
+    <div class="modal-content card">
+        <div class="card-header">
+            <h4 id="modalTitle" style="margin: 0;">Новое исключение</h4>
+            <button class="btn btn-ghost btn-icon" onclick="closeModal()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18" />
+                    <path d="M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="card-body">
+            <form id="exceptionForm">
+                <input type="hidden" id="exceptionId">
+
+                <div class="form-group">
+                    <label class="form-label">Устройство</label>
+                    <input type="text" class="form-input" id="deviceId"
+                        placeholder="hostname или IP (пусто = все устройства)">
+                    <small class="text-muted">Оставьте пустым для применения ко всем устройствам</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Правило *</label>
+                    <select class="form-select" id="ruleId" required>
+                        <option value="">Выберите правило...</option>
+                        {% for rule in rules %}
+                        <option value="{{ rule.id }}">{{ rule.title }} ({{ rule.vendor_code }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Причина *</label>
+                    <textarea class="form-textarea" id="reason" rows="3" required
+                        placeholder="Опишите причину принятия риска..."></textarea>
+                </div>
+
+                <div class="grid grid-2 gap-2">
+                    <div class="form-group">
+                        <label class="form-label">Одобрил *</label>
+                        <input type="text" class="form-input" id="approvedBy" required placeholder="Имя или должность">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Срок действия</label>
+                        <input type="date" class="form-input" id="expiryDate">
+                        <small class="text-muted">Пусто = бессрочно</small>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="card-footer flex justify-between">
+            <button class="btn btn-secondary" type="button" onclick="closeModal()">Отмена</button>
+            <button class="btn btn-primary" type="button" onclick="saveException()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                </svg>
+                Сохранить
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-backdrop {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+    }
+
+    .modal-content {
+        position: relative;
+        width: 100%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+        animation: modalIn 0.2s ease;
+    }
+
+    @keyframes modalIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95) translateY(-20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let exceptions = [];
+
+    async function loadExceptions() {
+        const status = document.getElementById('filterStatus').value;
+        const includeExpired = status === 'all' || status === 'expired';
+
+        try {
+            const response = await fetch(`/api/exceptions?include_expired=${includeExpired}`);
+            exceptions = await response.json();
+            renderExceptions();
+        } catch (e) {
+            console.error('Failed to load exceptions:', e);
+        }
+    }
+
+    function renderExceptions() {
+        const tbody = document.getElementById('exceptionsBody');
+        const filterDevice = document.getElementById('filterDevice').value.toLowerCase();
+        const filterStatus = document.getElementById('filterStatus').value;
+
+        let filtered = exceptions;
+
+        // Filter by device
+        if (filterDevice) {
+            filtered = filtered.filter(e =>
+                (e.device_id || '').toLowerCase().includes(filterDevice)
+            );
+        }
+
+        // Filter by status
+        if (filterStatus === 'expired') {
+            filtered = filtered.filter(e => e.is_expired);
+        } else if (filterStatus === 'active') {
+            filtered = filtered.filter(e => e.is_valid);
+        }
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `
+            <tr>
+                <td colspan="7">
+                    <div class="empty-state">
+                        <div>Нет исключений</div>
+                    </div>
+                </td>
+            </tr>
+        `;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(e => `
+        <tr>
+            <td><code>${e.device_id || 'Все устройства'}</code></td>
+            <td>${e.rule ? e.rule.title : e.rule_id}</td>
+            <td class="text-sm">${truncate(e.reason, 50)}</td>
+            <td class="text-sm">${e.approved_by}</td>
+            <td class="text-sm">${e.expiry_date || 'Бессрочно'}</td>
+            <td>
+                ${e.is_valid
+                ? '<span class="badge badge-success">Active</span>'
+                : '<span class="badge badge-neutral">Expired</span>'
+            }
+            </td>
+            <td class="text-right">
+                <button class="btn btn-ghost btn-icon" onclick="editException('${e.id}')" title="Редактировать">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                </button>
+                <button class="btn btn-ghost btn-icon" onclick="deleteException('${e.id}')" title="Удалить">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                    </svg>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+    }
+
+    function truncate(text, len) {
+        return text.length > len ? text.substring(0, len) + '...' : text;
+    }
+
+    function applyFilters() {
+        renderExceptions();
+    }
+
+    function openAddModal() {
+        document.getElementById('modalTitle').textContent = 'Новое исключение';
+        document.getElementById('exceptionForm').reset();
+        document.getElementById('exceptionId').value = '';
+        document.getElementById('exceptionModal').style.display = 'flex';
+    }
+
+    function editException(id) {
+        const exc = exceptions.find(e => e.id === id);
+        if (!exc) return;
+
+        document.getElementById('modalTitle').textContent = 'Редактирование исключения';
+        document.getElementById('exceptionId').value = id;
+        document.getElementById('deviceId').value = exc.device_id || '';
+        document.getElementById('ruleId').value = exc.rule_id;
+        document.getElementById('reason').value = exc.reason;
+        document.getElementById('approvedBy').value = exc.approved_by;
+        document.getElementById('expiryDate').value = exc.expiry_date || '';
+
+        document.getElementById('exceptionModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('exceptionModal').style.display = 'none';
+    }
+
+    async function saveException() {
+        const id = document.getElementById('exceptionId').value;
+        const data = {
+            device_id: document.getElementById('deviceId').value || null,
+            rule_id: document.getElementById('ruleId').value,
+            reason: document.getElementById('reason').value,
+            approved_by: document.getElementById('approvedBy').value,
+            expiry_date: document.getElementById('expiryDate').value || null
+        };
+
+        if (!data.rule_id || !data.reason || !data.approved_by) {
+            showNotification('Заполните обязательные поля', 'warning');
+            return;
+        }
+
+        try {
+            const url = id ? `/api/exceptions/${id}` : '/api/exceptions';
+            const method = id ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                showNotification('Исключение сохранено', 'success');
+                closeModal();
+                loadExceptions();
+            } else {
+                const error = await response.json();
+                showNotification('Ошибка: ' + error.error, 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    async function deleteException(id) {
+        if (!confirm('Удалить это исключение?')) return;
+
+        try {
+            const response = await fetch(`/api/exceptions/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                showNotification('Исключение удалено', 'success');
+                loadExceptions();
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    // Load on page init
+    loadExceptions();
+</script>
+{% endblock %}

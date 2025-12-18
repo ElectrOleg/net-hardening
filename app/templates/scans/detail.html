@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Scan {{ scan.id | string | truncate(8, True, '') }}{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-3">
+    <div class="flex items-center gap-2">
+        <a href="{{ url_for('web.scans_list') }}" class="btn btn-ghost btn-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6" />
+            </svg>
+        </a>
+        <h2>Результаты сканирования</h2>
+        {% if scan.status == 'completed' %}
+        <span class="badge badge-success">completed</span>
+        {% elif scan.status == 'running' %}
+        <span class="badge badge-warning"><span class="status-dot running"></span>running</span>
+        {% endif %}
+    </div>
+    <div class="flex items-center gap-2">
+        <span class="text-muted text-sm">{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</span>
+        {% if scan.failed_count > 0 %}
+        <a href="{{ url_for('web.remediation', scan_id=scan.id) }}" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path
+                    d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
+            </svg>
+            Fix It
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid mb-3 fade-in">
+    <div class="stat-card">
+        <div class="stat-value success">{{ scan.passed_count }}</div>
+        <div class="stat-label">Passed</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value danger">{{ scan.failed_count }}</div>
+        <div class="stat-label">Failed</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value warning">{{ scan.error_count }}</div>
+        <div class="stat-label">Errors</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ scan.total_devices }}</div>
+        <div class="stat-label">Devices</div>
+    </div>
+    <div class="stat-card">
+        <div
+            class="stat-value {% if scan.score >= 80 %}success{% elif scan.score >= 50 %}warning{% else %}danger{% endif %}">
+            {{ scan.score }}%
+        </div>
+        <div class="stat-label">Score</div>
+    </div>
+</div>
+
+<!-- Results by Device -->
+<h3 class="mb-2">Результаты по устройствам</h3>
+
+{% for device_id, results in devices.items() %}
+<div class="card mb-2 slide-in" style="animation-delay: {{ loop.index * 50 }}ms;">
+    <div class="card-header">
+        <div class="flex items-center gap-2">
+            <code>{{ device_id }}</code>
+            {% set failed_count = results | selectattr('status', 'equalto', 'FAIL') | list | length %}
+            {% if failed_count > 0 %}
+            <span class="badge badge-danger">{{ failed_count }} failed</span>
+            {% else %}
+            <span class="badge badge-success">All passed</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"></th>
+                    <th>Правило</th>
+                    <th>Сообщение</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for result in results %}
+                <tr>
+                    <td>
+                        {% if result.status == 'PASS' %}
+                        <span class="status-dot pass"></span>
+                        {% elif result.status == 'FAIL' %}
+                        <span class="status-dot fail"></span>
+                        {% elif result.status == 'ERROR' %}
+                        <span class="status-dot error"></span>
+                        {% else %}
+                        <span class="status-dot" style="background: var(--hcs-text-muted);"></span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <strong>{{ result.rule.title }}</strong>
+                    </td>
+                    <td class="text-muted text-sm">{{ result.message or '-' }}</td>
+                    <td class="text-right">
+                        {% if result.status == 'FAIL' %}
+                        <button class="btn btn-ghost btn-icon" onclick="showDetails('{{ result.id }}')"
+                            title="Подробности">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M12 16v-4" />
+                                <path d="M12 8h.01" />
+                            </svg>
+                        </button>
+                        <button class="btn btn-ghost btn-icon"
+                            onclick="addException('{{ result.rule_id }}', '{{ device_id }}')" title="Принять риск">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                <path d="M12 8v4" />
+                                <path d="M12 16h.01" />
+                            </svg>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% if result.diff_data %}
+                <tr id="details-{{ result.id }}" style="display: none;">
+                    <td></td>
+                    <td colspan="3">
+                        <pre style="margin: 0; font-size: 0.75rem;">{{ result.diff_data }}</pre>
+                        {% if result.rule.remediation %}
+                        <div class="mt-1">
+                            <strong class="text-sm">Remediation:</strong>
+                            <pre style="margin: 0.5rem 0 0 0; font-size: 0.75rem;">{{ result.rule.remediation }}</pre>
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="empty-state">
+        <p>Результатов нет</p>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function showDetails(resultId) {
+        const row = document.getElementById('details-' + resultId);
+        if (row) {
+            row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+        }
+    }
+
+    async function addException(ruleId, deviceId) {
+        const reason = prompt('Причина принятия риска:');
+        if (!reason) return;
+
+        const approvedBy = prompt('Кто одобрил:');
+        if (!approvedBy) return;
+
+        try {
+            const response = await fetch('/api/exceptions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    rule_id: ruleId,
+                    device_id: deviceId,
+                    reason: reason,
+                    approved_by: approvedBy
+                })
+            });
+
+            if (response.ok) {
+                showNotification('Исключение добавлено', 'success');
+            } else {
+                const data = await response.json();
+                showNotification('Ошибка: ' + data.error, 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+</script>
+{% endblock %}

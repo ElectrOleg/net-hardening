@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}HCS{% endblock %} - Hardening & Compliance System</title>
+
+    <!-- Offline-ready fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="container">
+                <div class="navbar-inner">
+                    <a href="{{ url_for('web.dashboard') }}" class="navbar-brand">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            <path d="M9 12l2 2 4-4" />
+                        </svg>
+                        <span>HCS</span>
+                    </a>
+
+                    <div class="navbar-menu">
+                        <a href="{{ url_for('web.dashboard') }}"
+                            class="nav-link {% if request.endpoint == 'web.dashboard' %}active{% endif %}">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <rect x="3" y="3" width="7" height="7" />
+                                <rect x="14" y="3" width="7" height="7" />
+                                <rect x="14" y="14" width="7" height="7" />
+                                <rect x="3" y="14" width="7" height="7" />
+                            </svg>
+                            Dashboard
+                        </a>
+                        <a href="{{ url_for('web.compliance_matrix') }}"
+                            class="nav-link {% if 'matrix' in request.endpoint %}active{% endif %}">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" />
+                                <path d="M3 9h18" />
+                                <path d="M3 15h18" />
+                                <path d="M9 3v18" />
+                                <path d="M15 3v18" />
+                            </svg>
+                            Matrix
+                        </a>
+                        <a href="{{ url_for('web.scans_list') }}"
+                            class="nav-link {% if 'scan' in request.endpoint %}active{% endif %}">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="11" cy="11" r="8" />
+                                <path d="M21 21l-4.35-4.35" />
+                            </svg>
+                            Scans
+                        </a>
+                        <a href="{{ url_for('web.rules_list') }}"
+                            class="nav-link {% if 'rule' in request.endpoint %}active{% endif %}">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M9 11l3 3L22 4" />
+                                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                            </svg>
+                            Rules
+                        </a>
+                        <a href="{{ url_for('web.policies_list') }}"
+                            class="nav-link {% if 'polic' in request.endpoint %}active{% endif %}">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+                            </svg>
+                            Policies
+                        </a>
+                        <a href="{{ url_for('web.exceptions_list') }}"
+                            class="nav-link {% if 'exception' in request.endpoint %}active{% endif %}">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                <path d="M12 8v4" />
+                                <path d="M12 16h.01" />
+                            </svg>
+                            Exceptions
+                        </a>
+                    </div>
+
+                    <button class="btn btn-primary" onclick="startScan()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                        Start Scan
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="container">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} fade-in">
+                    {{ message }}
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer
+            style="padding: 1rem 0; text-align: center; color: var(--hcs-text-muted); font-size: 0.75rem; border-top: 1px solid var(--hcs-bg-tertiary);">
+            <div class="container">
+                HCS - Hardening & Compliance System v0.1.0
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        async function startScan() {
+            if (!confirm('Запустить новое сканирование?')) return;
+
+            try {
+                const response = await fetch('/api/scans', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ started_by: 'ui' })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showNotification('Сканирование запущено', 'success');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showNotification('Ошибка: ' + data.error, 'danger');
+                }
+            } catch (e) {
+                showNotification('Ошибка: ' + e.message, 'danger');
+            }
+        }
+
+        function showNotification(message, type = 'success') {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type} fade-in`;
+            alert.style.position = 'fixed';
+            alert.style.top = '20px';
+            alert.style.right = '20px';
+            alert.style.zIndex = '9999';
+            alert.style.maxWidth = '400px';
+            alert.textContent = message;
+            document.body.appendChild(alert);
+
+            setTimeout(() => alert.remove(), 3000);
+        }
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

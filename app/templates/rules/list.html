@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Rules{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-3">
+    <h2>Правила проверок</h2>
+    <a href="{{ url_for('web.rule_builder') }}" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
+        </svg>
+        Создать правило
+    </a>
+</div>
+
+<div class="card fade-in">
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Политика</th>
+                    <th>Вендор</th>
+                    <th>Тип</th>
+                    <th>Статус</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rule in rules %}
+                <tr>
+                    <td>
+                        <strong>{{ rule.title }}</strong>
+                        {% if rule.description %}
+                        <div class="text-muted text-sm">{{ rule.description | truncate(80) }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge badge-neutral">{{ rule.policy.name }}</span>
+                    </td>
+                    <td class="text-sm">{{ rule.vendor_code }}</td>
+                    <td>
+                        <code class="text-xs">{{ rule.logic_type }}</code>
+                    </td>
+                    <td>
+                        {% if rule.is_active %}
+                        <span class="badge badge-success">Active</span>
+                        {% else %}
+                        <span class="badge badge-neutral">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-right">
+                        <button class="btn btn-ghost btn-icon" onclick="cloneRule('{{ rule.id }}')" title="Дублировать">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        </button>
+                        <button class="btn btn-ghost btn-icon" onclick="editRule('{{ rule.id }}')"
+                            title="Редактировать">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M9 11l3 3L22 4" />
+                                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                            </svg>
+                            <div>Правил пока нет</div>
+                            <a href="{{ url_for('web.rule_builder') }}" class="btn btn-primary mt-2">Создать первое</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function editRule(ruleId) {
+        window.location.href = '/rules/' + ruleId + '/edit';
+    }
+
+    function cloneRule(ruleId) {
+        window.location.href = "{{ url_for('web.rule_builder') }}?clone=" + ruleId;
+    }
+</script>
+{% endblock %}
