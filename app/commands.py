@@ -1,0 +1,79 @@
+
+import click
+from flask.cli import with_appcontext
+from app.extensions import db
+from app.models import Vendor, Policy, Rule, DataSource
+
+@click.command("seed")
+@with_appcontext
+def seed_command():
+    """Seed the database with initial data."""
+    click.echo("Seeding database...")
+    
+    # 1. Vendors
+    vendors = [
+        {"code": "cisco_ios", "name": "Cisco IOS", "parser_driver": "textfsm"},
+        {"code": "cisco_xe", "name": "Cisco IOS-XE", "parser_driver": "textfsm"},
+        {"code": "cisco_nxos", "name": "Cisco NX-OS", "parser_driver": "textfsm"},
+        {"code": "juniper_junos", "name": "Juniper JunOS", "parser_driver": "textfsm"},
+        {"code": "huawei", "name": "Huawei VRP", "parser_driver": "textfsm"},
+        {"code": "eltex", "name": "Eltex ESR", "parser_driver": "textfsm"},
+    ]
+    
+    for v_data in vendors:
+        if not Vendor.query.get(v_data["code"]):
+            v = Vendor(**v_data)
+            db.session.add(v)
+    
+    db.session.commit()
+    click.echo(f"Vendors seeded.")
+
+    # 2. Policies
+    policy = Policy.query.filter_by(name="Standard Hardening").first()
+    if not policy:
+        policy = Policy(
+            name="Standard Hardening",
+            description="Baseline security checks",
+            severity="high"
+        )
+        db.session.add(policy)
+        db.session.commit()
+        click.echo("Created 'Standard Hardening' policy.")
+
+    # 3. Rules
+    rules_data = [
+        {
+            "title": "No Telnet",
+            "vendor_code": "cisco_ios",
+            "logic_type": "simple_match",
+            "logic_payload": {"pattern": "transport input telnet", "match_mode": "must_not_exist"},
+            "description": "Telnet should be disabled",
+            "remediation": "line vty 0 4\n transport input ssh"
+        },
+        {
+            "title": "Minimum Password Length",
+            "vendor_code": "cisco_ios",
+            "logic_type": "simple_match",
+            "logic_payload": {"pattern": "security passwords min-length 8", "match_mode": "must_exist"},
+            "description": "Password length must be at least 8",
+            "remediation": "security passwords min-length 8"
+        },
+        {
+            "title": "Service Password Encryption",
+            "vendor_code": "cisco_ios",
+            "logic_type": "simple_match",
+            "logic_payload": {"pattern": "service password-encryption", "match_mode": "must_exist"},
+            "description": "Passwords must be encrypted",
+            "remediation": "service password-encryption"
+        }
+    ]
+    
+    for r_data in rules_data:
+        if not Rule.query.filter_by(title=r_data["title"], policy_id=policy.id).first():
+            r = Rule(policy_id=policy.id, **r_data)
+            db.session.add(r)
+            
+    db.session.commit()
+    click.echo("Rules seeded.")
+    
+    click.echo("Database seeding completed!")

@@ -28,4 +28,8 @@ def create_app(config_class=FlaskConfig):
     def health():
         return {"status": "ok"}
     
+    # Register commands
+    from app.commands import seed_command
+    app.cli.add_command(seed_command)
+
     return app
