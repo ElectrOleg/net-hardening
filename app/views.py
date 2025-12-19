@@ -76,6 +76,15 @@ def rule_builder():
     return render_template("rules/builder.html", policies=policies, vendors=vendors)
 
 
+@web_bp.route("/rules/<uuid:rule_id>/edit")
+def rule_edit(rule_id):
+    """Edit existing rule."""
+    rule = Rule.query.get_or_404(rule_id)
+    policies = Policy.query.filter_by(is_active=True).all()
+    vendors = Vendor.query.all()
+    return render_template("rules/builder.html", policies=policies, vendors=vendors, rule=rule)
+
+
 @web_bp.route("/policies")
 def policies_list():
     """List of policies."""

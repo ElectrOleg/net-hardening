@@ -4,7 +4,7 @@
 {% block content %}
 <div class="flex justify-between items-center mb-3">
     <h2>Политики</h2>
-    <button class="btn btn-primary" onclick="createPolicy()">
+    <button class="btn btn-primary" onclick="openCreateModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 5v14" />
             <path d="M5 12h14" />
@@ -34,7 +34,8 @@
                 <span class="text-sm">
                     <strong>{{ policy.rules.count() }}</strong> правил
                 </span>
-                <button class="btn btn-ghost btn-icon" onclick="editPolicy('{{ policy.id }}')">
+                <button class="btn btn-ghost btn-icon"
+                    onclick="editPolicy('{{ policy.id }}', '{{ policy.name }}', '{{ policy.description | replace('\n', ' ') | replace("'", "\\'") }}', '{{ policy.severity }}')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
                         <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -57,35 +58,115 @@
 </div>
 {% endblock %}
 
+<!-- Policy Modal -->
+<div id="policyModal" class="modal"
+    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 500px; margin: 2rem;">
+        <div class="card-header flex justify-between items-center mb-3">
+            <h3 id="modalTitle">Политика</h3>
+            <button class="btn btn-ghost btn-icon" onclick="closeModal()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="card-body">
+            <input type="hidden" id="policyId">
+            <div class="form-group mb-3">
+                <label>Название</label>
+                <input type="text" id="policyName" class="form-control" placeholder="Например, Cisco Base Hardening">
+            </div>
+            <div class="form-group mb-3">
+                <label>Описание</label>
+                <textarea id="policyDesc" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="form-group mb-4">
+                <label>Критичность</label>
+                <select id="policySeverity" class="form-select">
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="low">Low</option>
+                </select>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="savePolicy()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
 {% block extra_js %}
 <script>
-    async function createPolicy() {
-        const name = prompt('Название политики:');
-        if (!name) return;
+    const modal = document.getElementById('policyModal');
+    let isEditing = false;
 
-        const description = prompt('Описание:') || '';
+    function openCreateModal() {
+        if (!modal) return; // Guard
+        document.getElementById('modalTitle').innerText = 'Создать политику';
+        document.getElementById('policyId').value = '';
+        document.getElementById('policyName').value = '';
+        document.getElementById('policyDesc').value = '';
+        document.getElementById('policySeverity').value = 'medium';
+        modal.style.display = 'flex';
+        isEditing = false;
+    }
+
+    function editPolicy(id, name, desc, severity) {
+        if (!modal) return;
+        document.getElementById('modalTitle').innerText = 'Редактировать политику';
+        document.getElementById('policyId').value = id;
+        document.getElementById('policyName').value = name;
+        document.getElementById('policyDesc').value = desc === 'None' ? '' : desc;
+        document.getElementById('policySeverity').value = severity;
+        modal.style.display = 'flex';
+        isEditing = true;
+    }
+
+    function closeModal() {
+        if (modal) modal.style.display = 'none';
+    }
+
+    // Close on click outside
+    window.onclick = function (event) {
+        if (event.target == modal) {
+            closeModal();
+        }
+    }
+
+    async function savePolicy() {
+        const id = document.getElementById('policyId').value;
+        const name = document.getElementById('policyName').value;
+        const description = document.getElementById('policyDesc').value;
+        const severity = document.getElementById('policySeverity').value;
+
+        if (!name) {
+            showNotification('Введите название', 'warning');
+            return;
+        }
+
+        const url = isEditing ? `/api/policies/${id}` : '/api/policies';
+        const method = isEditing ? 'PUT' : 'POST';
 
         try {
-            const response = await fetch('/api/policies', {
-                method: 'POST',
+            const response = await fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, description, severity: 'medium' })
+                body: JSON.stringify({ name, description, severity })
             });
 
             if (response.ok) {
                 window.location.reload();
             } else {
                 const data = await response.json();
-                showNotification('Ошибка: ' + data.error, 'danger');
+                showNotification('Ошибка: ' + (data.error || 'Unknown'), 'danger');
             }
         } catch (e) {
             showNotification('Ошибка: ' + e.message, 'danger');
         }
-    }
-
-    function editPolicy(policyId) {
-        // TODO: Open edit modal
-        alert('Edit policy: ' + policyId);
     }
 </script>
 {% endblock %}

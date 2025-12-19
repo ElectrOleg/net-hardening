@@ -5,21 +5,32 @@
 <style>
     .matrix-wrapper {
         overflow-x: auto;
-        margin: -1.25rem;
+        margin: 0;
+        /* Removed negative margin causing clipping */
+        width: 100%;
+        border: 1px solid var(--hcs-bg-tertiary);
+        /* Optional: add border to container */
+        border-radius: var(--hcs-radius-md);
     }
 
     .matrix-table {
         width: 100%;
-        border-collapse: collapse;
+        border-collapse: separate;
+        /* Required for sticky headers to work well with borders */
+        border-spacing: 0;
         font-size: 0.8125rem;
     }
 
     .matrix-table th,
     .matrix-table td {
-        padding: 0.5rem 0.75rem;
+        padding: 0.75rem 1rem;
+        /* More breathing room */
         text-align: center;
         border: 1px solid var(--hcs-bg-tertiary);
-        min-width: 100px;
+        min-width: 140px;
+        /* Increased from 100px */
+        white-space: nowrap;
+        /* Prevent ugly wrapping */
     }
 
     .matrix-table th {
