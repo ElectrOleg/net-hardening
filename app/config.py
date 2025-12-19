@@ -24,10 +24,23 @@ class Settings(BaseSettings):
     GITLAB_URL: str = ""
     GITLAB_TOKEN: str = ""
     GITLAB_PROJECT_ID: str = ""
+
+    # SMTP / Notifications
+    SMTP_PORT: int = 587
+    SMTP_TO: str = "admin@example.com"
+    ALERT_SCORE_THRESHOLD: int = 80
+
+    # Ansible / AWX
+    ANSIBLE_EXECUTOR_TYPE: str = "local"
+    ANSIBLE_USER: str = "ansible"
+    ANSIBLE_PLAYBOOK_DIR: str = "/tmp/hcs_playbooks"
+    ANSIBLE_INVENTORY: str = "/etc/ansible/hosts"
+    AWX_URL: str = ""
     
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Allow extra env vars like FLASK_APP without error
 
 
 settings = Settings()
