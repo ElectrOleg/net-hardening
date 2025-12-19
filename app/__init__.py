@@ -10,6 +10,12 @@ def create_app(config_class=FlaskConfig):
     app = Flask(__name__, static_folder='static', static_url_path='/static')
     app.config.from_object(config_class)
     
+    # Configure ProxyFix for Nginx/Reverse Proxy
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+    )
+    
     # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)
