@@ -139,3 +139,23 @@ def settings_inventory_sources():
     from app.models import InventorySource
     sources = InventorySource.query.order_by(InventorySource.name).all()
     return render_template("settings/inventory_sources.html", sources=sources)
+
+
+@web_bp.route("/settings/devices")
+def settings_devices():
+    """Devices management."""
+    from app.models import Device, DeviceGroup, Policy
+    devices = Device.query.order_by(Device.hostname).all()
+    vendors = Vendor.query.all()
+    groups = DeviceGroup.query.filter_by(is_active=True).all()
+    policies = Policy.query.filter_by(is_active=True).all()
+    return render_template("settings/devices.html", devices=devices, vendors=vendors, groups=groups, policies=policies)
+
+
+@web_bp.route("/settings/device-groups")
+def settings_device_groups():
+    """Device groups management."""
+    from app.models import DeviceGroup, Policy
+    groups = DeviceGroup.query.order_by(DeviceGroup.name).all()
+    policies = Policy.query.filter_by(is_active=True).all()
+    return render_template("settings/device_groups.html", groups=groups, policies=policies)

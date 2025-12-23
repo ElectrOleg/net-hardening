@@ -7,6 +7,8 @@ from app.models.scan import Scan
 from app.models.result import Result
 from app.models.exception import RuleException
 from app.models.inventory_source import InventorySource
+from app.models.device_group import DeviceGroup
+from app.models.device import Device
 
 __all__ = [
     "Vendor",
@@ -17,4 +19,7 @@ __all__ = [
     "Result",
     "RuleException",
     "InventorySource",
+    "DeviceGroup",
+    "Device",
 ]
+

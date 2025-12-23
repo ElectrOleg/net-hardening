@@ -1,0 +1,407 @@
+{% extends "base.html" %}
+{% block title %}Devices{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-3">
+    <div>
+        <h2>Устройства</h2>
+        <p class="text-muted text-sm">Управление устройствами и назначение политик</p>
+    </div>
+    <div class="flex gap-1">
+        <button class="btn btn-secondary" onclick="syncDevices()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+            Sync All
+        </button>
+        <button class="btn btn-secondary" onclick="openImportModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            Import CSV
+        </button>
+        <button class="btn btn-primary" onclick="openCreateModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+            </svg>
+            Добавить
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3">
+    <div class="card-body flex gap-2 items-center">
+        <input type="text" id="searchInput" class="form-control" placeholder="Поиск..." style="max-width: 300px;"
+            oninput="filterDevices()">
+        <select id="vendorFilter" class="form-select" style="max-width: 200px;" onchange="filterDevices()">
+            <option value="">Все вендоры</option>
+            {% for v in vendors %}
+            <option value="{{ v.code }}">{{ v.name }}</option>
+            {% endfor %}
+        </select>
+        <select id="groupFilter" class="form-select" style="max-width: 200px;" onchange="filterDevices()">
+            <option value="">Все группы</option>
+            {% for g in groups %}
+            <option value="{{ g.id }}">{{ g.name }}</option>
+            {% endfor %}
+        </select>
+        <span id="deviceCount" class="text-muted text-sm ml-2"></span>
+    </div>
+</div>
+
+<!-- Devices Table -->
+<div class="card fade-in">
+    <div class="table-wrapper">
+        <table class="table" id="devicesTable">
+            <thead>
+                <tr>
+                    <th>Hostname</th>
+                    <th>IP</th>
+                    <th>Vendor</th>
+                    <th>Группа</th>
+                    <th>OS Version</th>
+                    <th>Политики</th>
+                    <th>Last Sync</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="devicesBody">
+                {% for d in devices %}
+                <tr data-id="{{ d.id }}" data-vendor="{{ d.vendor_code }}" data-group="{{ d.group_id }}">
+                    <td><strong>{{ d.hostname }}</strong></td>
+                    <td class="text-muted">{{ d.ip_address or '-' }}</td>
+                    <td>
+                        {% if d.vendor_code %}
+                        <span class="badge badge-neutral">{{ d.vendor_code }}</span>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ d.group.name if d.group else '-' }}</td>
+                    <td class="text-xs">{{ d.os_version or '-' }}</td>
+                    <td>
+                        {% if d.policies %}
+                        <span class="badge badge-success">{{ d.policies | length }} policies</span>
+                        {% else %}
+                        <span class="text-muted text-xs">none</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-xs text-muted">{{ d.last_sync_at.strftime('%m-%d %H:%M') if d.last_sync_at else
+                        'Never' }}</td>
+                    <td>
+                        <button class="btn btn-ghost btn-icon" onclick="editDevice('{{ d.id }}')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr id="emptyRow">
+                    <td colspan="8">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48"
+                                height="48">
+                                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                            </svg>
+                            <div>Устройств нет</div>
+                            <p class="text-muted text-sm">Импортируйте из CSV или синхронизируйте из Inventory Sources
+                            </p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Edit Device Modal -->
+<div id="deviceModal" class="modal"
+    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 600px; margin: 2rem; max-height: 90vh; overflow-y: auto;">
+        <div class="card-header flex justify-between items-center">
+            <h3 id="modalTitle">Устройство</h3>
+            <button class="btn btn-ghost btn-icon" onclick="closeModal()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="card-body">
+            <input type="hidden" id="deviceId">
+
+            <div class="grid grid-2 gap-2">
+                <div class="form-group">
+                    <label>Hostname *</label>
+                    <input type="text" id="deviceHostname" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>IP Address</label>
+                    <input type="text" id="deviceIp" class="form-control">
+                </div>
+            </div>
+
+            <div class="grid grid-2 gap-2">
+                <div class="form-group">
+                    <label>Vendor</label>
+                    <select id="deviceVendor" class="form-select">
+                        <option value="">— Не указан —</option>
+                        {% for v in vendors %}
+                        <option value="{{ v.code }}">{{ v.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Группа</label>
+                    <select id="deviceGroup" class="form-select">
+                        <option value="">— Без группы —</option>
+                        {% for g in groups %}
+                        <option value="{{ g.id }}">{{ g.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-2 gap-2">
+                <div class="form-group">
+                    <label>OS Version</label>
+                    <input type="text" id="deviceOs" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Hardware</label>
+                    <input type="text" id="deviceHw" class="form-control">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Location</label>
+                <input type="text" id="deviceLocation" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label>Политики</label>
+                <div id="policiesCheckboxes" class="grid grid-2 gap-1"
+                    style="max-height: 200px; overflow-y: auto; padding: 0.5rem; background: var(--hcs-bg-primary); border-radius: var(--hcs-radius-md);">
+                    {% for p in policies %}
+                    <label style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" name="policies" value="{{ p.id }}">
+                        <span class="text-sm">{{ p.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-3">
+                <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="saveDevice()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import CSV Modal -->
+<div id="importModal" class="modal"
+    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 600px; margin: 2rem;">
+        <div class="card-header flex justify-between items-center">
+            <h3>Импорт из CSV</h3>
+            <button class="btn btn-ghost btn-icon" onclick="closeImportModal()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="card-body">
+            <p class="text-muted text-sm mb-2">Формат CSV: hostname,ip,vendor,os,hw,location</p>
+            <textarea id="csvData" class="form-control" rows="10" placeholder="hostname,ip,vendor,os,hw,location
+router-01,10.0.0.1,cisco_ios,15.2,ISR4331,DC1
+switch-02,10.0.0.2,cisco_xe,17.3,C9300,DC1"></textarea>
+            <div class="flex justify-end gap-2 mt-3">
+                <button class="btn btn-secondary" onclick="closeImportModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="importCsv()">Импортировать</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const deviceModal = document.getElementById('deviceModal');
+    const importModal = document.getElementById('importModal');
+    let isEditing = false;
+
+    function filterDevices() {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const vendor = document.getElementById('vendorFilter').value;
+        const group = document.getElementById('groupFilter').value;
+        const rows = document.querySelectorAll('#devicesBody tr[data-id]');
+        let count = 0;
+
+        rows.forEach(row => {
+            const hostname = row.querySelector('td:first-child').textContent.toLowerCase();
+            const ip = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+            const rowVendor = row.dataset.vendor;
+            const rowGroup = row.dataset.group;
+
+            let show = true;
+            if (search && !hostname.includes(search) && !ip.includes(search)) show = false;
+            if (vendor && rowVendor !== vendor) show = false;
+            if (group && rowGroup !== group) show = false;
+
+            row.style.display = show ? '' : 'none';
+            if (show) count++;
+        });
+
+        document.getElementById('deviceCount').textContent = count + ' devices';
+    }
+
+    function openCreateModal() {
+        document.getElementById('modalTitle').textContent = 'Добавить устройство';
+        document.getElementById('deviceId').value = '';
+        document.getElementById('deviceHostname').value = '';
+        document.getElementById('deviceIp').value = '';
+        document.getElementById('deviceVendor').value = '';
+        document.getElementById('deviceGroup').value = '';
+        document.getElementById('deviceOs').value = '';
+        document.getElementById('deviceHw').value = '';
+        document.getElementById('deviceLocation').value = '';
+        document.querySelectorAll('input[name="policies"]').forEach(cb => cb.checked = false);
+        deviceModal.style.display = 'flex';
+        isEditing = false;
+    }
+
+    async function editDevice(id) {
+        try {
+            const res = await fetch(`/api/devices/${id}`);
+            const device = await res.json();
+
+            document.getElementById('modalTitle').textContent = 'Редактировать устройство';
+            document.getElementById('deviceId').value = id;
+            document.getElementById('deviceHostname').value = device.hostname;
+            document.getElementById('deviceIp').value = device.ip_address || '';
+            document.getElementById('deviceVendor').value = device.vendor_code || '';
+            document.getElementById('deviceGroup').value = device.group_id || '';
+            document.getElementById('deviceOs').value = device.os_version || '';
+            document.getElementById('deviceHw').value = device.hardware || '';
+            document.getElementById('deviceLocation').value = device.location || '';
+
+            // Set policies
+            document.querySelectorAll('input[name="policies"]').forEach(cb => {
+                cb.checked = device.policies.includes(cb.value);
+            });
+
+            deviceModal.style.display = 'flex';
+            isEditing = true;
+        } catch (e) {
+            showNotification('Error: ' + e.message, 'danger');
+        }
+    }
+
+    function closeModal() { deviceModal.style.display = 'none'; }
+    function openImportModal() { importModal.style.display = 'flex'; }
+    function closeImportModal() { importModal.style.display = 'none'; }
+
+    async function saveDevice() {
+        const id = document.getElementById('deviceId').value;
+        const policies = Array.from(document.querySelectorAll('input[name="policies"]:checked')).map(cb => cb.value);
+
+        const data = {
+            hostname: document.getElementById('deviceHostname').value,
+            ip_address: document.getElementById('deviceIp').value || null,
+            vendor_code: document.getElementById('deviceVendor').value || null,
+            group_id: document.getElementById('deviceGroup').value || null,
+            os_version: document.getElementById('deviceOs').value || null,
+            hardware: document.getElementById('deviceHw').value || null,
+            location: document.getElementById('deviceLocation').value || null,
+            policy_ids: policies
+        };
+
+        if (!data.hostname) {
+            showNotification('Hostname обязателен', 'warning');
+            return;
+        }
+
+        const url = isEditing ? `/api/devices/${id}` : '/api/devices';
+        const method = isEditing ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (res.ok) {
+                showNotification('Сохранено', 'success');
+                window.location.reload();
+            } else {
+                const err = await res.json();
+                showNotification('Ошибка: ' + (err.error || 'Unknown'), 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    async function syncDevices() {
+        showNotification('Синхронизация...', 'info');
+        try {
+            const res = await fetch('/api/devices/sync', { method: 'POST' });
+            const result = await res.json();
+
+            if (result.success) {
+                showNotification(`Синхронизировано: ${result.created} создано, ${result.updated} обновлено`, 'success');
+                window.location.reload();
+            } else {
+                showNotification('Ошибки: ' + result.errors.join(', '), 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    async function importCsv() {
+        const csv = document.getElementById('csvData').value;
+        if (!csv.trim()) {
+            showNotification('Введите CSV данные', 'warning');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/devices/import-csv', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ csv })
+            });
+            const result = await res.json();
+
+            if (result.success) {
+                showNotification(`Импорт: ${result.created} создано, ${result.updated} обновлено`, 'success');
+                window.location.reload();
+            } else {
+                showNotification('Ошибка: ' + result.error, 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    window.onclick = function (e) {
+        if (e.target == deviceModal) closeModal();
+        if (e.target == importModal) closeImportModal();
+    }
+
+    // Initial count
+    filterDevices();
+</script>
+{% endblock %}

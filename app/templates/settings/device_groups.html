@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}Device Groups{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-3">
+    <div>
+        <h2>Группы устройств</h2>
+        <p class="text-muted text-sm">Организация устройств и назначение общих политик</p>
+    </div>
+    <button class="btn btn-primary" onclick="openCreateModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
+        </svg>
+        Создать группу
+    </button>
+</div>
+
+<!-- Groups Grid -->
+<div class="grid grid-3 gap-2">
+    {% for group in groups %}
+    <div class="card fade-in">
+        <div class="card-body">
+            <div class="flex justify-between items-center mb-2">
+                <h4 style="margin: 0;">{{ group.name }}</h4>
+                <span class="badge badge-neutral">{{ group.device_count }} devices</span>
+            </div>
+            {% if group.description %}
+            <p class="text-muted text-sm mb-2">{{ group.description }}</p>
+            {% endif %}
+            <div class="flex flex-wrap gap-1 mb-3">
+                {% for p in group.policies %}
+                <span class="badge badge-success text-xs">{{ p.name }}</span>
+                {% else %}
+                <span class="text-muted text-xs">Нет политик</span>
+                {% endfor %}
+            </div>
+            <div class="flex gap-1">
+                <button class="btn btn-ghost btn-sm" onclick="editGroup('{{ group.id }}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    Edit
+                </button>
+                <button class="btn btn-ghost btn-sm text-danger" onclick="deleteGroup('{{ group.id }}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card" style="grid-column: span 3;">
+        <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 00-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 010 7.75"></path>
+            </svg>
+            <div>Групп нет</div>
+            <p class="text-muted text-sm">Создайте группу для организации устройств</p>
+            <button class="btn btn-primary mt-2" onclick="openCreateModal()">Создать первую</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modal -->
+<div id="groupModal" class="modal"
+    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 500px; margin: 2rem;">
+        <div class="card-header flex justify-between items-center">
+            <h3 id="modalTitle">Группа</h3>
+            <button class="btn btn-ghost btn-icon" onclick="closeModal()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="card-body">
+            <input type="hidden" id="groupId">
+
+            <div class="form-group mb-3">
+                <label>Название *</label>
+                <input type="text" id="groupName" class="form-control" placeholder="DC1, Core, Branch...">
+            </div>
+
+            <div class="form-group mb-3">
+                <label>Описание</label>
+                <textarea id="groupDesc" class="form-control" rows="2"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Политики группы</label>
+                <div id="policiesCheckboxes"
+                    style="max-height: 200px; overflow-y: auto; padding: 0.5rem; background: var(--hcs-bg-primary); border-radius: var(--hcs-radius-md);">
+                    {% for p in policies %}
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <input type="checkbox" name="policies" value="{{ p.id }}">
+                        <span class="text-sm">{{ p.name }}</span>
+                        <span class="badge badge-neutral text-xs">{{ p.severity }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                <small class="text-muted">Эти политики применяются ко всем устройствам группы</small>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-3">
+                <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="saveGroup()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const modal = document.getElementById('groupModal');
+    let isEditing = false;
+    let groupsData = {};
+
+    {% for g in groups %}
+    groupsData['{{ g.id }}'] = {{ g.to_dict() | tojson | safe }};
+    {% endfor %}
+
+    function openCreateModal() {
+        document.getElementById('modalTitle').textContent = 'Создать группу';
+        document.getElementById('groupId').value = '';
+        document.getElementById('groupName').value = '';
+        document.getElementById('groupDesc').value = '';
+        document.querySelectorAll('input[name="policies"]').forEach(cb => cb.checked = false);
+        modal.style.display = 'flex';
+        isEditing = false;
+    }
+
+    function editGroup(id) {
+        const group = groupsData[id];
+        if (!group) return;
+
+        document.getElementById('modalTitle').textContent = 'Редактировать группу';
+        document.getElementById('groupId').value = id;
+        document.getElementById('groupName').value = group.name;
+        document.getElementById('groupDesc').value = group.description || '';
+
+        document.querySelectorAll('input[name="policies"]').forEach(cb => {
+            cb.checked = group.policies.includes(cb.value);
+        });
+
+        modal.style.display = 'flex';
+        isEditing = true;
+    }
+
+    function closeModal() { modal.style.display = 'none'; }
+
+    async function saveGroup() {
+        const id = document.getElementById('groupId').value;
+        const policies = Array.from(document.querySelectorAll('input[name="policies"]:checked')).map(cb => cb.value);
+
+        const data = {
+            name: document.getElementById('groupName').value,
+            description: document.getElementById('groupDesc').value || null,
+            policy_ids: policies
+        };
+
+        if (!data.name) {
+            showNotification('Название обязательно', 'warning');
+            return;
+        }
+
+        const url = isEditing ? `/api/device-groups/${id}` : '/api/device-groups';
+        const method = isEditing ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (res.ok) {
+                showNotification('Сохранено', 'success');
+                window.location.reload();
+            } else {
+                const err = await res.json();
+                showNotification('Ошибка: ' + (err.error || 'Unknown'), 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    async function deleteGroup(id) {
+        if (!confirm('Удалить эту группу? Устройства останутся без группы.')) return;
+
+        try {
+            const res = await fetch(`/api/device-groups/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                showNotification('Удалено', 'success');
+                window.location.reload();
+            } else {
+                showNotification('Ошибка при удалении', 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    window.onclick = function (e) {
+        if (e.target == modal) closeModal();
+    }
+</script>
+{% endblock %}
