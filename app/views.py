@@ -110,3 +110,32 @@ def compliance_matrix():
 def remediation(scan_id):
     """Remediation playbook page for a scan."""
     return render_template("remediation.html", scan_id=scan_id)
+
+
+@web_bp.route("/settings")
+def settings():
+    """Settings main page."""
+    return render_template("settings/index.html")
+
+
+@web_bp.route("/settings/data-sources")
+def settings_data_sources():
+    """Data sources management."""
+    from app.models import DataSource
+    sources = DataSource.query.order_by(DataSource.name).all()
+    return render_template("settings/data_sources.html", sources=sources)
+
+
+@web_bp.route("/settings/vendors")
+def settings_vendors():
+    """Vendors reference."""
+    vendors = Vendor.query.all()
+    return render_template("settings/vendors.html", vendors=vendors)
+
+
+@web_bp.route("/settings/inventory-sources")
+def settings_inventory_sources():
+    """Inventory sources management."""
+    from app.models import InventorySource
+    sources = InventorySource.query.order_by(InventorySource.name).all()
+    return render_template("settings/inventory_sources.html", sources=sources)

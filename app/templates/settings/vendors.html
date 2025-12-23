@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Vendors{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-3">
+    <div>
+        <h2>Справочник вендоров</h2>
+        <p class="text-muted text-sm">Поддерживаемые производители оборудования</p>
+    </div>
+</div>
+
+<div class="card fade-in">
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Код</th>
+                    <th>Название</th>
+                    <th>Парсер</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vendor in vendors %}
+                <tr>
+                    <td><code>{{ vendor.code }}</code></td>
+                    <td><strong>{{ vendor.name }}</strong></td>
+                    <td><span class="badge badge-neutral">{{ vendor.parser_driver or 'generic' }}</span></td>
+                    <td class="text-muted text-sm">{{ vendor.description or '-' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">
+                        <div class="empty-state">
+                            <div>Вендоры не загружены</div>
+                            <p class="text-muted">Выполните <code>flask seed</code></p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

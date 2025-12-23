@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+{% block title %}Data Sources{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-3">
+    <div>
+        <h2>Источники данных</h2>
+        <p class="text-muted text-sm">Настройка подключений к GitLab, SSH, API и локальным файлам</p>
+    </div>
+    <button class="btn btn-primary" onclick="openCreateModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
+        </svg>
+        Добавить источник
+    </button>
+</div>
+
+<!-- Sources Grid -->
+<div class="grid grid-3 gap-2" id="sourcesGrid">
+    {% for source in sources %}
+    <div class="card fade-in" data-id="{{ source.id }}">
+        <div class="card-body">
+            <div class="flex justify-between items-center mb-2">
+                <h4 style="margin: 0;">{{ source.name }}</h4>
+                {% if source.is_active %}
+                <span class="badge badge-success">Active</span>
+                {% else %}
+                <span class="badge badge-neutral">Inactive</span>
+                {% endif %}
+            </div>
+            <div class="text-muted text-sm mb-2">
+                <code>{{ source.type }}</code>
+            </div>
+            {% if source.connection_params %}
+            <div class="text-xs text-muted mb-3" style="font-family: monospace;">
+                {% if source.connection_params.get('url') %}
+                {{ source.connection_params.url[:40] }}...
+                {% elif source.connection_params.get('base_path') %}
+                {{ source.connection_params.base_path }}
+                {% endif %}
+            </div>
+            {% endif %}
+            <div class="flex gap-1">
+                <button class="btn btn-ghost btn-sm" onclick="testSource('{{ source.id }}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    Test
+                </button>
+                <button class="btn btn-ghost btn-sm" onclick="editSource('{{ source.id }}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    Edit
+                </button>
+                <button class="btn btn-ghost btn-sm text-danger" onclick="deleteSource('{{ source.id }}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card" style="grid-column: span 3;">
+        <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+            </svg>
+            <div>Источников данных нет</div>
+            <button class="btn btn-primary mt-2" onclick="openCreateModal()">Добавить первый</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modal -->
+<div id="sourceModal" class="modal"
+    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 600px; margin: 2rem; max-height: 90vh; overflow-y: auto;">
+        <div class="card-header flex justify-between items-center">
+            <h3 id="modalTitle">Добавить источник</h3>
+            <button class="btn btn-ghost btn-icon" onclick="closeModal()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="card-body">
+            <input type="hidden" id="sourceId">
+
+            <div class="form-group mb-3">
+                <label>Название</label>
+                <input type="text" id="sourceName" class="form-control" placeholder="Production GitLab">
+            </div>
+
+            <div class="form-group mb-3">
+                <label>Тип</label>
+                <select id="sourceType" class="form-select" onchange="updateFormFields()">
+                    <option value="gitlab">GitLab</option>
+                    <option value="ssh">SSH (Netmiko)</option>
+                    <option value="api">REST API</option>
+                    <option value="local">Local Files</option>
+                    <option value="netconf">NETCONF</option>
+                    <option value="snmp">SNMP</option>
+                </select>
+            </div>
+
+            <div class="form-group mb-3">
+                <label>Переменная окружения для credentials</label>
+                <input type="text" id="sourceCredentials" class="form-control" placeholder="GITLAB_TOKEN">
+                <small class="text-muted">Имя ENV переменной с паролем/токеном</small>
+            </div>
+
+            <div class="form-group mb-3">
+                <label>
+                    <input type="checkbox" id="sourceActive" checked> Активен
+                </label>
+            </div>
+
+            <hr style="border-color: var(--hcs-bg-tertiary); margin: 1.5rem 0;">
+
+            <!-- Dynamic fields based on type -->
+            <div id="gitlabFields">
+                <h4 class="mb-2">GitLab параметры</h4>
+                <div class="form-group mb-2">
+                    <label>URL</label>
+                    <input type="url" id="gitlabUrl" class="form-control" placeholder="https://gitlab.example.com">
+                </div>
+                <div class="form-group mb-2">
+                    <label>Project ID</label>
+                    <input type="text" id="gitlabProject" class="form-control" placeholder="123">
+                </div>
+                <div class="form-group mb-2">
+                    <label>Branch</label>
+                    <input type="text" id="gitlabBranch" class="form-control" placeholder="main" value="main">
+                </div>
+                <div class="form-group mb-2">
+                    <label>Path Template</label>
+                    <input type="text" id="gitlabPath" class="form-control" placeholder="configs/{hostname}.cfg">
+                </div>
+            </div>
+
+            <div id="sshFields" style="display: none;">
+                <h4 class="mb-2">SSH параметры</h4>
+                <div class="form-group mb-2">
+                    <label>Device Type (Netmiko)</label>
+                    <select id="sshDeviceType" class="form-select">
+                        <option value="cisco_ios">Cisco IOS</option>
+                        <option value="cisco_xe">Cisco IOS-XE</option>
+                        <option value="cisco_nxos">Cisco NX-OS</option>
+                        <option value="juniper_junos">Juniper JunOS</option>
+                        <option value="huawei">Huawei VRP</option>
+                        <option value="eltex">Eltex ESR</option>
+                    </select>
+                </div>
+                <div class="form-group mb-2">
+                    <label>Username</label>
+                    <input type="text" id="sshUsername" class="form-control" placeholder="admin">
+                </div>
+                <div class="form-group mb-2">
+                    <label>Port</label>
+                    <input type="number" id="sshPort" class="form-control" placeholder="22" value="22">
+                </div>
+                <div class="form-group mb-2">
+                    <label>Command</label>
+                    <input type="text" id="sshCommand" class="form-control" placeholder="show running-config"
+                        value="show running-config">
+                </div>
+                <div class="form-group mb-2">
+                    <label>SSH Config File (для ProxyJump)</label>
+                    <input type="text" id="sshConfigFile" class="form-control" placeholder="/home/user/.ssh/config">
+                </div>
+            </div>
+
+            <div id="localFields" style="display: none;">
+                <h4 class="mb-2">Local Files параметры</h4>
+                <div class="form-group mb-2">
+                    <label>Base Path</label>
+                    <input type="text" id="localBasePath" class="form-control" placeholder="/var/configs">
+                </div>
+                <div class="form-group mb-2">
+                    <label>File Pattern</label>
+                    <input type="text" id="localPattern" class="form-control" placeholder="*.cfg" value="*.cfg">
+                </div>
+            </div>
+
+            <div id="apiFields" style="display: none;">
+                <h4 class="mb-2">API параметры</h4>
+                <div class="form-group mb-2">
+                    <label>Base URL</label>
+                    <input type="url" id="apiBaseUrl" class="form-control" placeholder="https://api.example.com">
+                </div>
+                <div class="form-group mb-2">
+                    <label>Endpoint Template</label>
+                    <input type="text" id="apiEndpoint" class="form-control" placeholder="/devices/{device_id}/config">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-3">
+                <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="saveSource()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const modal = document.getElementById('sourceModal');
+    let isEditing = false;
+    let sourcesData = {};
+
+    // Load sources data for editing
+    {% for source in sources %}
+    sourcesData['{{ source.id }}'] = {{ source.to_dict() | tojson | safe }};
+    {% endfor %}
+
+    function updateFormFields() {
+        const type = document.getElementById('sourceType').value;
+        document.getElementById('gitlabFields').style.display = type === 'gitlab' ? 'block' : 'none';
+        document.getElementById('sshFields').style.display = type === 'ssh' ? 'block' : 'none';
+        document.getElementById('localFields').style.display = type === 'local' ? 'block' : 'none';
+        document.getElementById('apiFields').style.display = type === 'api' ? 'block' : 'none';
+    }
+
+    function openCreateModal() {
+        document.getElementById('modalTitle').innerText = 'Добавить источник';
+        document.getElementById('sourceId').value = '';
+        document.getElementById('sourceName').value = '';
+        document.getElementById('sourceType').value = 'gitlab';
+        document.getElementById('sourceCredentials').value = '';
+        document.getElementById('sourceActive').checked = true;
+        // Clear all fields
+        document.querySelectorAll('#sourceModal input[type="text"], #sourceModal input[type="url"], #sourceModal input[type="number"]').forEach(el => {
+            if (!el.value || el.id === 'sourceId') el.value = el.placeholder === 'main' ? 'main' : '';
+        });
+        updateFormFields();
+        modal.style.display = 'flex';
+        isEditing = false;
+    }
+
+    function editSource(id) {
+        const source = sourcesData[id];
+        if (!source) return;
+
+        document.getElementById('modalTitle').innerText = 'Редактировать источник';
+        document.getElementById('sourceId').value = id;
+        document.getElementById('sourceName').value = source.name;
+        document.getElementById('sourceType').value = source.type;
+        document.getElementById('sourceCredentials').value = source.credentials_ref || '';
+        document.getElementById('sourceActive').checked = source.is_active;
+
+        const params = source.connection_params || {};
+
+        // GitLab
+        if (source.type === 'gitlab') {
+            document.getElementById('gitlabUrl').value = params.url || '';
+            document.getElementById('gitlabProject').value = params.project_id || '';
+            document.getElementById('gitlabBranch').value = params.branch || 'main';
+            document.getElementById('gitlabPath').value = params.path_template || '';
+        }
+        // SSH
+        if (source.type === 'ssh') {
+            document.getElementById('sshDeviceType').value = params.device_type || 'cisco_ios';
+            document.getElementById('sshUsername').value = params.username || '';
+            document.getElementById('sshPort').value = params.port || 22;
+            document.getElementById('sshCommand').value = params.command || 'show running-config';
+            document.getElementById('sshConfigFile').value = params.ssh_config_file || '';
+        }
+        // Local
+        if (source.type === 'local') {
+            document.getElementById('localBasePath').value = params.base_path || '';
+            document.getElementById('localPattern').value = params.file_pattern || '*.cfg';
+        }
+        // API
+        if (source.type === 'api') {
+            document.getElementById('apiBaseUrl').value = params.base_url || '';
+            document.getElementById('apiEndpoint').value = params.endpoint_template || '';
+        }
+
+        updateFormFields();
+        modal.style.display = 'flex';
+        isEditing = true;
+    }
+
+    function closeModal() {
+        modal.style.display = 'none';
+    }
+
+    function getConnectionParams() {
+        const type = document.getElementById('sourceType').value;
+        let params = {};
+
+        if (type === 'gitlab') {
+            params = {
+                url: document.getElementById('gitlabUrl').value,
+                project_id: document.getElementById('gitlabProject').value,
+                branch: document.getElementById('gitlabBranch').value,
+                path_template: document.getElementById('gitlabPath').value
+            };
+        } else if (type === 'ssh') {
+            params = {
+                device_type: document.getElementById('sshDeviceType').value,
+                username: document.getElementById('sshUsername').value,
+                port: parseInt(document.getElementById('sshPort').value) || 22,
+                command: document.getElementById('sshCommand').value,
+                ssh_config_file: document.getElementById('sshConfigFile').value || null
+            };
+        } else if (type === 'local') {
+            params = {
+                base_path: document.getElementById('localBasePath').value,
+                file_pattern: document.getElementById('localPattern').value
+            };
+        } else if (type === 'api') {
+            params = {
+                base_url: document.getElementById('apiBaseUrl').value,
+                endpoint_template: document.getElementById('apiEndpoint').value
+            };
+        }
+
+        return params;
+    }
+
+    async function saveSource() {
+        const id = document.getElementById('sourceId').value;
+        const data = {
+            name: document.getElementById('sourceName').value,
+            type: document.getElementById('sourceType').value,
+            credentials_ref: document.getElementById('sourceCredentials').value || null,
+            is_active: document.getElementById('sourceActive').checked,
+            connection_params: getConnectionParams()
+        };
+
+        if (!data.name) {
+            showNotification('Введите название', 'warning');
+            return;
+        }
+
+        const url = isEditing ? `/api/data-sources/${id}` : '/api/data-sources';
+        const method = isEditing ? 'PUT' : 'POST';
+
+        try {
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                showNotification('Сохранено', 'success');
+                window.location.reload();
+            } else {
+                const err = await response.json();
+                showNotification('Ошибка: ' + (err.error || 'Unknown'), 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    async function testSource(id) {
+        showNotification('Тестирование...', 'info');
+        try {
+            const response = await fetch(`/api/data-sources/${id}/test`, { method: 'POST' });
+            const result = await response.json();
+
+            if (result.success) {
+                showNotification('Подключение успешно: ' + result.message, 'success');
+            } else {
+                showNotification('Ошибка: ' + result.message, 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    async function deleteSource(id) {
+        if (!confirm('Удалить этот источник данных?')) return;
+
+        try {
+            const response = await fetch(`/api/data-sources/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                showNotification('Удалено', 'success');
+                window.location.reload();
+            } else {
+                showNotification('Ошибка при удалении', 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    // Close on click outside
+    window.onclick = function (event) {
+        if (event.target == modal) closeModal();
+    }
+</script>
+{% endblock %}
