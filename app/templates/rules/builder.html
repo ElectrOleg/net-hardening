@@ -37,6 +37,12 @@
         </a>
         <h2>Конструктор правил</h2>
     </div>
+    <div class="flex gap-2">
+        <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input type="checkbox" id="manualModeToggle" onchange="toggleManualMode()">
+            <span class="text-muted">JSON Mode</span>
+        </label>
+    </div>
 </div>
 
 <div class="builder-grid">
@@ -73,21 +79,153 @@
 
                 <div class="form-group">
                     <label class="form-label">Тип логики *</label>
-                    <select class="form-select" id="logic_type" onchange="updatePayloadTemplate()">
+                    <select class="form-select" id="logic_type" onchange="updateBuilderMode()">
                         <option value="simple_match">Simple Match (Regex)</option>
                         <option value="block_match">Block Context Match</option>
                         <option value="structure_check">Structure Check (JSON)</option>
-                        <option value="advanced_block_check">Advanced Block Check</option>
+                        <option value="version_check">Version Check</option>
                         <option value="textfsm_check">TextFSM Check</option>
                         <option value="xml_check">XML/XPath Check</option>
-                        <option value="version_check">Version Check</option>
+                        <!-- <option value="advanced_block_check">Advanced Block Check</option> -->
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Logic Payload (JSON) *</label>
+                <!-- VISUAL BUILDER UI -->
+                <div id="visualBuilder" class="mb-3"
+                    style="background: var(--hcs-bg-primary); padding: 1rem; border-radius: var(--hcs-radius-md); border: 1px solid var(--hcs-border);">
+
+                    <!-- 1. Simple Match Form -->
+                    <div id="form_simple_match" class="logic-form" style="display: none;">
+                        <div class="form-group mb-2">
+                            <label class="form-label">Искомая строка / паттерн</label>
+                            <div class="input-group">
+                                <span class="input-group-text">Regex / Text</span>
+                                <input type="text" class="form-input" id="sm_pattern"
+                                    placeholder="^service password-encryption">
+                            </div>
+                        </div>
+                        <div class="grid grid-2 gap-2 mb-2">
+                            <div class="form-group">
+                                <label class="form-label">Режим поиска</label>
+                                <select class="form-select" id="sm_mode">
+                                    <option value="must_exist">Должно быть (Required)</option>
+                                    <option value="must_not_exist">Не должно быть (Forbidden)</option>
+                                </select>
+                            </div>
+                            <div class="flex flex-col justify-end">
+                                <label class="flex items-center gap-2 mb-1 p-2 bg-secondary rounded cursor-pointer">
+                                    <input type="checkbox" id="sm_regex" checked>
+                                    <span>Regex включен</span>
+                                </label>
+                                <label class="flex items-center gap-2 p-2 bg-secondary rounded cursor-pointer">
+                                    <input type="checkbox" id="sm_case">
+                                    <span>Case Insensitive</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Block Match Form -->
+                    <div id="form_block_match" class="logic-form" style="display: none;">
+                        <div class="form-group mb-2">
+                            <label class="form-label">Начало блока (Родитель)</label>
+                            <input type="text" class="form-input" id="bm_parent"
+                                placeholder="^interface (GigabitEthernet|TenGig)">
+                            <small class="text-muted">Regex, определяющий начало блока (например, интерфейс)</small>
+                        </div>
+                        <div class="grid grid-2 gap-2 mb-2">
+                            <div class="form-group">
+                                <label class="form-label">Исключить блоки (Filter)</label>
+                                <input type="text" class="form-input" id="bm_exclude"
+                                    placeholder="description .*UPLINK.*">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Конец блока (Opsional)</label>
+                                <input type="text" class="form-input" id="bm_end" placeholder="^!">
+                            </div>
+                        </div>
+
+                        <label class="form-label mt-2">Вложенные проверки (Child Rules)</label>
+                        <div id="bm_children_container" class="flex flex-col gap-2 mb-2">
+                            <!-- Rows generated by JS -->
+                        </div>
+                        <button type="button" class="btn btn-sm btn-secondary w-full" onclick="addBlockChildRow()">
+                            + Добавить проверку внутри блока
+                        </button>
+
+                        <div class="form-group mt-3">
+                            <label class="form-label">Логика выполнения</label>
+                            <select class="form-select" id="bm_logic">
+                                <option value="ALL">ALL (Все проверки должны пройти)</option>
+                                <option value="ANY">ANY (Хотя бы одна должна пройти)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 3. Structure Check Form -->
+                    <div id="form_structure_check" class="logic-form" style="display: none;">
+                        <div class="form-group mb-2">
+                            <label class="form-label">JMESPath Путь</label>
+                            <input type="text" class="form-input" id="sc_path"
+                                placeholder="network.interfaces[?name=='eth0'].enabled">
+                            <small class="text-muted">Query path для JSON структуры</small>
+                        </div>
+                        <div class="grid grid-2 gap-2 mb-2">
+                            <div class="form-group">
+                                <label class="form-label">Оператор</label>
+                                <select class="form-select" id="sc_operator" onchange="toggleScValue()">
+                                    <option value="eq">Равно (eq)</option>
+                                    <option value="neq">Не равно (neq)</option>
+                                    <option value="contains">Содержит</option>
+                                    <option value="exists">Существует</option>
+                                    <option value="not_exists">Не существует</option>
+                                    <option value="gt">Больше (&gt;)</option>
+                                    <option value="lt">Меньше (&lt;)</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="sc_value_group">
+                                <label class="form-label">Ожидаемое значение</label>
+                                <input type="text" class="form-input" id="sc_value" placeholder="true">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. Version Check Form -->
+                    <div id="form_version_check" class="logic-form" style="display: none;">
+                        <div class="form-group mb-2">
+                            <label class="form-label">Regex паттерн версии</label>
+                            <input type="text" class="form-input" id="vc_pattern" placeholder="version (\d+\.\d+\.\d+)">
+                            <small class="text-muted">Используйте скобки () для захвата номера версии</small>
+                        </div>
+                        <div class="grid grid-2 gap-2 mb-2">
+                            <div class="form-group">
+                                <label class="form-label">Оператор сравнения</label>
+                                <select class="form-select" id="vc_operator">
+                                    <option value="ge">Больше или равно (>=)</option>
+                                    <option value="eq">Равно (==)</option>
+                                    <option value="le">Меньше или равно (<=)< /option>
+                                    <option value="in_range">В диапазоне</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Целевая версия</label>
+                                <input type="text" class="form-input" id="vc_value" placeholder="15.2.4">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Placeholder for others -->
+                    <div id="form_generic" class="logic-form p-4 text-center text-muted" style="display: none;">
+                        Визуальный редактор для этого типа еще не реализован.<br>
+                        Используйте <strong>JSON Mode</strong> для настройки.
+                    </div>
+
+                </div>
+
+                <!-- MANUAL JSON EDITOR -->
+                <div class="form-group" id="jsonPayloadGroup" style="display: none;">
+                    <label class="form-label">Raw Logic Payload (JSON) *</label>
                     <textarea class="form-textarea payload-editor" id="logic_payload" required></textarea>
-                    <small class="text-muted">Параметры проверки в формате JSON</small>
                 </div>
 
                 <div class="form-group">
@@ -120,18 +258,21 @@
     <div class="card fade-in" style="animation-delay: 100ms;">
         <div class="card-header flex justify-between items-center">
             <h4 style="margin: 0;">Песочница (Live Test)</h4>
-            <button class="btn btn-success" type="button" onclick="testRule()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                </svg>
-                Тест
-            </button>
+            <div class="flex gap-2">
+                <button class="btn btn-ghost btn-sm" onclick="loadSampleConfig()">Загрузить пример</button>
+                <button class="btn btn-success" type="button" onclick="testRule()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                    Тест
+                </button>
+            </div>
         </div>
         <div class="card-body">
             <div class="form-group">
-                <label class="form-label">Пример конфигурации</label>
-                <textarea class="form-textarea" id="test_config" rows="12"
-                    placeholder="Вставьте сюда пример конфигурации для теста..."></textarea>
+                <textarea class="form-textarea" id="test_config" rows="16"
+                    placeholder="Вставьте сюда пример конфигурации для теста..."
+                    style="font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;"></textarea>
             </div>
 
             <div id="testResult" class="test-result" style="display: none;">
@@ -145,78 +286,241 @@
 
 {% block extra_js %}
 <script>
+    // Initial templates for JSON Mode fallback
     const PAYLOAD_TEMPLATES = {
-        simple_match: {
-            pattern: "^service password-encryption",
-            match_mode: "must_exist",
-            is_regex: true
-        },
-        block_match: {
-            parent_block_start: "^interface (GigabitEthernet|TenGig)",
-            exclude_filter: "description .*UPLINK.*",
-            child_rules: [
-                { pattern: "no ip redirects", mode: "must_exist" },
-                { pattern: "ip proxy-arp", mode: "must_not_exist" }
-            ],
-            logic: "ALL"
-        },
-        structure_check: {
-            path: "network.interfaces[?type=='external'].security_profile",
-            operator: "eq",
-            value: "strict-profile"
-        },
-        advanced_block_check: {
-            block: {
-                start: "^interface (GigabitEthernet|TenGig)",
-                filter: { exclude: "Loopback" }
-            },
-            checks: [
-                {
-                    group: [
-                        "switchport mode access",
-                        "switchport access vlan \\d+",
-                        "spanning-tree portfast"
-                    ],
-                    mode: "all_must_exist"
-                },
-                {
-                    pattern: "no ip redirects",
-                    mode: "must_exist"
-                }
-            ]
-        },
-        textfsm_check: {
-            template_name: "cisco_ios_show_interfaces",
-            checks: [
-                { field: "protocol", operator: "eq", value: "up", on_all: true },
-                { field: "duplex", operator: "ne", value: "Half", on_all: true }
-            ]
-        },
-        xml_check: {
-            xpath: ".//interface/name",
-            operator: "exists",
-            checks: [
-                { xpath: ".//mtu", operator: "gt", value: "1200" }
-            ]
-        },
-        version_check: {
-            pattern: "version (\\d+\\.\\d+\\.\\d+)",
-            operator: "ge",
-            value: "15.2.4",
-            version_format: "semver"
-        }
+        simple_match: { pattern: "^service password-encryption", match_mode: "must_exist", is_regex: true },
+        block_match: { parent_block_start: "^interface Gi", child_rules: [{ pattern: "no ip redirects", mode: "must_exist" }] },
+        structure_check: { path: "network.interfaces", operator: "eq", value: "up" },
+        version_check: { pattern: "version (\\d+)", operator: "ge", value: "15.0" }
     };
 
-    function updatePayloadTemplate() {
-        const type = document.getElementById('logic_type').value;
-        const template = PAYLOAD_TEMPLATES[type] || {};
-        document.getElementById('logic_payload').value = JSON.stringify(template, null, 2);
+    let isManualMode = false;
+
+    // --- Core Lifecycle ---
+
+    function initBuilder() {
+        updateBuilderMode();
+        
+        // Listeners for auto-updating JSON from Visual Fields
+        const inputs = document.querySelectorAll('#visualBuilder input, #visualBuilder select');
+        inputs.forEach(input => {
+            input.addEventListener('input', syncVisualToJson);
+        });
     }
 
+    function toggleManualMode() {
+        isManualMode = document.getElementById('manualModeToggle').checked;
+        const visualBuilder = document.getElementById('visualBuilder');
+        const jsonGroup = document.getElementById('jsonPayloadGroup');
+        
+        if (isManualMode) {
+            visualBuilder.style.display = 'none';
+            jsonGroup.style.display = 'block';
+        } else {
+            // Try to parse JSON back to visual
+            trySyncJsonToVisual();
+            visualBuilder.style.display = 'block';
+            jsonGroup.style.display = 'none';
+        }
+    }
+
+    function updateBuilderMode() {
+        const type = document.getElementById('logic_type').value;
+        
+        // Hide all forms
+        document.querySelectorAll('.logic-form').forEach(el => el.style.display = 'none');
+        
+        // Show specific form
+        const formId = `form_${type}`;
+        const form = document.getElementById(formId);
+        if (form) {
+            form.style.display = 'block';
+        } else {
+            document.getElementById('form_generic').style.display = 'block';
+            // Force manual mode for unsupported types
+            if (!isManualMode) {
+                // If it's a generic type, we might want to show JSON editor even in visual mode? 
+                // Currently just showing "Switch to JSON mode message"
+            }
+        }
+        
+        // Initialize default JSON if empty
+        const jsonVal = document.getElementById('logic_payload').value.trim();
+        if (!jsonVal && PAYLOAD_TEMPLATES[type]) {
+            document.getElementById('logic_payload').value = JSON.stringify(PAYLOAD_TEMPLATES[type], null, 2);
+            trySyncJsonToVisual(); // Populate visual fields from template
+        }
+    }
+
+    // --- Sync Logic: Visual -> JSON ---
+
+    function syncVisualToJson() {
+        if (isManualMode) return;
+        
+        const type = document.getElementById('logic_type').value;
+        let payload = {};
+
+        try {
+            if (type === 'simple_match') {
+                payload = {
+                    pattern: document.getElementById('sm_pattern').value,
+                    match_mode: document.getElementById('sm_mode').value,
+                    is_regex: document.getElementById('sm_regex').checked,
+                    case_insensitive: document.getElementById('sm_case').checked
+                };
+            } else if (type === 'block_match') {
+                payload = {
+                    parent_block_start: document.getElementById('bm_parent').value,
+                    parent_block_end: document.getElementById('bm_end').value || null,
+                    exclude_filter: document.getElementById('bm_exclude').value || null,
+                    logic: document.getElementById('bm_logic').value,
+                    child_rules: getBlockChildRules()
+                };
+            } else if (type === 'structure_check') {
+                payload = {
+                    path: document.getElementById('sc_path').value,
+                    operator: document.getElementById('sc_operator').value,
+                    value: document.getElementById('sc_value').value
+                };
+                if (payload.operator.includes('exists')) delete payload.value;
+            } else if (type === 'version_check') {
+                payload = {
+                    pattern: document.getElementById('vc_pattern').value,
+                    operator: document.getElementById('vc_operator').value,
+                    value: document.getElementById('vc_value').value,
+                    version_group: 1
+                };
+            } else {
+                return; // Unsupported type for visual builder
+            }
+
+            document.getElementById('logic_payload').value = JSON.stringify(payload, null, 2);
+        } catch (e) {
+            console.error("Sync error", e);
+        }
+    }
+
+    // --- Sync Logic: JSON -> Visual ---
+    
+    function trySyncJsonToVisual() {
+        const type = document.getElementById('logic_type').value;
+        const jsonStr = document.getElementById('logic_payload').value;
+        
+        try {
+            const payload = JSON.parse(jsonStr);
+            
+            if (type === 'simple_match') {
+                document.getElementById('sm_pattern').value = payload.pattern || '';
+                document.getElementById('sm_mode').value = payload.match_mode || 'must_exist';
+                document.getElementById('sm_regex').checked = payload.is_regex !== false;
+                document.getElementById('sm_case').checked = !!payload.case_insensitive;
+            } else if (type === 'block_match') {
+                document.getElementById('bm_parent').value = payload.parent_block_start || '';
+                document.getElementById('bm_end').value = payload.parent_block_end || '';
+                document.getElementById('bm_exclude').value = payload.exclude_filter || '';
+                document.getElementById('bm_logic').value = payload.logic || 'ALL';
+                
+                // Rebuild children
+                const container = document.getElementById('bm_children_container');
+                container.innerHTML = '';
+                if (payload.child_rules && Array.isArray(payload.child_rules)) {
+                    payload.child_rules.forEach(rule => addBlockChildRow(rule.pattern, rule.mode));
+                } else {
+                    addBlockChildRow(); // Add empty row
+                }
+            } else if (type === 'structure_check') {
+                document.getElementById('sc_path').value = payload.path || '';
+                document.getElementById('sc_operator').value = payload.operator || 'eq';
+                document.getElementById('sc_value').value = payload.value || '';
+                toggleScValue();
+            } else if (type === 'version_check') {
+                document.getElementById('vc_pattern').value = payload.pattern || '';
+                document.getElementById('vc_operator').value = payload.operator || 'ge';
+                document.getElementById('vc_value').value = payload.value || '';
+            }
+            
+        } catch (e) {
+            console.warn("Could not parse JSON to Visual", e);
+            // Don't clear fields, just fail silently as user might be typing invalid JSON
+        }
+    }
+
+    // --- Helper Functions ---
+
+    function addBlockChildRow(pattern = '', mode = 'must_exist') {
+        const container = document.getElementById('bm_children_container');
+        const div = document.createElement('div');
+        div.className = 'grid grid-2 gap-2 p-2 bg-secondary rounded items-center';
+        div.style.gridTemplateColumns = '2fr 1fr auto';
+        
+        div.innerHTML = `
+            <input type="text" class="form-input bm-child-pattern" placeholder="Pattern inside block" value="${pattern.replace(/"/g, '&quot;')}" oninput="syncVisualToJson()">
+            <select class="form-select bm-child-mode" onchange="syncVisualToJson()">
+                <option value="must_exist" ${mode === 'must_exist' ? 'selected' : ''}>Must Exist</option>
+                <option value="must_not_exist" ${mode === 'must_not_exist' ? 'selected' : ''}>Forbidden</option>
+            </select>
+            <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="this.parentElement.remove(); syncVisualToJson()">×</button>
+        `;
+        container.appendChild(div);
+        
+        // Add listeners to new elements
+        div.querySelectorAll('input, select').forEach(el => el.addEventListener('input', syncVisualToJson));
+        syncVisualToJson();
+    }
+
+    function getBlockChildRules() {
+        const rows = document.querySelectorAll('#bm_children_container > div');
+        return Array.from(rows).map(row => ({
+            pattern: row.querySelector('.bm-child-pattern').value,
+            mode: row.querySelector('.bm-child-mode').value
+        })).filter(r => r.pattern.trim() !== '');
+    }
+
+    function toggleScValue() {
+        const op = document.getElementById('sc_operator').value;
+        const noValOps = ['exists', 'not_exists'];
+        document.getElementById('sc_value_group').style.display = noValOps.includes(op) ? 'none' : 'block';
+        syncVisualToJson();
+    }
+
+    function loadSampleConfig() {
+        const conf = `! Example Cisco IOS Config
+version 15.2
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname Router01
+!
+interface GigabitEthernet1
+ description EXTERNAL_UPLINK
+ ip address 192.168.1.1 255.255.255.0
+ no ip redirects
+ no ip proxy-arp
+ negotiation auto
+!
+interface GigabitEthernet2
+ description INTERNAL_LAN
+ ip address 10.0.0.1 255.255.255.0
+ ip proxy-arp
+!
+line vty 0 4
+ transport input ssh
+!
+end`;
+        document.getElementById('test_config').value = conf;
+    }
+
+    // --- Existing API Functions (modified) ---
+
     async function testRule() {
+        // Ensure JSON is up to date (if in visual mode)
+        syncVisualToJson();
+        
         const config = document.getElementById('test_config').value;
         if (!config.trim()) {
             showNotification('Введите пример конфигурации', 'warning');
+            loadSampleConfig();
             return;
         }
 
@@ -226,7 +530,7 @@
         try {
             logicPayload = JSON.parse(document.getElementById('logic_payload').value);
         } catch (e) {
-            showNotification('Невалидный JSON в payload', 'danger');
+            showNotification('Невалидный Payload', 'danger');
             return;
         }
 
@@ -263,10 +567,9 @@
                 <strong>✗ FAIL:</strong> ${data.message}
             </div>`;
                 if (data.diff_data) {
-                    html += `<pre style="margin-top: 0.5rem; font-size: 0.75rem;">${data.diff_data}</pre>`;
+                    html += `<pre style="margin-top: 0.5rem; font-size: 0.75rem; background: rgba(0,0,0,0.1); padding: 5px; border-radius: 4px;">${data.diff_data}</pre>`;
                 }
             }
-
             resultContent.innerHTML = html;
 
         } catch (e) {
@@ -275,6 +578,8 @@
     }
 
     async function saveRule() {
+        syncVisualToJson();
+        
         let logicPayload;
         try {
             logicPayload = JSON.parse(document.getElementById('logic_payload').value);
@@ -292,15 +597,18 @@
             description: document.getElementById('description').value,
             remediation: document.getElementById('remediation').value
         };
-
-        if (!rule.title) {
-            showNotification('Введите название правила', 'warning');
-            return;
-        }
+        
+        // ... (rest of save logic same as before) ...
+        if (!rule.title) return showNotification('Введите название', 'warning');
 
         try {
-            const response = await fetch('/api/rules', {
-                method: 'POST',
+            const url = window.location.search.includes('edit') 
+                ? `/api/rules/${new URLSearchParams(window.location.search).get('edit')}` 
+                : '/api/rules';
+            const method = window.location.search.includes('edit') ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(rule)
             });
@@ -320,35 +628,34 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', async () => {
-        updatePayloadTemplate();
-
-        // Check for clone or edit params
+        initBuilder();
+        
+        // Check for edit/clone params
         const urlParams = new URLSearchParams(window.location.search);
-        const cloneId = urlParams.get('clone');
-
-        if (cloneId) {
+        const editId = urlParams.get('edit') || urlParams.get('clone');
+        
+        if (editId) {
             try {
-                const response = await fetch(`/api/rules/${cloneId}`);
+                const response = await fetch(`/api/rules/${editId}`);
                 if (response.ok) {
                     const rule = await response.json();
-
-                    // Populate fields
-                    document.getElementById('title').value = rule.title + " (Copy)";
+                    
+                    document.getElementById('title').value = rule.title + (urlParams.get('clone') ? " (Copy)" : "");
                     document.getElementById('policy_id').value = rule.policy_id;
                     document.getElementById('vendor_code').value = rule.vendor_code;
                     document.getElementById('logic_type').value = rule.logic_type;
                     document.getElementById('description').value = rule.description || '';
                     document.getElementById('remediation').value = rule.remediation || '';
-
+                    
                     if (rule.logic_payload) {
                         document.getElementById('logic_payload').value = JSON.stringify(rule.logic_payload, null, 2);
+                        updateBuilderMode(); // Re-trigger visual sync
                     }
-
-                    showNotification('Данные скопированы из существующего правила', 'info');
                 }
-            } catch (e) {
-                console.error("Failed to load clone data", e);
-            }
+            } catch (e) { console.error(e); }
+        } else {
+            // New rule defaults
+            loadSampleConfig();
         }
     });
 </script>
