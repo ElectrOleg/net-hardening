@@ -26,7 +26,7 @@ class Device(db.Model):
     location = db.Column(db.String(200))
     os_version = db.Column(db.String(100))
     hardware = db.Column(db.String(200))
-    metadata = db.Column(JSONB, default=dict)
+    extra_data = db.Column(JSONB, default=dict)
     
     # Sync tracking
     source_id = db.Column(UUID(as_uuid=True), db.ForeignKey("hcs_inventory_sources.id"), nullable=True)
@@ -61,7 +61,7 @@ class Device(db.Model):
             "location": self.location,
             "os_version": self.os_version,
             "hardware": self.hardware,
-            "metadata": self.metadata,
+            "extra_data": self.extra_data,
             "source_id": str(self.source_id) if self.source_id else None,
             "last_sync_at": self.last_sync_at.isoformat() if self.last_sync_at else None,
             "last_scan_at": self.last_scan_at.isoformat() if self.last_scan_at else None,

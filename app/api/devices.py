@@ -49,7 +49,8 @@ def create_device():
         location=data.get("location"),
         os_version=data.get("os_version"),
         hardware=data.get("hardware"),
-        metadata=data.get("metadata", {}),
+        hardware=data.get("hardware"),
+        extra_data=data.get("extra_data", {}),
         is_active=data.get("is_active", True)
     )
     
@@ -93,8 +94,8 @@ def update_device(device_id):
         device.os_version = data["os_version"]
     if "hardware" in data:
         device.hardware = data["hardware"]
-    if "metadata" in data:
-        device.metadata = data["metadata"]
+    if "extra_data" in data:
+        device.extra_data = data["extra_data"]
     if "is_active" in data:
         device.is_active = data["is_active"]
     if "policy_ids" in data:
@@ -150,7 +151,7 @@ def sync_devices():
                     device.ip_address = ext_dev.ip_address
                     device.vendor_code = ext_dev.vendor_code
                     device.location = ext_dev.location
-                    device.metadata = ext_dev.metadata or {}
+                    device.extra_data = ext_dev.metadata or {}
                     device.is_active = ext_dev.is_active
                     device.last_sync_at = datetime.utcnow()
                     total_updated += 1
@@ -162,7 +163,7 @@ def sync_devices():
                         ip_address=ext_dev.ip_address,
                         vendor_code=ext_dev.vendor_code,
                         location=ext_dev.location,
-                        metadata=ext_dev.metadata or {},
+                        extra_data=ext_dev.metadata or {},
                         is_active=ext_dev.is_active,
                         source_id=source.id,
                         last_sync_at=datetime.utcnow()
