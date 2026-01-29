@@ -49,7 +49,6 @@ def create_device():
         location=data.get("location"),
         os_version=data.get("os_version"),
         hardware=data.get("hardware"),
-        hardware=data.get("hardware"),
         extra_data=data.get("extra_data", {}),
         is_active=data.get("is_active", True)
     )
