@@ -109,6 +109,11 @@
 {% endblock %}
 
 {% block content %}
+<div class="breadcrumbs">
+    <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
+    <span class="sep">›</span>
+    <span class="current">Matrix</span>
+</div>
 <div class="flex justify-between items-center mb-3">
     <h2>Compliance Matrix</h2>
     <div class="flex gap-2">
@@ -206,8 +211,9 @@
 
     async function loadPolicyNames() {
         try {
-            const response = await fetch('/api/policies');
-            const policies = await response.json();
+            const response = await fetch('/api/policies?per_page=100');
+            const data = await response.json();
+            const policies = data.items || data;
             policies.forEach(p => {
                 policyNames[p.id] = p.name;
             });

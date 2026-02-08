@@ -2,6 +2,13 @@
 {% block title %}Scan {{ scan.id | string | truncate(8, True, '') }}{% endblock %}
 
 {% block content %}
+<div class="breadcrumbs">
+    <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('web.scans_list') }}">Scans</a>
+    <span class="sep">›</span>
+    <span class="current">{{ scan.id | string | truncate(8, True, '') }}</span>
+</div>
 <div class="flex justify-between items-center mb-3">
     <div class="flex items-center gap-2">
         <a href="{{ url_for('web.scans_list') }}" class="btn btn-ghost btn-icon">

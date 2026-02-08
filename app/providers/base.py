@@ -1,6 +1,6 @@
 """Base class for configuration source providers."""
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -8,9 +8,10 @@ from typing import Any
 class FetchResult:
     """Result of fetching a configuration."""
     success: bool
-    config: str | dict | None
+    config: str | dict | None = None
     error: str | None = None
     metadata: dict | None = None
+    format: str = "text"  # text, json, xml
 
 
 class ConfigSourceProvider(ABC):
@@ -30,7 +31,7 @@ class ConfigSourceProvider(ABC):
         pass
     
     @abstractmethod
-    def list_available_devices(self) -> list[str]:
+    def list_devices(self) -> list[str]:
         """
         List all available devices from this source.
         

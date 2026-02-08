@@ -23,14 +23,16 @@ class Policy(db.Model):
     def __repr__(self):
         return f"<Policy {self.name}>"
     
-    def to_dict(self):
-        return {
+    def to_dict(self, include_rules_count=True):
+        data = {
             "id": str(self.id),
             "name": self.name,
             "description": self.description,
             "severity": self.severity,
             "is_active": self.is_active,
-            "rules_count": self.rules.count(),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+        if include_rules_count:
+            data["rules_count"] = self.rules.count()
+        return data

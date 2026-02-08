@@ -181,6 +181,9 @@ class NetconfProvider(ConfigSourceProvider):
         """NETCONF provider connects to single device."""
         return [self.host] if self.host else []
     
+    # Alias for backward compat
+    list_available_devices = list_devices
+    
     def test_connection(self) -> tuple[bool, str]:
         """Test NETCONF connection."""
         try:
@@ -201,6 +204,6 @@ class NetconfProvider(ConfigSourceProvider):
                 pass
             self._manager = None
     
-    def cleanup(self):
-        """Cleanup resources."""
+    def close(self):
+        """Clean up resources."""
         self._disconnect()

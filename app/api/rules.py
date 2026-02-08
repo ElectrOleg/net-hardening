@@ -1,8 +1,10 @@
 """Rules API endpoints."""
 from flask import request, jsonify
 from app.api import api_bp
+from app.api.pagination import paginate_query
 from app.extensions import db
 from app.models import Rule, Policy, Vendor
+from app.auth import require_auth
 
 
 @api_bp.route("/rules", methods=["GET"])
@@ -22,8 +24,9 @@ def list_rules():
     if logic_type:
         query = query.filter_by(logic_type=logic_type)
     
-    rules = query.all()
-    return jsonify([r.to_dict() for r in rules])
+    result = paginate_query(query)
+    result["items"] = [r.to_dict() for r in result["items"]]
+    return jsonify(result)
 
 
 @api_bp.route("/rules/<uuid:rule_id>", methods=["GET"])
@@ -34,6 +37,7 @@ def get_rule(rule_id):
 
 
 @api_bp.route("/rules", methods=["POST"])
+@require_auth
 def create_rule():
     """Create a new rule."""
     data = request.get_json()
@@ -69,6 +73,7 @@ def create_rule():
         remediation=data.get("remediation"),
         logic_type=data["logic_type"],
         logic_payload=data["logic_payload"],
+        severity=data.get("severity", "medium"),
         is_active=data.get("is_active", True)
     )
     
@@ -79,13 +84,14 @@ def create_rule():
 
 
 @api_bp.route("/rules/<uuid:rule_id>", methods=["PUT"])
+@require_auth
 def update_rule(rule_id):
     """Update rule."""
     rule = Rule.query.get_or_404(rule_id)
     data = request.get_json()
     
     # Update simple fields
-    for field in ["title", "description", "remediation", "is_active"]:
+    for field in ["title", "description", "remediation", "severity", "is_active"]:
         if field in data:
             setattr(rule, field, data[field])
     
@@ -112,6 +118,7 @@ def update_rule(rule_id):
 
 
 @api_bp.route("/rules/<uuid:rule_id>", methods=["DELETE"])
+@require_auth
 def delete_rule(rule_id):
     """Delete rule (soft delete)."""
     rule = Rule.query.get_or_404(rule_id)

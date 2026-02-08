@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — HCS</title>
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <div class="login-logo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <path d="M9 12l2 2 4-4" />
+                </svg>
+                <span class="login-logo-text">HCS</span>
+            </div>
+
+            <div class="login-subtitle">Hardening & Compliance System</div>
+
+            {% if error %}
+            <div class="login-error">{{ error }}</div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('web.login_submit') }}">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" class="form-input" placeholder="admin"
+                        autocomplete="username" autofocus required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" class="form-input" placeholder="••••••••"
+                        autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="login-btn">Sign in</button>
+            </form>
+        </div>
+    </div>
+</body>
+
+</html>

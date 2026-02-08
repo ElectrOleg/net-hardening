@@ -2,6 +2,11 @@
 {% block title %}Rules{% endblock %}
 
 {% block content %}
+<div class="breadcrumbs">
+    <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
+    <span class="sep">›</span>
+    <span class="current">Rules</span>
+</div>
 <div class="flex justify-between items-center mb-3">
     <div class="flex items-center" style="gap: 1rem;">
         <h2>Правила проверок</h2>

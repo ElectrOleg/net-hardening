@@ -2,6 +2,7 @@
 from datetime import date
 from flask import request, jsonify
 from app.api import api_bp
+from app.api.pagination import paginate_query
 from app.extensions import db
 from app.models import RuleException, Rule
 
@@ -18,8 +19,9 @@ def list_exceptions():
             (RuleException.expiry_date == None) | (RuleException.expiry_date >= date.today())
         )
     
-    exceptions = query.all()
-    return jsonify([e.to_dict(include_rule=True) for e in exceptions])
+    result = paginate_query(query)
+    result["items"] = [e.to_dict(include_rule=True) for e in result["items"]]
+    return jsonify(result)
 
 
 @api_bp.route("/exceptions/<uuid:exception_id>", methods=["GET"])

@@ -2,7 +2,7 @@
 from flask import Flask
 
 from app.config import FlaskConfig
-from app.extensions import db, migrate, init_celery
+from app.extensions import db, migrate, init_celery, init_csrf
 
 
 def create_app(config_class=FlaskConfig):
@@ -20,10 +20,12 @@ def create_app(config_class=FlaskConfig):
     db.init_app(app)
     migrate.init_app(app, db)
     init_celery(app)
+    init_csrf(app)
     
     # Register API blueprint
-    from app.api import api_bp
+    from app.api import api_bp, metrics_bp
     app.register_blueprint(api_bp, url_prefix="/api")
+    app.register_blueprint(metrics_bp)  # /metrics at root level
     
     # Register Web blueprint
     from app.views import web_bp
@@ -35,7 +37,8 @@ def create_app(config_class=FlaskConfig):
         return {"status": "ok"}
     
     # Register commands
-    from app.commands import seed_command
+    from app.commands import seed_command, seed_admin_command
     app.cli.add_command(seed_command)
+    app.cli.add_command(seed_admin_command)
 
     return app

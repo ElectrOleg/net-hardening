@@ -1,6 +1,7 @@
 """Policies API endpoints."""
 from flask import request, jsonify
 from app.api import api_bp
+from app.api.pagination import paginate_query
 from app.extensions import db
 from app.models import Policy
 
@@ -8,8 +9,10 @@ from app.models import Policy
 @api_bp.route("/policies", methods=["GET"])
 def list_policies():
     """List all policies."""
-    policies = Policy.query.filter_by(is_active=True).all()
-    return jsonify([p.to_dict() for p in policies])
+    query = Policy.query.filter_by(is_active=True)
+    result = paginate_query(query)
+    result["items"] = [p.to_dict() for p in result["items"]]
+    return jsonify(result)
 
 
 @api_bp.route("/policies/<uuid:policy_id>", methods=["GET"])

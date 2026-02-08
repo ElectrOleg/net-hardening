@@ -29,6 +29,9 @@ class Scan(db.Model):
     # Error info if failed
     error_message = db.Column(db.Text)
     
+    # Celery task tracking
+    celery_task_id = db.Column(db.String(200))
+    
     # Relationships
     results = db.relationship("Result", back_populates="scan", lazy="dynamic")
     

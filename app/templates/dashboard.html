@@ -2,18 +2,69 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="grid grid-2 gap-3 mb-3 fade-in">
-    <!-- Score Card -->
-    <div class="score-card">
-        <div class="score-value">{{ score }}%</div>
-        <div class="score-label">Security Score</div>
-        <div style="margin-top: 1rem; font-size: 0.875rem; opacity: 0.8;">
-            На основе последнего сканирования
+<!-- Breadcrumbs -->
+<div class="breadcrumbs">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7" />
+        <rect x="14" y="3" width="7" height="7" />
+        <rect x="14" y="14" width="7" height="7" />
+        <rect x="3" y="14" width="7" height="7" />
+    </svg>
+    <span class="current">Dashboard</span>
+</div>
+
+<div class="grid grid-2 gap-3 mb-3">
+    <!-- Score Ring -->
+    <div class="score-ring-card fade-in">
+        <svg style="position:absolute;width:0;height:0;">
+            <defs>
+                <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#6366f1" />
+                    <stop offset="50%" stop-color="#8b5cf6" />
+                    <stop offset="100%" stop-color="#a855f7" />
+                </linearGradient>
+            </defs>
+        </svg>
+        <div class="score-ring-visual">
+            <svg viewBox="0 0 140 140">
+                <circle class="score-ring-bg" cx="70" cy="70" r="65" />
+                <circle class="score-ring-fill" id="scoreRing" cx="70" cy="70" r="65" />
+            </svg>
+            <div class="score-ring-value">
+                <div class="score-ring-number" id="scoreNumber">{{ score }}%</div>
+                <div class="score-ring-label">Score</div>
+            </div>
+        </div>
+        <div class="score-ring-info">
+            <div class="score-ring-title">Security Score</div>
+            <div class="score-ring-subtitle">
+                Based on the latest compliance scan
+                {% if recent_scans %}
+                <br>
+                <span class="text-xs text-muted">
+                    {{ recent_scans[0].started_at.strftime('%d.%m.%Y %H:%M') if recent_scans[0].started_at else '—' }}
+                </span>
+                {% endif %}
+            </div>
+            <div style="margin-top:1rem;display:flex;gap:1.5rem;">
+                <div>
+                    <div style="font-size:1.5rem;font-weight:700;color:var(--success);">{{ stats.passed }}</div>
+                    <div class="text-xs text-muted">Passed</div>
+                </div>
+                <div>
+                    <div style="font-size:1.5rem;font-weight:700;color:var(--danger);">{{ stats.failed }}</div>
+                    <div class="text-xs text-muted">Failed</div>
+                </div>
+                <div>
+                    <div style="font-size:1.5rem;font-weight:700;color:var(--warning);">{{ stats.errors }}</div>
+                    <div class="text-xs text-muted">Errors</div>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Stats Grid -->
-    <div class="stats-grid" style="align-content: center;">
+    <div class="stats-grid fade-in stagger-1" style="align-content: center;">
         <div class="stat-card">
             <div class="stat-value success">{{ stats.passed }}</div>
             <div class="stat-label">Passed</div>
@@ -27,7 +78,7 @@
             <div class="stat-label">Errors</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">{{ stats.devices }}</div>
+            <div class="stat-value info">{{ stats.devices }}</div>
             <div class="stat-label">Devices</div>
         </div>
     </div>
@@ -35,13 +86,11 @@
 
 <div class="grid grid-2 gap-3">
     <!-- Recent Failures -->
-    <div class="card slide-in">
+    <div class="card fade-in stagger-2">
         <div class="card-header">
             <h4>Последние нарушения</h4>
-            <a href="{{ url_for('web.scans_list') }}" class="btn btn-ghost btn-icon" title="View all">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6" />
-                </svg>
+            <a href="{{ url_for('web.scans_list') }}" class="btn btn-ghost btn-sm">
+                Все скан →
             </a>
         </div>
         <div class="table-wrapper">
@@ -79,7 +128,7 @@
     </div>
 
     <!-- Recent Scans -->
-    <div class="card slide-in" style="animation-delay: 100ms;">
+    <div class="card fade-in stagger-3">
         <div class="card-header">
             <h4>История сканирований</h4>
         </div>
@@ -117,9 +166,9 @@
                             </strong>
                         </td>
                         <td class="text-right">
-                            <a href="{{ url_for('web.scan_detail', scan_id=scan.id) }}" class="btn btn-ghost btn-icon"
-                                title="Details">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            <a href="{{ url_for('web.scan_detail', scan_id=scan.id) }}"
+                                class="btn btn-ghost btn-icon btn-sm" title="Details">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2">
                                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                                     <circle cx="12" cy="12" r="3" />
@@ -146,4 +195,26 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Animate score ring
+    (function () {
+        const ring = document.getElementById('scoreRing');
+        if (!ring) return;
+        const score = {{ score }
+    };
+    const circumference = 2 * Math.PI * 65; // r=65
+    const offset = circumference - (score / 100) * circumference;
+    // Start fully hidden, then animate
+    ring.style.strokeDasharray = circumference;
+    ring.style.strokeDashoffset = circumference;
+    requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+            ring.style.strokeDashoffset = offset;
+        });
+    });
+    }) ();
+</script>
 {% endblock %}

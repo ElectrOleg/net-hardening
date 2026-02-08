@@ -8,6 +8,7 @@ from app.engine.version_check import VersionChecker
 from app.engine.textfsm_check import TextFSMChecker
 from app.engine.xml_check import XMLChecker
 from app.engine.advanced_block import AdvancedBlockChecker
+from app.engine.composite_check import CompositeChecker
 
 
 class RuleEvaluator:
@@ -29,7 +30,10 @@ class RuleEvaluator:
         "xml_check": XMLChecker,
         "xpath_check": XMLChecker,  # Alias
         "advanced_block_check": AdvancedBlockChecker,
+        "advanced_block": AdvancedBlockChecker,  # Alias
         "nested_block_check": AdvancedBlockChecker,  # Alias
+        "composite_check": CompositeChecker,
+        "multi_section_check": CompositeChecker,  # Alias
     }
     
     def __init__(self):

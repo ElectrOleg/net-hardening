@@ -20,6 +20,15 @@ class Rule(db.Model):
     # Типы: simple_match, regex_match, block_match, structure_check, meta_check
     logic_type = db.Column(db.String(30), nullable=False)
     logic_payload = db.Column(JSONB, nullable=False)  # Параметры проверки
+    severity = db.Column(db.String(20), default='medium')  # critical/high/medium/low/info
+    
+    # Optional applicability conditions (JSONB).
+    # When set, the rule only applies to devices matching ALL conditions.
+    # Keys can be Device fields or "extra_data.<key>" for JSONB fields.
+    # Values are matched as: exact string, regex (key ends with _regex),
+    # or substring (key ends with _contains).
+    # Example: {"os_version_regex": "^15\\.", "extra_data.department": "Finance"}
+    applicability = db.Column(JSONB, nullable=True)
     
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
@@ -43,6 +52,8 @@ class Rule(db.Model):
             "description": self.description,
             "remediation": self.remediation,
             "logic_type": self.logic_type,
+            "severity": self.severity,
+            "applicability": self.applicability,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

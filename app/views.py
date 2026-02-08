@@ -1,8 +1,56 @@
 """Web views for HCS UI."""
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, g
 from app.models import Scan, Result, Rule, Policy, Vendor
 
 web_bp = Blueprint("web", __name__)
+
+
+@web_bp.before_app_request
+def inject_user():
+    """Make current user available in all templates."""
+    g.current_user = None
+    user_id = session.get("user_id")
+    if user_id:
+        from app.models.user import User
+        user = User.query.get(user_id)
+        if user and user.is_active:
+            g.current_user = user.to_dict()
+
+
+@web_bp.route("/login", methods=["GET"])
+def login_page():
+    """Show login form."""
+    if session.get("user_id"):
+        return redirect(url_for("web.dashboard"))
+    return render_template("login.html")
+
+
+@web_bp.route("/login", methods=["POST"])
+def login_submit():
+    """Process login form."""
+    from app.auth import authenticate
+
+    username = (request.form.get("username") or "").strip()
+    password = request.form.get("password") or ""
+
+    user = authenticate(username, password)
+    if not user:
+        return render_template("login.html", error="Неверное имя пользователя или пароль")
+
+    session["user_id"] = str(user.id)
+    session["username"] = user.username
+    session["role"] = user.role
+    session.permanent = True
+
+    next_url = request.args.get("next") or url_for("web.dashboard")
+    return redirect(next_url)
+
+
+@web_bp.route("/logout")
+def logout():
+    """Log out and redirect to login."""
+    session.clear()
+    return redirect(url_for("web.login_page"))
 
 
 @web_bp.route("/")
@@ -170,3 +218,12 @@ def settings_device_groups():
     groups = DeviceGroup.query.order_by(DeviceGroup.name).all()
     policies = Policy.query.filter_by(is_active=True).all()
     return render_template("settings/device_groups.html", groups=groups, policies=policies)
+
+
+@web_bp.route("/admin")
+def admin():
+    """Administration panel."""
+    from app.models import InventorySource, Policy
+    sources = InventorySource.query.order_by(InventorySource.name).all()
+    policies = Policy.query.filter_by(is_active=True).order_by(Policy.name).all()
+    return render_template("admin/index.html", sources=sources, policies=policies)

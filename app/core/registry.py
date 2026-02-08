@@ -90,7 +90,15 @@ class ProviderRegistry:
         self.register("config", "file", SingleFileProvider)
         self.register("config", "snmp", SNMPProvider)
         
-        # Inventory providers
+        # Firewall-specific providers
+        from app.providers.firewall import (
+            CheckPointProvider, FortiGateProvider, UserGateProvider, PaloAltoProvider
+        )
+        self.register("config", "checkpoint", CheckPointProvider)
+        self.register("config", "fortigate", FortiGateProvider)
+        self.register("config", "usergate", UserGateProvider)
+        self.register("config", "paloalto", PaloAltoProvider)
+        
         # Inventory providers
         from app.inventory import PostgresInventoryProvider
         from app.inventory import APIInventoryProvider
@@ -120,6 +128,10 @@ class ProviderRegistry:
         self.register("checker", "version_check", VersionChecker)
         self.register("checker", "advanced_block_check", AdvancedBlockChecker)
         self.register("checker", "nested_block_check", AdvancedBlockChecker)  # Alias
+        
+        from app.engine.composite_check import CompositeChecker
+        self.register("checker", "composite_check", CompositeChecker)
+        self.register("checker", "multi_section_check", CompositeChecker)  # Alias
         
         self._initialized = True
         logger.info("Provider registry initialized with defaults")

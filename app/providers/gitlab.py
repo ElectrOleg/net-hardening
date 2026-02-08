@@ -15,30 +15,23 @@ class GitLabProvider(ConfigSourceProvider):
     Connection params:
     {
         "url": "https://gitlab.example.com",
+        "token": "glpat-xxx",
         "project_id": "123",
         "branch": "main",
         "path_template": "configs/{hostname}.cfg",
-        "file_pattern": "*.cfg"  # for listing devices
+        "file_pattern": "*.cfg",
+        "base_path": "configs"
     }
     """
     
-    def __init__(
-        self,
-        url: str,
-        token: str,
-        project_id: str | int,
-        branch: str = "main",
-        path_template: str = "{hostname}.cfg",
-        file_pattern: str = "*.cfg",
-        base_path: str = ""
-    ):
-        self.url = url
-        self.token = token
-        self.project_id = project_id
-        self.branch = branch
-        self.path_template = path_template
-        self.file_pattern = file_pattern
-        self.base_path = base_path.rstrip("/")
+    def __init__(self, config: dict):
+        self.url = config.get("url", "")
+        self.token = config.get("token", "")
+        self.project_id = config.get("project_id", "")
+        self.branch = config.get("branch", "main")
+        self.path_template = config.get("path_template", "{hostname}.cfg")
+        self.file_pattern = config.get("file_pattern", "*.cfg")
+        self.base_path = config.get("base_path", "").rstrip("/")
         
         self._gl = None
         self._project = None
@@ -112,7 +105,7 @@ class GitLabProvider(ConfigSourceProvider):
                 error=str(e)
             )
     
-    def list_available_devices(self) -> list[str]:
+    def list_devices(self) -> list[str]:
         """List devices by scanning repository files."""
         devices = []
         
@@ -154,7 +147,7 @@ class GitLabProvider(ConfigSourceProvider):
     
     def prefetch_all(self) -> int:
         """Prefetch all configs into cache. Returns count of loaded files."""
-        devices = self.list_available_devices()
+        devices = self.list_devices()
         count = 0
         
         for device_id in devices:

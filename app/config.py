@@ -1,5 +1,6 @@
 """HCS Flask Application Configuration."""
 import os
+import secrets
 from pydantic_settings import BaseSettings
 
 
@@ -7,7 +8,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
     # Flask
-    SECRET_KEY: str = "dev-secret-key-change-in-production"
+    SECRET_KEY: str = ""  # Will be auto-generated if not set
     DEBUG: bool = True
     
     # Database
@@ -37,6 +38,27 @@ class Settings(BaseSettings):
     ANSIBLE_INVENTORY: str = "/etc/ansible/hosts"
     AWX_URL: str = ""
     
+    # Authentication
+    AUTH_ENABLED: bool = False  # Set to True in production
+    API_TOKEN: str = ""  # Static API token for automation
+    
+    # LDAP / Active Directory
+    LDAP_ENABLED: bool = False
+    LDAP_SERVER: str = ""          # ldap://dc.example.com or ldaps://dc.example.com
+    LDAP_PORT: int = 389           # 636 for LDAPS
+    LDAP_USE_SSL: bool = False     # True for LDAPS
+    LDAP_STARTTLS: bool = False
+    LDAP_BIND_DN: str = ""
+    LDAP_BIND_PASSWORD: str = ""
+    LDAP_BASE_DN: str = ""
+    LDAP_USER_FILTER: str = "(sAMAccountName={username})"
+    LDAP_ATTR_USERNAME: str = "sAMAccountName"
+    LDAP_ATTR_EMAIL: str = "mail"
+    LDAP_ATTR_DISPLAY_NAME: str = "displayName"
+    LDAP_ADMIN_GROUP: str = ""
+    LDAP_OPERATOR_GROUP: str = ""
+    LDAP_CERT_VALIDATION: str = "REQUIRED"  # NONE | OPTIONAL | REQUIRED
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
@@ -44,6 +66,17 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Auto-generate SECRET_KEY if not provided
+if not settings.SECRET_KEY:
+    import warnings
+    settings.SECRET_KEY = secrets.token_hex(32)
+    warnings.warn(
+        "SECRET_KEY not set in environment — using auto-generated ephemeral key. "
+        "Sessions will not persist across restarts. Set SECRET_KEY in .env for production.",
+        RuntimeWarning,
+        stacklevel=1,
+    )
 
 
 class FlaskConfig:

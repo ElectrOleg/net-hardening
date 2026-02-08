@@ -88,15 +88,17 @@ def test_inventory_source(source_id):
     
     try:
         from app.core.registry import get_inventory_provider
-        import os
+        from app.core.credentials import resolve_credential
         
         # Get credentials
-        password = os.environ.get(source.credentials_ref, "") if source.credentials_ref else ""
+        password = resolve_credential(source.credentials_ref) if source.credentials_ref else ""
         
         # Prepare config
-        config = source.connection_params or {}
+        config = dict(source.connection_params or {})
         if "password" not in config and password:
             config["password"] = password
+        if "token" not in config and password:
+            config["token"] = password
         
         provider = get_inventory_provider(source.type, config)
         success, message = provider.test_connection()
@@ -110,32 +112,29 @@ def test_inventory_source(source_id):
 
 @inventory_sources_bp.route("/<uuid:source_id>/sync", methods=["POST"])
 def sync_inventory_source(source_id):
-    """Manually trigger sync from an inventory source."""
+    """Manually trigger sync from an inventory source.
+    
+    Creates/updates Device records in hcs_devices and deactivates
+    devices no longer present in the upstream source.
+    """
     source = InventorySource.query.get_or_404(source_id)
     
     try:
-        from app.core.registry import get_inventory_provider
-        from datetime import datetime
-        import os
+        from app.services.inventory_sync import InventorySyncService
         
-        password = os.environ.get(source.credentials_ref, "") if source.credentials_ref else ""
-        config = source.connection_params or {}
-        if "password" not in config and password:
-            config["password"] = password
-        
-        provider = get_inventory_provider(source.type, config)
-        devices = provider.list_devices()
-        provider.close()
-        
-        # Update last sync time
-        source.last_sync_at = datetime.utcnow()
-        db.session.commit()
+        service = InventorySyncService()
+        result = service.sync(source, trigger="api")
         
         return jsonify({
-            "success": True, 
-            "devices_count": len(devices),
-            "message": f"Synced {len(devices)} devices"
+            "success": len(result.errors) == 0,
+            "message": (
+                f"Synced: {result.created} created, "
+                f"{result.updated} updated, "
+                f"{result.deactivated} deactivated"
+            ),
+            **result.to_dict()
         })
         
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
+

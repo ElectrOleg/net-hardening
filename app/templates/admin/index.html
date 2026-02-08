@@ -1,0 +1,1082 @@
+{% extends "base.html" %}
+{% block title %}Administration{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+    <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
+    <span class="sep">›</span>
+    <span class="current">Admin</span>
+</div>
+<div class="flex justify-between items-center mb-3">
+    <h2>Администрирование</h2>
+</div>
+
+<!-- Tabs -->
+<div class="flex gap-1 mb-3">
+    <button class="btn btn-primary" id="tab-general" onclick="switchTab('general')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path
+                d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z">
+            </path>
+        </svg>
+        Общие настройки
+    </button>
+    <button class="btn btn-secondary" id="tab-schedules" onclick="switchTab('schedules')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        Расписание сканов
+    </button>
+    <button class="btn btn-secondary" id="tab-sync-logs" onclick="switchTab('sync-logs')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
+        Логи синхронизации
+    </button>
+    <button class="btn btn-secondary" id="tab-users" onclick="switchTab('users')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+        Пользователи
+    </button>
+    <button class="btn btn-secondary" id="tab-ldap" onclick="switchTab('ldap')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="2" width="20" height="8" rx="2" />
+            <rect x="2" y="14" width="20" height="8" rx="2" />
+            <line x1="6" y1="6" x2="6.01" y2="6" />
+            <line x1="6" y1="18" x2="6.01" y2="18" />
+        </svg>
+        LDAP / AD
+    </button>
+</div>
+
+<!-- ═══ General Settings Tab ═══ -->
+<div id="panel-general" class="card fade-in">
+    <div class="card-body">
+        <h3 class="mb-2">Глобальные параметры</h3>
+        <p class="text-muted mb-3" style="font-size: 0.9rem;">
+            Настройки хранятся в БД и применяются ко всей системе.
+        </p>
+
+        <form id="settings-form" onsubmit="saveSettings(event)">
+            <!-- Retention -->
+            <div class="mb-3">
+                <h4 style="font-size: 1rem; color: var(--primary); margin-bottom: 0.5rem;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        style="vertical-align: -2px">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+                    </svg>
+                    Retention — хранение данных
+                </h4>
+                <div class="grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label class="form-label">Хранить результаты (дней)</label>
+                        <input type="number" class="form-input" id="setting-retention.scan_days"
+                            data-key="retention.scan_days" min="1" max="3650">
+                        <small class="text-muted">Результаты сканов старше N дней будут удалены</small>
+                    </div>
+                    <div>
+                        <label class="form-label">Минимум сканов</label>
+                        <input type="number" class="form-input" id="setting-retention.min_scans"
+                            data-key="retention.min_scans" min="1" max="1000">
+                        <small class="text-muted">Всегда сохранять минимум N последних сканов</small>
+                    </div>
+                    <div>
+                        <label class="form-label">Удалять неактивные устройства (дней)</label>
+                        <input type="number" class="form-input" id="setting-retention.inactive_device_days"
+                            data-key="retention.inactive_device_days" min="1" max="3650">
+                        <small class="text-muted">Деактивированные устройства удаляются через N дней</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sync -->
+            <div class="mb-3">
+                <h4 style="font-size: 1rem; color: var(--primary); margin-bottom: 0.5rem;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        style="vertical-align: -2px">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"></path>
+                    </svg>
+                    Синхронизация
+                </h4>
+                <div style="max-width: 300px;">
+                    <label class="form-label">Интервал синхронизации по умолчанию (мин)</label>
+                    <input type="number" class="form-input" id="setting-sync.default_interval_minutes"
+                        data-key="sync.default_interval_minutes" min="5" max="1440">
+                </div>
+            </div>
+
+            <!-- Scan Auto -->
+            <div class="mb-3">
+                <h4 style="font-size: 1rem; color: var(--primary); margin-bottom: 0.5rem;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        style="vertical-align: -2px">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    Автоматические сканы
+                </h4>
+                <div class="flex items-center gap-2">
+                    <label class="switch-label">
+                        <input type="checkbox" id="setting-scan.auto_enabled" data-key="scan.auto_enabled">
+                        <span>Включить автозапуск сканов по расписанию</span>
+                    </label>
+                </div>
+                <small class="text-muted">Расписания настраиваются во вкладке «Расписание сканов»</small>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="save-settings-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                Сохранить
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- ═══ Scan Schedules Tab ═══ -->
+<div id="panel-schedules" class="card fade-in" style="display:none;">
+    <div class="card-body">
+        <div class="flex justify-between items-center mb-2">
+            <h3>Расписание сканов</h3>
+            <button class="btn btn-primary" onclick="showScheduleModal()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Добавить
+            </button>
+        </div>
+        <table class="table" id="schedules-table">
+            <thead>
+                <tr>
+                    <th>Имя</th>
+                    <th>Cron</th>
+                    <th>Политики</th>
+                    <th>Последний запуск</th>
+                    <th>Следующий</th>
+                    <th>Статус</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="schedules-body">
+                <tr>
+                    <td colspan="7" class="text-center text-muted">Загрузка...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ═══ Sync Logs Tab ═══ -->
+<div id="panel-sync-logs" class="card fade-in" style="display:none;">
+    <div class="card-body">
+        <div class="flex justify-between items-center mb-2">
+            <h3>Логи синхронизации</h3>
+            <div class="flex gap-1">
+                <select class="form-input" id="sync-log-source-filter" onchange="loadSyncLogs()"
+                    style="min-width: 200px;">
+                    <option value="">Все источники</option>
+                    {% for src in sources %}
+                    <option value="{{ src.id }}">{{ src.name }}</option>
+                    {% endfor %}
+                </select>
+                <select class="form-input" id="sync-log-status-filter" onchange="loadSyncLogs()"
+                    style="min-width: 120px;">
+                    <option value="">Все статусы</option>
+                    <option value="success">Success</option>
+                    <option value="partial">Partial</option>
+                    <option value="failed">Failed</option>
+                </select>
+            </div>
+        </div>
+        <table class="table" id="sync-logs-table">
+            <thead>
+                <tr>
+                    <th>Время</th>
+                    <th>Источник</th>
+                    <th>Триггер</th>
+                    <th>Создано</th>
+                    <th>Обновлено</th>
+                    <th>Деакт.</th>
+                    <th>Статус</th>
+                    <th>Длительность</th>
+                </tr>
+            </thead>
+            <tbody id="sync-logs-body">
+                <tr>
+                    <td colspan="8" class="text-center text-muted">Загрузка...</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="flex justify-center mt-2" id="sync-logs-pagination"></div>
+    </div>
+</div>
+
+<!-- Schedule Modal -->
+<div class="modal-overlay" id="schedule-modal" style="display:none;">
+    <div class="modal" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 id="schedule-modal-title">Новое расписание</h3>
+            <button class="modal-close" onclick="closeScheduleModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="schedule-edit-id">
+            <div class="mb-2">
+                <label class="form-label">Имя</label>
+                <input type="text" class="form-input" id="schedule-name" placeholder="Ежедневная проверка">
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Cron-выражение</label>
+                <input type="text" class="form-input" id="schedule-cron" placeholder="0 2 * * *" value="0 2 * * *">
+                <small class="text-muted">Формат: мин час день месяц день_недели (пример: 0 2 * * * = каждый день в
+                    2:00)</small>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Политики</label>
+                <select class="form-input" id="schedule-policies" multiple style="min-height: 80px;">
+                    {% for p in policies %}
+                    <option value="{{ p.id }}">{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+                <small class="text-muted">Не выбрано = все политики</small>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Описание</label>
+                <textarea class="form-input" id="schedule-description" rows="2"></textarea>
+            </div>
+            <div class="flex items-center gap-2 mb-2">
+                <label class="switch-label">
+                    <input type="checkbox" id="schedule-enabled" checked>
+                    <span>Активно</span>
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeScheduleModal()">Отмена</button>
+            <button class="btn btn-primary" onclick="saveSchedule()">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ Users Tab ═══ -->
+<div id="panel-users" class="card fade-in" style="display:none;">
+    <div class="card-body">
+        <div class="flex justify-between items-center mb-2">
+            <h3>Пользователи</h3>
+            <button class="btn btn-primary" onclick="showUserModal()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Добавить
+            </button>
+        </div>
+        <table class="table" id="users-table">
+            <thead>
+                <tr>
+                    <th>Пользователь</th>
+                    <th>Email</th>
+                    <th>Источник</th>
+                    <th>Роль</th>
+                    <th>Статус</th>
+                    <th>Последний вход</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="users-body">
+                <tr>
+                    <td colspan="7" class="text-center text-muted">Загрузка...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ═══ LDAP Settings Tab ═══ -->
+<div id="panel-ldap" class="card fade-in" style="display:none;">
+    <div class="card-body">
+        <div class="flex justify-between items-center mb-2">
+            <h3>LDAP / Active Directory</h3>
+            <button class="btn btn-secondary" onclick="testLdapConnection()" id="ldap-test-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                Тест подключения
+            </button>
+        </div>
+
+        <div id="ldap-test-result" style="display:none;margin-bottom:1rem;"></div>
+
+        <form id="ldap-form" onsubmit="saveLdapSettings(event)">
+            <!-- Enable toggle -->
+            <div class="flex items-center gap-2 mb-3">
+                <label class="switch-label">
+                    <input type="checkbox" id="ldap-enabled" data-ldap="ldap_enabled">
+                    <span>Включить LDAP аутентификацию</span>
+                </label>
+            </div>
+
+            <!-- Connection -->
+            <h4 style="font-size:1rem;color:var(--primary);margin-bottom:0.5rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    style="vertical-align:-2px">
+                    <rect x="2" y="2" width="20" height="8" rx="2" />
+                    <line x1="6" y1="6" x2="6.01" y2="6" />
+                </svg>
+                Подключение
+            </h4>
+            <div class="grid" style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+                <div>
+                    <label class="form-label">Сервер</label>
+                    <input type="text" class="form-input" id="ldap-server" data-ldap="ldap_server"
+                        placeholder="ldap://dc.company.local">
+                    <small class="text-muted">ldap:// или ldaps://</small>
+                </div>
+                <div>
+                    <label class="form-label">Порт</label>
+                    <input type="number" class="form-input" id="ldap-port" data-ldap="ldap_port" value="389" min="1"
+                        max="65535">
+                </div>
+                <div>
+                    <label class="form-label">Протокол</label>
+                    <select class="form-input" id="ldap-ssl" data-ldap="ldap_use_ssl">
+                        <option value="false">LDAP (plaintext)</option>
+                        <option value="true">LDAPS (SSL)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+                <div class="flex items-center gap-2">
+                    <label class="switch-label">
+                        <input type="checkbox" id="ldap-starttls" data-ldap="ldap_starttls">
+                        <span>STARTTLS</span>
+                    </label>
+                </div>
+                <div>
+                    <label class="form-label">Проверка сертификата</label>
+                    <select class="form-input" id="ldap-cert" data-ldap="ldap_cert_validation">
+                        <option value="REQUIRED">Обязательная (REQUIRED)</option>
+                        <option value="OPTIONAL">Опциональная (OPTIONAL)</option>
+                        <option value="NONE">Отключена (NONE)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Bind credentials -->
+            <h4 style="font-size:1rem;color:var(--primary);margin-bottom:0.5rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    style="vertical-align:-2px">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0110 0v4" />
+                </svg>
+                Учётные данные сервисной УЗ
+            </h4>
+            <div class="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+                <div>
+                    <label class="form-label">Bind DN</label>
+                    <input type="text" class="form-input" id="ldap-bind-dn" data-ldap="ldap_bind_dn"
+                        placeholder="CN=svc_hcs,OU=Services,DC=company,DC=local">
+                </div>
+                <div>
+                    <label class="form-label">Bind Password</label>
+                    <input type="password" class="form-input" id="ldap-bind-password" data-ldap="ldap_bind_password"
+                        placeholder="••••••••">
+                </div>
+            </div>
+
+            <!-- Search -->
+            <h4 style="font-size:1rem;color:var(--primary);margin-bottom:0.5rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    style="vertical-align:-2px">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                Поиск пользователей
+            </h4>
+            <div class="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                <div>
+                    <label class="form-label">Base DN</label>
+                    <input type="text" class="form-input" id="ldap-base-dn" data-ldap="ldap_base_dn"
+                        placeholder="DC=company,DC=local">
+                </div>
+                <div>
+                    <label class="form-label">User Filter</label>
+                    <input type="text" class="form-input" id="ldap-user-filter" data-ldap="ldap_user_filter"
+                        placeholder="(sAMAccountName={username})">
+                    <small class="text-muted">{username} заменяется на логин</small>
+                </div>
+            </div>
+            <div class="grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+                <div>
+                    <label class="form-label">Атрибут: логин</label>
+                    <input type="text" class="form-input" id="ldap-attr-username" data-ldap="ldap_attr_username"
+                        value="sAMAccountName">
+                </div>
+                <div>
+                    <label class="form-label">Атрибут: email</label>
+                    <input type="text" class="form-input" id="ldap-attr-email" data-ldap="ldap_attr_email" value="mail">
+                </div>
+                <div>
+                    <label class="form-label">Атрибут: имя</label>
+                    <input type="text" class="form-input" id="ldap-attr-display" data-ldap="ldap_attr_display_name"
+                        value="displayName">
+                </div>
+            </div>
+
+            <!-- Group mapping -->
+            <h4 style="font-size:1rem;color:var(--primary);margin-bottom:0.5rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    style="vertical-align:-2px">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                Маппинг групп AD → Роли
+            </h4>
+            <div class="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+                <div>
+                    <label class="form-label">Группа Admin</label>
+                    <input type="text" class="form-input" id="ldap-admin-group" data-ldap="ldap_admin_group"
+                        placeholder="CN=HCS-Admins,OU=Groups,DC=company,DC=local">
+                    <small class="text-muted">Члены этой группы получат роль admin</small>
+                </div>
+                <div>
+                    <label class="form-label">Группа Operator</label>
+                    <input type="text" class="form-input" id="ldap-operator-group" data-ldap="ldap_operator_group"
+                        placeholder="CN=HCS-Operators,OU=Groups,DC=company,DC=local">
+                    <small class="text-muted">Члены этой группы получат роль operator</small>
+                </div>
+            </div>
+            <small class="text-muted" style="display:block;margin-bottom:1.5rem;">Пользователи, не входящие ни в одну
+                группу, получат роль <strong>viewer</strong></small>
+
+            <button type="submit" class="btn btn-primary" id="save-ldap-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                Сохранить настройки LDAP
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- User Modal -->
+<div class="modal-overlay" id="user-modal" style="display:none;">
+    <div class="modal" style="max-width:480px;">
+        <div class="modal-header">
+            <h3 id="user-modal-title">Новый пользователь</h3>
+            <button class="modal-close" onclick="closeUserModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="user-edit-id">
+            <div class="mb-2">
+                <label class="form-label">Имя пользователя</label>
+                <input type="text" class="form-input" id="user-username" placeholder="username" autocomplete="off">
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Отображаемое имя</label>
+                <input type="text" class="form-input" id="user-display-name" placeholder="Иван Иванов">
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-input" id="user-email" placeholder="user@company.com">
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Пароль <small class="text-muted">(мин. 6 символов)</small></label>
+                <input type="password" class="form-input" id="user-password" autocomplete="new-password">
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Роль</label>
+                <select class="form-input" id="user-role">
+                    <option value="viewer">Viewer — только просмотр</option>
+                    <option value="operator">Operator — сканы, правила, исключения</option>
+                    <option value="admin">Admin — полный доступ</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-2 mb-2">
+                <label class="switch-label">
+                    <input type="checkbox" id="user-active" checked>
+                    <span>Активен</span>
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeUserModal()">Отмена</button>
+            <button class="btn btn-primary" onclick="saveUser()">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const API = '/api';
+    const csrfToken = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+
+    function apiHeaders() {
+        return { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken };
+    }
+
+    /* ═══ Tab switching ═══ */
+    function switchTab(tab) {
+        document.querySelectorAll('[id^="panel-"]').forEach(p => p.style.display = 'none');
+        document.querySelectorAll('[id^="tab-"]').forEach(b => {
+            b.classList.remove('btn-primary');
+            b.classList.add('btn-secondary');
+        });
+        document.getElementById('panel-' + tab).style.display = '';
+        const btn = document.getElementById('tab-' + tab);
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-primary');
+
+        if (tab === 'schedules') loadSchedules();
+        if (tab === 'sync-logs') loadSyncLogs();
+        if (tab === 'users') loadUsers();
+        if (tab === 'ldap') loadLdapSettings();
+    }
+
+    /* ═══ General Settings ═══ */
+    async function loadSettings() {
+        try {
+            const resp = await fetch(`${API}/admin/settings`);
+            const data = await resp.json();
+
+            for (const [key, info] of Object.entries(data)) {
+                const el = document.getElementById('setting-' + key);
+                if (!el) continue;
+
+                if (el.type === 'checkbox') {
+                    el.checked = ['true', '1', 'yes', 'on'].includes(String(info.value).toLowerCase());
+                } else {
+                    el.value = info.value;
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load settings:', e);
+        }
+    }
+
+    async function saveSettings(event) {
+        event.preventDefault();
+        const payload = {};
+
+        document.querySelectorAll('[data-key]').forEach(el => {
+            const key = el.dataset.key;
+            if (el.type === 'checkbox') {
+                payload[key] = el.checked ? 'true' : 'false';
+            } else {
+                payload[key] = el.value;
+            }
+        });
+
+        try {
+            const resp = await fetch(`${API}/admin/settings`, {
+                method: 'PUT',
+                headers: apiHeaders(),
+                body: JSON.stringify(payload),
+            });
+
+            if (resp.ok) {
+                showToast('Настройки сохранены', 'success');
+            } else {
+                showToast('Ошибка сохранения', 'error');
+            }
+        } catch (e) {
+            showToast('Ошибка: ' + e.message, 'error');
+        }
+    }
+
+    /* ═══ Scan Schedules ═══ */
+    let schedulesData = [];
+
+    async function loadSchedules() {
+        try {
+            const resp = await fetch(`${API}/admin/scan-schedules`);
+            schedulesData = await resp.json();
+            renderSchedules();
+        } catch (e) {
+            console.error('Failed to load schedules:', e);
+        }
+    }
+
+    function renderSchedules() {
+        const tbody = document.getElementById('schedules-body');
+        if (!schedulesData.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Нет расписаний</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = schedulesData.map(s => `
+        <tr>
+            <td><strong>${escHtml(s.name)}</strong></td>
+            <td><code>${escHtml(s.cron_expression)}</code></td>
+            <td>${s.policies_filter ? s.policies_filter.length + ' пол.' : 'Все'}</td>
+            <td>${s.last_run_at ? formatDate(s.last_run_at) : '—'}</td>
+            <td>${s.next_run_at ? formatDate(s.next_run_at) : '—'}</td>
+            <td>${s.is_enabled
+                ? '<span class="badge badge-pass">Активно</span>'
+                : '<span class="badge badge-error">Выкл</span>'}</td>
+            <td>
+                <button class="btn btn-sm btn-secondary" onclick="editSchedule('${s.id}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </button>
+                <button class="btn btn-sm" style="color:var(--danger)" onclick="deleteSchedule('${s.id}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+                    </svg>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+    }
+
+    function showScheduleModal(id) {
+        document.getElementById('schedule-modal').style.display = 'flex';
+        document.getElementById('schedule-edit-id').value = '';
+        document.getElementById('schedule-name').value = '';
+        document.getElementById('schedule-cron').value = '0 2 * * *';
+        document.getElementById('schedule-description').value = '';
+        document.getElementById('schedule-enabled').checked = true;
+        document.getElementById('schedule-policies').selectedIndex = -1;
+        document.getElementById('schedule-modal-title').textContent = 'Новое расписание';
+    }
+
+    function closeScheduleModal() {
+        document.getElementById('schedule-modal').style.display = 'none';
+    }
+
+    function editSchedule(id) {
+        const s = schedulesData.find(x => x.id === id);
+        if (!s) return;
+
+        document.getElementById('schedule-modal').style.display = 'flex';
+        document.getElementById('schedule-edit-id').value = id;
+        document.getElementById('schedule-name').value = s.name;
+        document.getElementById('schedule-cron').value = s.cron_expression;
+        document.getElementById('schedule-description').value = s.description || '';
+        document.getElementById('schedule-enabled').checked = s.is_enabled;
+        document.getElementById('schedule-modal-title').textContent = 'Редактировать расписание';
+
+        // Select policies
+        const sel = document.getElementById('schedule-policies');
+        Array.from(sel.options).forEach(opt => {
+            opt.selected = s.policies_filter && s.policies_filter.includes(opt.value);
+        });
+    }
+
+    async function saveSchedule() {
+        const editId = document.getElementById('schedule-edit-id').value;
+        const selectedPolicies = Array.from(document.getElementById('schedule-policies').selectedOptions)
+            .map(o => o.value);
+
+        const payload = {
+            name: document.getElementById('schedule-name').value,
+            cron_expression: document.getElementById('schedule-cron').value,
+            description: document.getElementById('schedule-description').value,
+            is_enabled: document.getElementById('schedule-enabled').checked,
+            policies_filter: selectedPolicies.length ? selectedPolicies : null,
+        };
+
+        try {
+            const url = editId
+                ? `${API}/admin/scan-schedules/${editId}`
+                : `${API}/admin/scan-schedules`;
+            const resp = await fetch(url, {
+                method: editId ? 'PUT' : 'POST',
+                headers: apiHeaders(),
+                body: JSON.stringify(payload),
+            });
+
+            if (resp.ok) {
+                closeScheduleModal();
+                loadSchedules();
+                showToast(editId ? 'Расписание обновлено' : 'Расписание создано', 'success');
+            } else {
+                const err = await resp.json();
+                showToast(err.error || 'Ошибка', 'error');
+            }
+        } catch (e) {
+            showToast('Ошибка: ' + e.message, 'error');
+        }
+    }
+
+    async function deleteSchedule(id) {
+        if (!confirm('Удалить расписание?')) return;
+
+        try {
+            await fetch(`${API}/admin/scan-schedules/${id}`, {
+                method: 'DELETE', headers: apiHeaders()
+            });
+            loadSchedules();
+            showToast('Расписание удалено', 'success');
+        } catch (e) {
+            showToast('Ошибка: ' + e.message, 'error');
+        }
+    }
+
+    /* ═══ Sync Logs ═══ */
+    let syncLogsOffset = 0;
+    const syncLogsLimit = 25;
+
+    async function loadSyncLogs(offset = 0) {
+        syncLogsOffset = offset;
+        const sourceId = document.getElementById('sync-log-source-filter').value;
+        const status = document.getElementById('sync-log-status-filter').value;
+
+        let url = `${API}/admin/sync-logs?limit=${syncLogsLimit}&offset=${offset}`;
+        if (sourceId) url += `&source_id=${sourceId}`;
+        if (status) url += `&status=${status}`;
+
+        try {
+            const resp = await fetch(url);
+            const data = await resp.json();
+            renderSyncLogs(data);
+        } catch (e) {
+            console.error('Failed to load sync logs:', e);
+        }
+    }
+
+    function renderSyncLogs(data) {
+        const tbody = document.getElementById('sync-logs-body');
+
+        if (!data.logs.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Нет записей</td></tr>';
+            document.getElementById('sync-logs-pagination').innerHTML = '';
+            return;
+        }
+
+        tbody.innerHTML = data.logs.map(log => {
+            const statusBadge = {
+                'success': '<span class="badge badge-pass">OK</span>',
+                'partial': '<span class="badge badge-warning">Partial</span>',
+                'failed': '<span class="badge badge-fail">Failed</span>',
+            }[log.status] || `<span class="badge">${log.status}</span>`;
+
+            const triggerLabel = {
+                'manual': 'Ручной',
+                'scheduled': 'Авто',
+                'api': 'API',
+            }[log.trigger] || log.trigger;
+
+            return `
+            <tr>
+                <td>${formatDate(log.started_at)}</td>
+                <td>${log.source_id.substring(0, 8)}...</td>
+                <td>${triggerLabel}</td>
+                <td class="text-center">${log.created}</td>
+                <td class="text-center">${log.updated}</td>
+                <td class="text-center">${log.deactivated}</td>
+                <td>${statusBadge}</td>
+                <td>${log.duration_seconds ? log.duration_seconds.toFixed(1) + 's' : '—'}</td>
+            </tr>
+        `;
+        }).join('');
+
+        // Pagination
+        const pagDiv = document.getElementById('sync-logs-pagination');
+        const totalPages = Math.ceil(data.total / syncLogsLimit);
+        const currentPage = Math.floor(data.offset / syncLogsLimit) + 1;
+
+        if (totalPages <= 1) {
+            pagDiv.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+        if (currentPage > 1) {
+            html += `<button class="btn btn-sm btn-secondary" onclick="loadSyncLogs(${(currentPage - 2) * syncLogsLimit})">←</button> `;
+        }
+        html += `<span class="text-muted" style="padding: 0.25rem 0.5rem;">${currentPage} / ${totalPages}</span>`;
+        if (currentPage < totalPages) {
+            html += ` <button class="btn btn-sm btn-secondary" onclick="loadSyncLogs(${currentPage * syncLogsLimit})">→</button>`;
+        }
+        pagDiv.innerHTML = html;
+    }
+
+    /* ═══ Helpers ═══ */
+    function escHtml(s) {
+        const d = document.createElement('div');
+        d.textContent = s || '';
+        return d.innerHTML;
+    }
+
+    function formatDate(iso) {
+        if (!iso) return '—';
+        const d = new Date(iso);
+        return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function showToast(msg, type) {
+        // Reuse existing toast system if available, or simple alert
+        if (window.showNotification) {
+            window.showNotification(msg, type);
+        } else {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type || 'info'}`;
+            toast.textContent = msg;
+            toast.style.cssText = 'position:fixed;top:1rem;right:1rem;padding:0.75rem 1.5rem;border-radius:8px;z-index:9999;' +
+                'background:' + (type === 'error' ? 'var(--danger)' : 'var(--success)') + ';color:#fff;font-weight:500;';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+    }
+
+    /* ═══ Users Management ═══ */
+    let usersData = [];
+
+    async function loadUsers() {
+        try {
+            const resp = await fetch(`${API}/admin/users`);
+            if (!resp.ok) { showToast('Ошибка загрузки пользователей', 'error'); return; }
+            usersData = await resp.json();
+            renderUsers();
+        } catch (e) { console.error('Failed to load users:', e); }
+    }
+
+    function renderUsers() {
+        const tbody = document.getElementById('users-body');
+        if (!usersData.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Нет пользователей</td></tr>';
+            return;
+        }
+        tbody.innerHTML = usersData.map(u => {
+            const roleBadge = {
+                'admin': '<span class="badge" style="background:rgba(239,68,68,0.15);color:#f87171">admin</span>',
+                'operator': '<span class="badge" style="background:rgba(234,179,8,0.15);color:#fbbf24">operator</span>',
+                'viewer': '<span class="badge" style="background:rgba(99,102,241,0.15);color:#818cf8">viewer</span>',
+            }[u.role] || `<span class="badge">${u.role}</span>`;
+
+            const srcBadge = u.auth_source === 'ldap'
+                ? '<span class="badge" style="background:rgba(99,102,241,0.15);color:#818cf8">AD/LDAP</span>'
+                : '<span class="badge" style="background:rgba(34,197,94,0.15);color:#4ade80">Local</span>';
+
+            const statusBadge = u.is_active
+                ? '<span class="badge badge-pass">Active</span>'
+                : '<span class="badge badge-error">Disabled</span>';
+
+            return `<tr>
+                <td><strong>${escHtml(u.display_name || u.username)}</strong><br><small class="text-muted">${escHtml(u.username)}</small></td>
+                <td>${escHtml(u.email || '—')}</td>
+                <td>${srcBadge}</td>
+                <td>${roleBadge}</td>
+                <td>${statusBadge}</td>
+                <td>${u.last_login_at ? formatDate(u.last_login_at) : '—'}</td>
+                <td>
+                    <button class="btn btn-sm btn-secondary" onclick="editUser('${u.id}')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                    <button class="btn btn-sm" style="color:var(--danger)" onclick="deleteUser('${u.id}','${escHtml(u.username)}')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+                        </svg>
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function showUserModal() {
+        document.getElementById('user-modal').style.display = 'flex';
+        document.getElementById('user-edit-id').value = '';
+        document.getElementById('user-username').value = '';
+        document.getElementById('user-username').disabled = false;
+        document.getElementById('user-display-name').value = '';
+        document.getElementById('user-email').value = '';
+        document.getElementById('user-password').value = '';
+        document.getElementById('user-role').value = 'viewer';
+        document.getElementById('user-active').checked = true;
+        document.getElementById('user-modal-title').textContent = 'Новый пользователь';
+    }
+
+    function closeUserModal() {
+        document.getElementById('user-modal').style.display = 'none';
+    }
+
+    function editUser(id) {
+        const u = usersData.find(x => x.id === id);
+        if (!u) return;
+        document.getElementById('user-modal').style.display = 'flex';
+        document.getElementById('user-edit-id').value = id;
+        document.getElementById('user-username').value = u.username;
+        document.getElementById('user-username').disabled = true;
+        document.getElementById('user-display-name').value = u.display_name || '';
+        document.getElementById('user-email').value = u.email || '';
+        document.getElementById('user-password').value = '';
+        document.getElementById('user-role').value = u.role;
+        document.getElementById('user-active').checked = u.is_active;
+        document.getElementById('user-modal-title').textContent = 'Редактировать пользователя';
+    }
+
+    async function saveUser() {
+        const editId = document.getElementById('user-edit-id').value;
+        const payload = {
+            display_name: document.getElementById('user-display-name').value,
+            email: document.getElementById('user-email').value,
+            role: document.getElementById('user-role').value,
+            is_active: document.getElementById('user-active').checked,
+        };
+        if (!editId) {
+            payload.username = document.getElementById('user-username').value;
+        }
+        const pwd = document.getElementById('user-password').value;
+        if (pwd) payload.password = pwd;
+
+        try {
+            const url = editId ? `${API}/admin/users/${editId}` : `${API}/admin/users`;
+            const resp = await fetch(url, {
+                method: editId ? 'PUT' : 'POST',
+                headers: apiHeaders(),
+                body: JSON.stringify(payload),
+            });
+            if (resp.ok) {
+                closeUserModal();
+                loadUsers();
+                showToast(editId ? 'Пользователь обновлён' : 'Пользователь создан', 'success');
+            } else {
+                const err = await resp.json();
+                showToast(err.error || 'Ошибка', 'error');
+            }
+        } catch (e) { showToast('Ошибка: ' + e.message, 'error'); }
+    }
+
+    async function deleteUser(id, username) {
+        if (!confirm(`Деактивировать пользователя "${username}"?`)) return;
+        try {
+            const resp = await fetch(`${API}/admin/users/${id}`, { method: 'DELETE', headers: apiHeaders() });
+            if (resp.ok) {
+                loadUsers();
+                showToast('Пользователь деактивирован', 'success');
+            } else {
+                const err = await resp.json();
+                showToast(err.error || 'Ошибка', 'error');
+            }
+        } catch (e) { showToast('Ошибка: ' + e.message, 'error'); }
+    }
+
+    /* ═══ LDAP Settings ═══ */
+    async function loadLdapSettings() {
+        try {
+            const resp = await fetch(`${API}/admin/ldap/settings`);
+            if (!resp.ok) return;
+            const data = await resp.json();
+
+            document.querySelectorAll('[data-ldap]').forEach(el => {
+                const key = el.dataset.ldap;
+                const val = data[key] || '';
+                if (el.type === 'checkbox') {
+                    el.checked = ['true', '1'].includes(String(val).toLowerCase());
+                } else {
+                    el.value = val;
+                }
+            });
+        } catch (e) { console.error('Failed to load LDAP settings:', e); }
+    }
+
+    async function saveLdapSettings(event) {
+        event.preventDefault();
+        const payload = {};
+        document.querySelectorAll('[data-ldap]').forEach(el => {
+            const key = el.dataset.ldap;
+            if (el.type === 'checkbox') {
+                payload[key] = el.checked ? 'true' : 'false';
+            } else {
+                payload[key] = el.value;
+            }
+        });
+
+        try {
+            const resp = await fetch(`${API}/admin/ldap/settings`, {
+                method: 'PUT',
+                headers: apiHeaders(),
+                body: JSON.stringify(payload),
+            });
+            if (resp.ok) {
+                showToast('Настройки LDAP сохранены', 'success');
+            } else {
+                showToast('Ошибка сохранения LDAP', 'error');
+            }
+        } catch (e) { showToast('Ошибка: ' + e.message, 'error'); }
+    }
+
+    async function testLdapConnection() {
+        const btn = document.getElementById('ldap-test-btn');
+        const resultDiv = document.getElementById('ldap-test-result');
+        btn.disabled = true;
+        btn.textContent = 'Проверка...';
+        resultDiv.style.display = 'none';
+
+        // Collect current form values
+        const config = {
+            server: document.getElementById('ldap-server').value,
+            port: parseInt(document.getElementById('ldap-port').value) || 389,
+            use_ssl: document.getElementById('ldap-ssl').value === 'true',
+            starttls: document.getElementById('ldap-starttls').checked,
+            bind_dn: document.getElementById('ldap-bind-dn').value,
+            bind_password: document.getElementById('ldap-bind-password').value,
+            base_dn: document.getElementById('ldap-base-dn').value,
+            cert_validation: document.getElementById('ldap-cert').value,
+        };
+
+        try {
+            const resp = await fetch(`${API}/admin/ldap/test`, {
+                method: 'POST',
+                headers: apiHeaders(),
+                body: JSON.stringify(config),
+            });
+            const data = await resp.json();
+
+            resultDiv.style.display = 'block';
+            if (data.success) {
+                resultDiv.innerHTML = `
+                    <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:10px;padding:1rem;">
+                        <strong style="color:#4ade80;">✓ ${escHtml(data.message)}</strong>
+                        ${data.details ? `<pre style="margin:0.5rem 0 0;font-size:0.8rem;color:var(--text-secondary);">${escHtml(JSON.stringify(data.details, null, 2))}</pre>` : ''}
+                    </div>`;
+            } else {
+                resultDiv.innerHTML = `
+                    <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:1rem;">
+                        <strong style="color:#f87171;">✗ ${escHtml(data.message)}</strong>
+                    </div>`;
+            }
+        } catch (e) {
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:1rem;"><strong style="color:#f87171;">Ошибка: ${escHtml(e.message)}</strong></div>`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> Тест подключения';
+        }
+    }
+
+    /* ═══ Init ═══ */
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSettings();
+    });
+</script>
+{% endblock %}

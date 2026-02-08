@@ -2,6 +2,11 @@
 {% block title %}Policies{% endblock %}
 
 {% block content %}
+<div class="breadcrumbs">
+    <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
+    <span class="sep">›</span>
+    <span class="current">Policies</span>
+</div>
 <div class="flex justify-between items-center mb-3">
     <h2>Политики</h2>
     <button class="btn btn-primary" onclick="openCreateModal()">

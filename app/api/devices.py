@@ -118,69 +118,31 @@ def delete_device(device_id):
 def sync_devices():
     """Sync devices from all active inventory sources."""
     from app.models import InventorySource
-    from app.core.registry import get_inventory_provider
-    import os
+    from app.services.inventory_sync import InventorySyncService
     
     sources = InventorySource.query.filter_by(is_active=True).all()
+    service = InventorySyncService()
+    
     total_created = 0
     total_updated = 0
+    total_deactivated = 0
     errors = []
     
     for source in sources:
         try:
-            password = os.environ.get(source.credentials_ref, "") if source.credentials_ref else ""
-            config = source.connection_params or {}
-            if "password" not in config and password:
-                config["password"] = password
-            
-            provider = get_inventory_provider(source.type, config)
-            external_devices = provider.list_devices()
-            provider.close()
-            
-            for ext_dev in external_devices:
-                # Find or create device
-                device = Device.query.filter_by(
-                    external_id=ext_dev.id,
-                    source_id=source.id
-                ).first()
-                
-                if device:
-                    # Update existing
-                    device.hostname = ext_dev.hostname
-                    device.ip_address = ext_dev.ip_address
-                    device.vendor_code = ext_dev.vendor_code
-                    device.location = ext_dev.location
-                    device.extra_data = ext_dev.metadata or {}
-                    device.is_active = ext_dev.is_active
-                    device.last_sync_at = datetime.utcnow()
-                    total_updated += 1
-                else:
-                    # Create new
-                    device = Device(
-                        external_id=ext_dev.id,
-                        hostname=ext_dev.hostname,
-                        ip_address=ext_dev.ip_address,
-                        vendor_code=ext_dev.vendor_code,
-                        location=ext_dev.location,
-                        extra_data=ext_dev.metadata or {},
-                        is_active=ext_dev.is_active,
-                        source_id=source.id,
-                        last_sync_at=datetime.utcnow()
-                    )
-                    db.session.add(device)
-                    total_created += 1
-            
-            source.last_sync_at = datetime.utcnow()
-            
+            result = service.sync(source, trigger="api")
+            total_created += result.created
+            total_updated += result.updated
+            total_deactivated += result.deactivated
+            errors.extend(result.errors)
         except Exception as e:
             errors.append(f"{source.name}: {str(e)}")
-    
-    db.session.commit()
     
     return jsonify({
         "success": len(errors) == 0,
         "created": total_created,
         "updated": total_updated,
+        "deactivated": total_deactivated,
         "errors": errors
     })
 

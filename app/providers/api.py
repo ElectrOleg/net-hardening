@@ -17,10 +17,11 @@ class APIProvider(ConfigSourceProvider):
     Connection params:
     {
         "base_url": "https://api.example.com",
-        "auth_type": "bearer",  # bearer, basic, api_key
+        "auth_type": "bearer",  // bearer, basic, api_key
         "auth_value": "token_or_credentials",
-        "api_key_header": "X-API-Key",  # for api_key auth
+        "api_key_header": "X-API-Key",
         "endpoint_template": "/devices/{device_id}/config",
+        "devices_endpoint": "/devices",
         "method": "GET",
         "headers": {},
         "timeout": 30,
@@ -28,29 +29,17 @@ class APIProvider(ConfigSourceProvider):
     }
     """
     
-    def __init__(
-        self,
-        base_url: str,
-        auth_type: str = "bearer",
-        auth_value: str = "",
-        api_key_header: str = "X-API-Key",
-        endpoint_template: str = "/devices/{device_id}/config",
-        devices_endpoint: str = "/devices",
-        method: str = "GET",
-        headers: Optional[dict] = None,
-        timeout: int = 30,
-        verify_ssl: bool = True
-    ):
-        self.base_url = base_url.rstrip("/")
-        self.auth_type = auth_type
-        self.auth_value = auth_value
-        self.api_key_header = api_key_header
-        self.endpoint_template = endpoint_template
-        self.devices_endpoint = devices_endpoint
-        self.method = method
-        self.headers = headers or {}
-        self.timeout = timeout
-        self.verify_ssl = verify_ssl
+    def __init__(self, config: dict):
+        self.base_url = config.get("base_url", "").rstrip("/")
+        self.auth_type = config.get("auth_type", "bearer")
+        self.auth_value = config.get("auth_value") or config.get("token", "")
+        self.api_key_header = config.get("api_key_header", "X-API-Key")
+        self.endpoint_template = config.get("endpoint_template", "/devices/{device_id}/config")
+        self.devices_endpoint = config.get("devices_endpoint", "/devices")
+        self.method = config.get("method", "GET")
+        self.headers = config.get("headers", {})
+        self.timeout = config.get("timeout", 30)
+        self.verify_ssl = config.get("verify_ssl", True)
         
         self._session: Optional[requests.Session] = None
     
@@ -114,13 +103,16 @@ class APIProvider(ConfigSourceProvider):
             # Try to parse as JSON
             try:
                 config = response.json()
+                fmt = "json"
             except ValueError:
                 # Return as text if not JSON
                 config = response.text
+                fmt = "text"
             
             return FetchResult(
                 success=True,
                 config=config,
+                format=fmt,
                 metadata={
                     "url": url,
                     "status_code": response.status_code,
@@ -136,7 +128,7 @@ class APIProvider(ConfigSourceProvider):
                 error=str(e)
             )
     
-    def list_available_devices(self) -> list[str]:
+    def list_devices(self) -> list[str]:
         """List devices from API."""
         try:
             response = self.session.get(

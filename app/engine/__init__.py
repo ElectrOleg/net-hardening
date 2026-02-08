@@ -7,6 +7,7 @@ from app.engine.version_check import VersionChecker
 from app.engine.textfsm_check import TextFSMChecker
 from app.engine.xml_check import XMLChecker
 from app.engine.advanced_block import AdvancedBlockChecker
+from app.engine.composite_check import CompositeChecker
 from app.engine.evaluator import RuleEvaluator
 
 __all__ = [
@@ -19,6 +20,7 @@ __all__ = [
     "TextFSMChecker",
     "XMLChecker",
     "AdvancedBlockChecker",
+    "CompositeChecker",
     "RuleEvaluator",
 ]
 

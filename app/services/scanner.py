@@ -4,9 +4,8 @@ from datetime import datetime
 from typing import Optional
 
 from app.extensions import db
-from app.models import Scan, Rule, Result, RuleException, DataSource
+from app.models import Scan, Rule, Result, RuleException, DataSource, Device
 from app.engine import RuleEvaluator
-from app.providers import GitLabProvider, SSHProvider, APIProvider
 from app.providers.base import ConfigSourceProvider
 
 logger = logging.getLogger(__name__)
@@ -23,10 +22,23 @@ class ScannerService:
     4. Evaluate rules against configs
     5. Check exceptions
     6. Save results
+    
+    Device identification convention:
+        device_id is always a hostname string (Device.hostname).
+        When a matching Device record exists, device_uuid stores the
+        internal UUID for FK linkage in Result.
     """
+    
+    # Per-scan caches (populated by scan_single_device)
+    _cached_scan_id: Optional[str] = None
+    _cached_rules: Optional[list] = None
+    _cached_data_sources: Optional[list] = None
     
     def __init__(self):
         self.evaluator = RuleEvaluator()
+        self._cached_scan_id = None
+        self._cached_rules = None
+        self._cached_data_sources = None
     
     def initialize_scan(self, scan_id: str, device_ids: Optional[list[str]] = None) -> list[str]:
         """
@@ -68,18 +80,20 @@ class ScannerService:
         if not scan:
             return 0, 0, 0
             
-        # Re-fetch context needed for processing
-        data_sources = DataSource.query.filter_by(is_active=True).all()
-        rules = self._get_applicable_rules(scan.policies_filter)
+        # Cache rules/sources per scan to avoid N+1 queries
+        if self._cached_scan_id != scan_id:
+            self._cached_data_sources = DataSource.query.filter_by(is_active=True).all()
+            self._cached_rules = self._get_applicable_rules(scan.policies_filter)
+            self._cached_scan_id = scan_id
         
         passed, failed, errors = 0, 0, 0
         try:
             passed, failed, errors = self._process_device(
-                scan, device_id, rules, data_sources
+                scan, device_id, self._cached_rules, self._cached_data_sources
             )
         except Exception as e:
             logger.error(f"Error processing device {device_id}: {e}")
-            errors += 1 # Count device itself as error
+            errors += 1
             
         return passed, failed, errors
 
@@ -94,9 +108,6 @@ class ScannerService:
             scan.error_count = 0
             db.session.commit()
 
-    # Legacy execute method removed in favor of async flow
-
-    
     def _get_devices_from_sources(self, data_sources: list[DataSource]) -> list[str]:
         """Collect devices from all data sources."""
         all_devices = set()
@@ -104,7 +115,7 @@ class ScannerService:
         for ds in data_sources:
             provider = self._create_provider(ds)
             if provider:
-                devices = provider.list_available_devices()
+                devices = provider.list_devices()
                 all_devices.update(devices)
                 provider.close()
         
@@ -119,6 +130,111 @@ class ScannerService:
         
         return query.all()
     
+    def _detect_vendor(self, config: str, device_obj: Optional[Device] = None) -> Optional[str]:
+        """Detect vendor for a device.
+        
+        Priority:
+        1. Device inventory record (device_obj.vendor_code)
+        2. VendorMapping database rules
+        3. None (unknown)
+        """
+        # 1. From inventory
+        if device_obj and device_obj.vendor_code:
+            return device_obj.vendor_code
+        
+        # 2. From VendorMapping database rules
+        try:
+            from app.services.inventory_sync import VendorDetector
+            vendor = VendorDetector.detect(config)
+            if vendor:
+                return vendor
+        except Exception as e:
+            logger.debug(f"VendorDetector unavailable: {e}")
+        
+        return None
+    
+    def _check_applicability(self, rule: Rule, device_obj: Optional[Device]) -> bool:
+        """Check if a rule applies to a device based on rule.applicability conditions.
+        
+        Returns True if the rule should be applied (all conditions match or no conditions set).
+        
+        Condition key formats:
+        - "field_name"           → exact match against Device.field_name
+        - "field_name_regex"     → regex match against Device.field_name
+        - "field_name_contains"  → substring match against Device.field_name
+        - "extra_data.key"       → exact match against Device.extra_data["key"]
+        - "extra_data.key_regex" → regex match against Device.extra_data["key"]
+        
+        All conditions are AND-joined. If device_obj is None, conditions
+        referencing device fields are skipped (permissive).
+        """
+        import re as re_module
+        
+        conditions = rule.applicability
+        if not conditions or not isinstance(conditions, dict):
+            return True  # No conditions → rule applies to all
+        
+        if device_obj is None:
+            # Can't check device fields without a device record → permissive
+            return True
+        
+        extra = device_obj.extra_data or {}
+        
+        for cond_key, cond_value in conditions.items():
+            if cond_value is None:
+                continue
+            
+            # Resolve the device value for this condition
+            device_value = self._resolve_device_field(device_obj, extra, cond_key)
+            
+            if device_value is None:
+                # Field doesn't exist on device → skip this condition (permissive)
+                continue
+            
+            device_value_str = str(device_value)
+            cond_value_str = str(cond_value)
+            
+            # Determine match type from key suffix
+            if cond_key.endswith("_regex"):
+                try:
+                    if not re_module.search(cond_value_str, device_value_str):
+                        return False
+                except re_module.error:
+                    logger.warning(f"Invalid regex in rule applicability: {cond_value_str}")
+                    return False
+            elif cond_key.endswith("_contains"):
+                if cond_value_str.lower() not in device_value_str.lower():
+                    return False
+            else:
+                # Exact match (case-insensitive for strings)
+                if device_value_str.lower() != cond_value_str.lower():
+                    return False
+        
+        return True
+    
+    @staticmethod
+    def _resolve_device_field(device_obj: Device, extra: dict, cond_key: str):
+        """Resolve a condition key to a device field value.
+        
+        Strips _regex/_contains suffixes, then checks:
+        1. extra_data.X path → extra["X"]
+        2. Standard Device attribute
+        """
+        # Strip match-type suffix to get the real field name
+        field_key = cond_key
+        for suffix in ("_regex", "_contains"):
+            if field_key.endswith(suffix):
+                field_key = field_key[:-len(suffix)]
+                break
+        
+        # Check extra_data path: "extra_data.department" → extra["department"]
+        if field_key.startswith("extra_data."):
+            extra_key = field_key[11:]  # strip "extra_data."
+            return extra.get(extra_key)
+        
+        # Standard Device attribute
+        return getattr(device_obj, field_key, None)
+
     def _process_device(
         self, 
         scan: Scan, 
@@ -131,6 +247,12 @@ class ScannerService:
         failed = 0
         errors = 0
         
+        # Resolve Device UUID from inventory
+        device_obj = Device.query.filter(
+            (Device.hostname == device_id) | (Device.ip_address == device_id)
+        ).first()
+        device_uuid = device_obj.id if device_obj else None
+        
         # Fetch config
         config = None
         device_vendor = None
@@ -138,18 +260,12 @@ class ScannerService:
         for ds in data_sources:
             provider = self._create_provider(ds)
             if provider:
-                # Try to get vendor from provider metadata if available
-                # (This would require providers to implement get_device_vendor, currently we guess or need metadata)
-                # For now, we will rely on config parsing or default to None (wildcard)
-                
                 result = provider.fetch_config(device_id)
                 if result.success:
                     config = result.config
-                    # Attempt to detect vendor from metadata or config content if possible
-                    # Ideally, inventory should provide this.
+                    # Try vendor from provider metadata
                     if result.metadata and "vendor" in result.metadata:
-                         device_vendor = result.metadata["vendor"]
-                    
+                        device_vendor = result.metadata["vendor"]
                     provider.close()
                     break
                 provider.close()
@@ -160,6 +276,7 @@ class ScannerService:
                 result = Result(
                     scan_id=scan.id,
                     device_id=device_id,
+                    device_uuid=device_uuid,
                     rule_id=rule.id,
                     status="ERROR",
                     message="Could not fetch configuration"
@@ -169,33 +286,27 @@ class ScannerService:
             db.session.commit()
             return passed, failed, errors
         
-        # Determine vendor if not explicitly found (Simplified heuristic)
+        # Detect vendor using priority chain
         if not device_vendor:
-            # Heuristics for demo/test
-            if "! Vendor: cisco_ios" in config:
-                device_vendor = "cisco_ios"
-            elif "# Vendor: juniper_junos" in config:
-                device_vendor = "juniper_junos"
-            # Standard heuristics
-            elif "version" in config.lower() and "cisco" in config.lower():
-                device_vendor = "cisco_ios"
-            elif "system {" in config and "host-name" in config:
-                device_vendor = "juniper_junos"
+            device_vendor = self._detect_vendor(config, device_obj)
         
         # Evaluate each rule
         for rule in rules:
-            # 1. Vendor Check: Skip if rule has specific vendor AND device has known vendor AND they mismatch
+            # 1. Vendor Check
             if rule.vendor_code and rule.vendor_code != "any":
-                 if device_vendor and rule.vendor_code != device_vendor:
-                     # Skip silently or log as SKIPPED? 
-                     # For reporting clarity, let's just skip entirely to avoid noise in the report
-                     continue
+                if device_vendor and rule.vendor_code != device_vendor:
+                    continue
 
-            # 2. Exception Check
+            # 2. Applicability Check (os_version, hardware, extra_data, etc.)
+            if not self._check_applicability(rule, device_obj):
+                continue
+
+            # 3. Exception Check
             if self._has_active_exception(device_id, rule.id):
                 result = Result(
                     scan_id=scan.id,
                     device_id=device_id,
+                    device_uuid=device_uuid,
                     rule_id=rule.id,
                     status="SKIPPED",
                     message="Exception/waiver active"
@@ -214,6 +325,7 @@ class ScannerService:
                 result = Result(
                     scan_id=scan.id,
                     device_id=device_id,
+                    device_uuid=device_uuid,
                     rule_id=rule.id,
                     status=check_result.status.value,
                     message=check_result.message,
@@ -233,6 +345,7 @@ class ScannerService:
                 result = Result(
                     scan_id=scan.id,
                     device_id=device_id,
+                    device_uuid=device_uuid,
                     rule_id=rule.id,
                     status="ERROR",
                     message=str(e)
@@ -260,26 +373,28 @@ class ScannerService:
     def _create_provider(self, ds: DataSource) -> Optional[ConfigSourceProvider]:
         """Create appropriate provider using Registry."""
         from app.core.registry import get_config_provider
-        import os
+        from app.core.credentials import resolve_credential
         
-        # Get credentials
-        token = os.environ.get(ds.credentials_ref, "") if ds.credentials_ref else ""
+        # Get credentials via CredentialResolver
+        token = resolve_credential(ds.credentials_ref) if ds.credentials_ref else ""
         
         # Prepare config
-        config = ds.connection_params or {}
+        config = dict(ds.connection_params or {})
         
-        # Inject standard credentials if provider expects them
-        # (This logic might need refinement depending on provider specifics)
-        if "token" not in config:
-            config["token"] = token
-        if "password" not in config and token:
-             config["password"] = token
-        
-        # Automatically map common proxy params if present in DS config
-        # E.g., if user put "ssh_config_file" in database JSONB connection_params, it is already in `config` dict
+        # Provider-type-aware credential injection
+        if token:
+            if ds.type in ("gitlab", "api", "checkpoint", "fortigate", "usergate", "paloalto"):
+                config.setdefault("token", token)
+            if ds.type in ("ssh", "netconf", "checkpoint", "usergate"):
+                config.setdefault("password", token)
+            if ds.type in ("fortigate",) and config.get("auth_type") == "api_key":
+                config.setdefault("api_key", token)
+            if ds.type in ("paloalto",):
+                config.setdefault("api_key", token)
              
         try:
             return get_config_provider(ds.type, config)
         except ValueError as e:
             logger.warning(f"Failed to create provider for {ds.type}: {e}")
             return None
+

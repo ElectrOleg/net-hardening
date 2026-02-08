@@ -1,16 +1,19 @@
 """Scans API endpoints."""
 from flask import request, jsonify
 from app.api import api_bp
+from app.api.pagination import paginate_query
 from app.extensions import db
 from app.models import Scan
+from app.auth import require_auth
 
 
 @api_bp.route("/scans", methods=["GET"])
 def list_scans():
     """List recent scans."""
-    limit = request.args.get("limit", 20, type=int)
-    scans = Scan.query.order_by(Scan.started_at.desc()).limit(limit).all()
-    return jsonify([s.to_dict() for s in scans])
+    query = Scan.query.order_by(Scan.started_at.desc())
+    result = paginate_query(query)
+    result["items"] = [s.to_dict() for s in result["items"]]
+    return jsonify(result)
 
 
 @api_bp.route("/scans/<uuid:scan_id>", methods=["GET"])
@@ -21,6 +24,7 @@ def get_scan(scan_id):
 
 
 @api_bp.route("/scans", methods=["POST"])
+@require_auth
 def start_scan():
     """Start a new scan (async via Celery)."""
     data = request.get_json() or {}
@@ -48,6 +52,7 @@ def start_scan():
 
 
 @api_bp.route("/scans/<uuid:scan_id>/cancel", methods=["POST"])
+@require_auth
 def cancel_scan(scan_id):
     """Cancel a running scan."""
     scan = Scan.query.get_or_404(scan_id)
@@ -58,7 +63,10 @@ def cancel_scan(scan_id):
     scan.status = "cancelled"
     db.session.commit()
     
-    # TODO: Actually revoke the Celery task
+    # Revoke the Celery orchestrator task (and any child tasks it spawned)
+    if scan.celery_task_id:
+        from app.extensions import celery as celery_app
+        celery_app.control.revoke(scan.celery_task_id, terminate=True, signal="SIGTERM")
     
     return jsonify({"status": "cancelled"})
 

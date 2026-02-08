@@ -77,3 +77,32 @@ def seed_command():
     click.echo("Rules seeded.")
     
     click.echo("Database seeding completed!")
+
+
+@click.command("seed-admin")
+@click.option("--username", default="admin", help="Admin username")
+@click.option("--password", default="admin123", help="Admin password")
+@with_appcontext
+def seed_admin_command(username, password):
+    """Create default admin user for first-time setup."""
+    from app.models.user import User
+
+    existing = User.query.filter_by(username=username).first()
+    if existing:
+        click.echo(f"User '{username}' already exists (role={existing.role})")
+        return
+
+    user = User(
+        username=username,
+        display_name="Administrator",
+        email="",
+        auth_source="local",
+        role="admin",
+        is_active=True,
+    )
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+
+    click.echo(f"Created admin user '{username}' with password '{password}'")
+    click.echo("⚠️  Change the password after first login!")

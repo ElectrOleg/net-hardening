@@ -3,7 +3,6 @@
 
 {% block extra_css %}
 <style>
-    /* Modern UI Variables */
     :root {
         --switch-width: 46px;
         --switch-height: 24px;
@@ -22,13 +21,149 @@
         }
     }
 
+    /* ── Type Selector Cards ── */
+    .type-cards-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.625rem;
+    }
+
+    @media (max-width: 600px) {
+        .type-cards-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .type-card {
+        background: var(--hcs-bg-primary);
+        border: 1.5px solid var(--hcs-bg-tertiary);
+        border-radius: var(--hcs-radius-md);
+        padding: 0.75rem;
+        cursor: pointer;
+        transition: all 0.25s cubic-bezier(.4, 0, .2, 1);
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .type-card:hover {
+        border-color: var(--hcs-accent);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .type-card.active {
+        border-color: var(--hcs-accent);
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+        box-shadow: 0 0 0 3px var(--hcs-accent-glow), 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .type-card-icon {
+        width: 32px;
+        height: 32px;
+        margin: 0 auto 0.375rem;
+        color: var(--hcs-text-muted);
+        transition: color 0.2s;
+    }
+
+    .type-card.active .type-card-icon {
+        color: var(--hcs-accent-light);
+    }
+
+    .type-card-title {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--hcs-text-primary);
+        margin-bottom: 0.125rem;
+    }
+
+    .type-card-desc {
+        font-size: 0.6875rem;
+        color: var(--hcs-text-muted);
+        line-height: 1.3;
+    }
+
+    /* ── Severity Badges ── */
+    .severity-options {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .severity-btn {
+        padding: 0.375rem 0.875rem;
+        border-radius: 100px;
+        border: 1.5px solid var(--hcs-bg-tertiary);
+        background: transparent;
+        color: var(--hcs-text-secondary);
+        font-size: 0.8125rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .severity-btn:hover {
+        border-color: var(--color, var(--hcs-accent));
+    }
+
+    .severity-btn.active {
+        border-color: var(--color);
+        background: var(--bg);
+        color: var(--color);
+        font-weight: 600;
+    }
+
+    /* ── Step Indicator ── */
+    .step-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 500;
+        color: var(--hcs-text-secondary);
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .step-num {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--hcs-accent);
+        color: white;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    /* ── Field Hint ── */
+    .field-hint {
+        font-size: 0.75rem;
+        color: var(--hcs-text-muted);
+        margin-top: 0.375rem;
+        padding-left: 0.25rem;
+        line-height: 1.4;
+    }
+
+    .field-hint code {
+        background: var(--hcs-bg-tertiary);
+        padding: 0.125rem 0.375rem;
+        border-radius: 3px;
+        font-size: 0.6875rem;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── Payload Editor ── */
     .payload-editor {
         font-family: 'JetBrains Mono', monospace;
         min-height: 300px;
-        font-size: 0.9em;
+        font-size: 0.85em;
         line-height: 1.5;
         background-color: var(--hcs-bg-primary);
-        /* Fixed: Distinct background */
         border: 1px solid var(--hcs-bg-tertiary);
         border-radius: var(--hcs-radius-md);
         color: var(--hcs-text-primary);
@@ -40,11 +175,11 @@
     }
 
     .test-result {
-        max-height: 300px;
+        max-height: 350px;
         overflow-y: auto;
     }
 
-    /* Modern Toggle Switch */
+    /* ── Toggle Switch ── */
     .toggle-switch {
         position: relative;
         display: inline-flex;
@@ -72,7 +207,6 @@
         border: 1px solid var(--hcs-bg-tertiary);
         border-radius: 34px;
         transition: .3s cubic-bezier(0.4, 0.0, 0.2, 1);
-        vertical-align: middle;
     }
 
     .toggle-slider:before {
@@ -97,13 +231,30 @@
         background-color: white;
     }
 
-    /* Visual Builder Modern Container */
+    /* ── Visual Builder ── */
     .visual-builder-container {
         background: var(--hcs-bg-primary);
         padding: 1.5rem;
         border-radius: var(--hcs-radius-lg);
         border: 1px solid var(--hcs-bg-tertiary);
         position: relative;
+        transition: opacity 0.3s, transform 0.3s;
+    }
+
+    .logic-form {
+        animation: fadeSlideIn 0.3s ease;
+    }
+
+    @keyframes fadeSlideIn {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .nested-group-container {
@@ -112,6 +263,7 @@
         border-radius: var(--hcs-radius-md);
         border: 1px solid var(--hcs-bg-tertiary);
         margin-bottom: 1rem;
+        border-left: 3px solid var(--hcs-accent);
     }
 
     .child-rule-row {
@@ -120,6 +272,11 @@
         border-radius: var(--hcs-radius-sm);
         border: 1px solid var(--hcs-bg-tertiary);
         margin-bottom: 0.5rem;
+        transition: border-color 0.2s;
+    }
+
+    .child-rule-row:hover {
+        border-color: var(--hcs-accent);
     }
 
     .visual-label {
@@ -132,7 +289,7 @@
         display: block;
     }
 
-    /* Input Group Modernization */
+    /* ── Input Group ── */
     .modern-input-group {
         display: flex;
         border: 1px solid var(--hcs-bg-tertiary);
@@ -170,15 +327,49 @@
         box-shadow: none;
     }
 
-    /* Code textarea style override */
+    /* ── Sandbox Enhancements ── */
+    .sandbox-card {
+        backdrop-filter: blur(8px);
+        background: rgba(30, 41, 59, 0.85);
+        border: 1px solid rgba(51, 65, 85, 0.6);
+    }
+
     #test_config {
         background-color: var(--hcs-bg-primary) !important;
         border: 1px solid var(--hcs-bg-tertiary) !important;
+        tab-size: 4;
+    }
+
+    .match-line {
+        background: rgba(59, 130, 246, 0.15);
+        border-left: 3px solid var(--hcs-accent);
+        padding-left: 0.5rem;
+    }
+
+    .sandbox-stats {
+        display: flex;
+        gap: 1rem;
+        padding: 0.5rem 0;
+        font-size: 0.75rem;
+        color: var(--hcs-text-muted);
+    }
+
+    .sandbox-stats span {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
     }
 </style>
 {% endblock %}
 
 {% block content %}
+<div class="breadcrumbs">
+    <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('web.rules_list') }}">Rules</a>
+    <span class="sep">›</span>
+    <span class="current">{% if rule %}Edit{% else %}New{% endif %}</span>
+</div>
 <div class="flex justify-between items-center mb-3">
     <div class="flex items-center gap-2">
         <a href="{{ url_for('web.rules_list') }}" class="btn btn-ghost btn-icon">
@@ -188,7 +379,7 @@
         </a>
         <div>
             <h2 style="margin: 0;">Конструктор правил</h2>
-            <p class="text-sm text-muted" style="margin: 0;">Создание и редактирование политик</p>
+            <p class="text-sm text-muted" style="margin: 0;">Создание и редактирование проверок безопасности</p>
         </div>
     </div>
 </div>
@@ -198,8 +389,6 @@
     <div class="card fade-in">
         <div class="card-header">
             <h4 style="margin: 0;">Настройка</h4>
-
-            <!-- Integrated Modern Toggle -->
             <label class="toggle-switch" title="Переключить в режим ручного редактирования JSON">
                 <input type="checkbox" id="manualModeToggle" onchange="toggleManualMode()">
                 <span class="toggle-slider"></span>
@@ -234,16 +423,102 @@
                     </div>
                 </div>
 
+                <!-- Severity -->
+                <div class="form-group mb-3">
+                    <label class="form-label">Критичность</label>
+                    <div class="severity-options">
+                        <button type="button" class="severity-btn" data-severity="critical"
+                            style="--color: #ef4444; --bg: rgba(239,68,68,0.12);" onclick="setSeverity(this)">🔴
+                            Critical</button>
+                        <button type="button" class="severity-btn" data-severity="high"
+                            style="--color: #f97316; --bg: rgba(249,115,22,0.12);" onclick="setSeverity(this)">🟠
+                            High</button>
+                        <button type="button" class="severity-btn active" data-severity="medium"
+                            style="--color: #eab308; --bg: rgba(234,179,8,0.12);" onclick="setSeverity(this)">🟡
+                            Medium</button>
+                        <button type="button" class="severity-btn" data-severity="low"
+                            style="--color: #3b82f6; --bg: rgba(59,130,246,0.12);" onclick="setSeverity(this)">🔵
+                            Low</button>
+                        <button type="button" class="severity-btn" data-severity="info"
+                            style="--color: #64748b; --bg: rgba(100,116,139,0.12);" onclick="setSeverity(this)">⚪
+                            Info</button>
+                    </div>
+                    <input type="hidden" id="severity" value="medium">
+                </div>
+
+                <!-- Type Selector Cards -->
                 <div class="form-group mb-3">
                     <label class="form-label">Тип проверки</label>
-                    <select class="form-select" id="logic_type" onchange="updateBuilderMode()"
-                        style="font-weight: 600; color: var(--hcs-accent-light);">
-                        <option value="simple_match">Simple Match (Regex Search)</option>
-                        <option value="block_match">Block Context Match</option>
-                        <option value="structure_check">Structure Check (JSON Query)</option>
+                    <div class="type-cards-grid">
+                        <div class="type-card active" data-type="simple_match" onclick="selectType(this)">
+                            <svg class="type-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <circle cx="11" cy="11" r="8" />
+                                <path d="M21 21l-4.35-4.35" />
+                            </svg>
+                            <div class="type-card-title">Simple Match</div>
+                            <div class="type-card-desc">Поиск строки или regex</div>
+                        </div>
+                        <div class="type-card" data-type="block_match" onclick="selectType(this)">
+                            <svg class="type-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <rect x="3" y="3" width="7" height="7" />
+                                <rect x="14" y="3" width="7" height="7" />
+                                <rect x="3" y="14" width="7" height="7" />
+                                <path d="M14 17h7" />
+                            </svg>
+                            <div class="type-card-title">Block Match</div>
+                            <div class="type-card-desc">Проверка в контексте блока (interface, vlan...)</div>
+                        </div>
+                        <div class="type-card" data-type="structure_check" onclick="selectType(this)">
+                            <svg class="type-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                                <path d="M12 18v-6" />
+                                <path d="M9 15l3 3 3-3" />
+                            </svg>
+                            <div class="type-card-title">Structure Check</div>
+                            <div class="type-card-desc">JMESPath запрос к JSON/API</div>
+                        </div>
+                        <div class="type-card" data-type="version_check" onclick="selectType(this)">
+                            <svg class="type-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <path d="M12 20V10" />
+                                <path d="M18 20V4" />
+                                <path d="M6 20v-4" />
+                            </svg>
+                            <div class="type-card-title">Version Check</div>
+                            <div class="type-card-desc">Сравнение версии ПО</div>
+                        </div>
+                        <div class="type-card" data-type="textfsm_check" onclick="selectType(this)">
+                            <svg class="type-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <rect x="3" y="3" width="18" height="18" rx="2" />
+                                <path d="M3 9h18" />
+                                <path d="M9 21V9" />
+                            </svg>
+                            <div class="type-card-title">TextFSM</div>
+                            <div class="type-card-desc">Табличный парсинг по шаблону</div>
+                        </div>
+                        <div class="type-card" data-type="xml_check" onclick="selectType(this)">
+                            <svg class="type-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <polyline points="16 18 22 12 16 6" />
+                                <polyline points="8 6 2 12 8 18" />
+                                <line x1="12" y1="2" x2="12" y2="22" stroke-dasharray="3 3" />
+                            </svg>
+                            <div class="type-card-title">XML / XPath</div>
+                            <div class="type-card-desc">Запрос к XML-конфигу</div>
+                        </div>
+                    </div>
+                    <select class="form-select" id="logic_type" style="display:none;">
+                        <option value="simple_match">Simple Match</option>
+                        <option value="block_match">Block Match</option>
+                        <option value="structure_check">Structure Check</option>
                         <option value="version_check">Version Check</option>
                         <option value="textfsm_check">TextFSM Check</option>
-                        <option value="xml_check">XML/XPath Check</option>
+                        <option value="xml_check">XML Check</option>
                     </select>
                 </div>
 
@@ -252,10 +527,10 @@
                 <!-- VISUAL BUILDER UI -->
                 <div id="visualBuilder" class="visual-builder-container mb-3">
 
-                    <!-- 1. Simple Match Form -->
+                    <!-- 1. Simple Match -->
                     <div id="form_simple_match" class="logic-form" style="display: none;">
                         <div class="form-group mb-3">
-                            <label class="visual-label">1. Искомый паттерн</label>
+                            <label class="step-label"><span class="step-num">1</span> Искомый паттерн</label>
                             <div class="modern-input-group">
                                 <span class="input-group-text">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -266,22 +541,23 @@
                                 <input type="text" class="form-input" id="sm_pattern"
                                     placeholder="e.g. ^service password-encryption">
                             </div>
+                            <div class="field-hint">Regex: <code>^line vty</code> — начало строки,
+                                <code>transport input (ssh|none)</code> — альтернатива
+                            </div>
                         </div>
-
                         <div class="grid grid-2 gap-2">
                             <div class="form-group">
-                                <label class="visual-label">2. Ожидаемое состояние</label>
+                                <label class="step-label"><span class="step-num">2</span> Состояние</label>
                                 <select class="form-select" id="sm_mode">
-                                    <option value="must_exist">✅ Должно присутствовать (Required)</option>
-                                    <option value="must_not_exist">🚫 Не должно присутствовать (Forbidden)</option>
+                                    <option value="must_exist">✅ Должно быть (Required)</option>
+                                    <option value="must_not_exist">🚫 Запрещено (Forbidden)</option>
                                 </select>
                             </div>
-
                             <div class="flex flex-col gap-2 justify-between" style="padding-top: 24px;">
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="sm_regex" checked>
                                     <span class="toggle-slider"></span>
-                                    <span class="text-sm">Regex Mode</span>
+                                    <span class="text-sm">Regex</span>
                                 </label>
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="sm_case">
@@ -292,60 +568,62 @@
                         </div>
                     </div>
 
-                    <!-- 2. Block Match Form -->
+                    <!-- 2. Block Match -->
                     <div id="form_block_match" class="logic-form" style="display: none;">
                         <div class="grid grid-2 gap-2 mb-2">
                             <div class="form-group">
-                                <label class="visual-label">Начало блока (Regex)</label>
+                                <label class="step-label"><span class="step-num">1</span> Начало блока</label>
                                 <input type="text" class="form-input" id="bm_parent" placeholder="^interface (Gi|Te)">
+                                <div class="field-hint">Regex для parent-строки: <code>^interface</code>,
+                                    <code>^router ospf</code>
+                                </div>
                             </div>
                             <div class="form-group">
-                                <label class="visual-label">Конец блока (Regex) <span class="text-muted"
-                                        style="font-weight: normal; text-transform: none;">(opt.)</span></label>
+                                <label class="step-label"><span class="step-num">2</span> Конец блока <span
+                                        class="text-muted"
+                                        style="font-weight:normal;text-transform:none;">(opt.)</span></label>
                                 <input type="text" class="form-input" id="bm_end" placeholder="^!">
                             </div>
                         </div>
-
                         <div class="form-group mb-3">
                             <label class="visual-label">Исключить блоки (Filter)</label>
                             <input type="text" class="form-input" id="bm_exclude"
                                 placeholder="e.g. description .*UPLINK.*">
-                            <small class="text-muted">Пропускать блоки, совпадающие с фильтром</small>
+                            <div class="field-hint">Блоки с этим паттерном будут пропущены</div>
                         </div>
-
                         <div class="nested-group-container">
-                            <label class="visual-label mb-2 block">Вложенные проверки (Child Rules)</label>
-                            <div id="bm_children_container" class="flex flex-col gap-2 mb-3">
-                                <!-- JS Generated -->
-                            </div>
+                            <label class="step-label mb-2"><span class="step-num">3</span> Вложенные проверки</label>
+                            <div id="bm_children_container" class="flex flex-col gap-2 mb-3"></div>
                             <button type="button" class="btn btn-secondary w-full" style="border-style: dashed;"
                                 onclick="addBlockChildRow()">
                                 + Добавить проверку
                             </button>
                         </div>
-
                         <div class="form-group">
                             <label class="visual-label">Логика</label>
                             <select class="form-select" id="bm_logic">
                                 <option value="ALL">ALL — Все проверки должны совпасть</option>
-                                <option value="ANY">ANY — Хотя бы одна проверка должна совпасть</option>
+                                <option value="ANY">ANY — Хотя бы одна</option>
                             </select>
                         </div>
                     </div>
 
-                    <!-- 3. Structure Check Form -->
+                    <!-- 3. Structure Check -->
                     <div id="form_structure_check" class="logic-form" style="display: none;">
                         <div class="form-group mb-3">
-                            <label class="visual-label">JMESPath Query</label>
+                            <label class="step-label"><span class="step-num">1</span> JMESPath Query</label>
                             <div class="modern-input-group">
                                 <span class="input-group-text">$.</span>
                                 <input type="text" class="form-input" id="sc_path"
                                     placeholder="network.interfaces[?name=='eth0'].enabled">
                             </div>
+                            <div class="field-hint">Примеры: <code>security.firewall.enabled</code>,
+                                <code>users[?role=='admin'] | length(@)</code>
+                            </div>
                         </div>
                         <div class="grid grid-2 gap-2">
                             <div class="form-group">
-                                <label class="visual-label">Оператор</label>
+                                <label class="step-label"><span class="step-num">2</span> Оператор</label>
                                 <select class="form-select" id="sc_operator" onchange="toggleScValue()">
                                     <option value="eq">== Равно</option>
                                     <option value="neq">!= Не равно</option>
@@ -357,25 +635,26 @@
                                 </select>
                             </div>
                             <div class="form-group" id="sc_value_group">
-                                <label class="visual-label">Значение</label>
+                                <label class="step-label"><span class="step-num">3</span> Значение</label>
                                 <input type="text" class="form-input" id="sc_value" placeholder="true">
                             </div>
                         </div>
                     </div>
 
-                    <!-- 4. Version Check Form -->
+                    <!-- 4. Version Check -->
                     <div id="form_version_check" class="logic-form" style="display: none;">
                         <div class="form-group mb-3">
-                            <label class="visual-label">Regex паттерн версии</label>
+                            <label class="step-label"><span class="step-num">1</span> Regex паттерн версии</label>
                             <div class="modern-input-group">
                                 <span class="input-group-text">v</span>
                                 <input type="text" class="form-input" id="vc_pattern"
                                     placeholder="version (\d+\.\d+\.\d+)">
                             </div>
+                            <div class="field-hint">Группа захвата <code>(\d+\.\d+)</code> извлечёт номер версии</div>
                         </div>
                         <div class="grid grid-2 gap-2">
                             <div class="form-group">
-                                <label class="visual-label">Оператор</label>
+                                <label class="step-label"><span class="step-num">2</span> Оператор</label>
                                 <select class="form-select" id="vc_operator">
                                     <option value="ge">>= Больше или равно</option>
                                     <option value="eq">== Равно</option>
@@ -384,25 +663,79 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label class="visual-label">Требуемая версия</label>
+                                <label class="step-label"><span class="step-num">3</span> Требуемая версия</label>
                                 <input type="text" class="form-input" id="vc_value" placeholder="15.2.4">
                             </div>
                         </div>
                     </div>
 
-                    <!-- Placeholder -->
-                    <div id="form_generic" class="logic-form"
-                        style="display: none; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; text-align: center;">
-                        <svg class="text-muted mb-2" width="32" height="32" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="1.5">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                            <polyline points="10 9 9 9 8 9"></polyline>
-                        </svg>
-                        <p class="text-sm text-muted">Для этого типа проверки используйте <strong>JSON Mode</strong>
-                        </p>
+                    <!-- 5. TextFSM Check -->
+                    <div id="form_textfsm_check" class="logic-form" style="display: none;">
+                        <div class="form-group mb-3">
+                            <label class="step-label"><span class="step-num">1</span> TextFSM шаблон</label>
+                            <textarea class="form-textarea font-mono text-xs" id="tfsm_template" rows="6"
+                                placeholder="Value INTERFACE (\S+)&#10;Value STATUS (up|down)&#10;&#10;Start&#10;  ^${INTERFACE}\s+${STATUS} -> Record"></textarea>
+                            <div class="field-hint">Стандартный TextFSM шаблон. Определите Value-переменные и правила
+                                парсинга.</div>
+                        </div>
+                        <div class="grid grid-2 gap-2 mb-2">
+                            <div class="form-group">
+                                <label class="step-label"><span class="step-num">2</span> Колонка для проверки</label>
+                                <input type="text" class="form-input" id="tfsm_column" placeholder="STATUS">
+                                <div class="field-hint">Имя Value-переменной для проверки</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="step-label"><span class="step-num">3</span> Оператор</label>
+                                <select class="form-select" id="tfsm_operator">
+                                    <option value="all_eq">Все значения ==</option>
+                                    <option value="any_eq">Хотя бы одно ==</option>
+                                    <option value="none_eq">Ни одно не ==</option>
+                                    <option value="count_gt">Кол-во строк ></option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="step-label"><span class="step-num">4</span> Ожидаемое значение</label>
+                            <input type="text" class="form-input" id="tfsm_value" placeholder="up">
+                        </div>
+                    </div>
+
+                    <!-- 6. XML/XPath Check -->
+                    <div id="form_xml_check" class="logic-form" style="display: none;">
+                        <div class="form-group mb-3">
+                            <label class="step-label"><span class="step-num">1</span> XPath выражение</label>
+                            <div class="modern-input-group">
+                                <span class="input-group-text">XPath</span>
+                                <input type="text" class="form-input" id="xml_xpath"
+                                    placeholder="//system/services/ssh/protocol-version">
+                            </div>
+                            <div class="field-hint">Примеры:
+                                <code>//interfaces/interface[@name='ge-0/0/0']/unit/family/inet</code>
+                            </div>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="visual-label">Namespace prefix <span class="text-muted"
+                                    style="font-weight:normal;text-transform:none;">(opt.)</span></label>
+                            <input type="text" class="form-input" id="xml_ns"
+                                placeholder="e.g. junos=http://xml.juniper.net/junos">
+                            <div class="field-hint">Формат: <code>prefix=uri</code>, через запятую для нескольких</div>
+                        </div>
+                        <div class="grid grid-2 gap-2">
+                            <div class="form-group">
+                                <label class="step-label"><span class="step-num">2</span> Оператор</label>
+                                <select class="form-select" id="xml_operator" onchange="toggleXmlValue()">
+                                    <option value="eq">== Равно</option>
+                                    <option value="neq">!= Не равно</option>
+                                    <option value="contains">∋ Содержит</option>
+                                    <option value="exists">∃ Существует</option>
+                                    <option value="not_exists">∄ Не существует</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="xml_value_group">
+                                <label class="step-label"><span class="step-num">3</span> Значение</label>
+                                <input type="text" class="form-input" id="xml_value" placeholder="v2">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -415,12 +748,13 @@
                 <div class="grid grid-2 gap-2 mt-3">
                     <div class="form-group">
                         <label class="form-label">Описание</label>
-                        <textarea class="form-textarea" id="description" rows="2" placeholder="Контекст..."></textarea>
+                        <textarea class="form-textarea" id="description" rows="2" placeholder="Контекст..."
+                            style="font-family: inherit;"></textarea>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Remediation</label>
-                        <textarea class="form-textarea" id="remediation" rows="2"
-                            placeholder="Как исправить..."></textarea>
+                        <textarea class="form-textarea" id="remediation" rows="2" placeholder="Как исправить..."
+                            style="font-family: inherit;"></textarea>
                     </div>
                 </div>
             </form>
@@ -433,8 +767,9 @@
         </div>
     </div>
 
-    <!-- Live Test Sandbox -->
-    <div class="card fade-in" style="animation-delay: 100ms; height: fit-content; position: sticky; top: 1rem;">
+    <!-- Live Sandbox -->
+    <div class="card fade-in sandbox-card"
+        style="animation-delay: 100ms; height: fit-content; position: sticky; top: 1rem;">
         <div class="card-header flex justify-between items-center pb-2">
             <div>
                 <h4 class="m-0">Live Sandbox</h4>
@@ -448,21 +783,24 @@
             </button>
         </div>
         <div class="card-body">
-            <div class="flex justify-end mb-2">
+            <div class="flex justify-between items-center mb-2">
+                <div class="sandbox-stats" id="sandboxStats">
+                    <span>Строк: <strong id="statLines">0</strong></span>
+                    <span>Блоков: <strong id="statBlocks">0</strong></span>
+                </div>
                 <button class="text-xs text-primary hover:underline bg-transparent border-0 cursor-pointer"
                     onclick="loadSampleConfig()">
-                    Загрузить пример конфига
+                    Загрузить пример
                 </button>
             </div>
             <div class="form-group mb-4">
-                <textarea class="form-textarea font-mono text-xs leading-relaxed" id="test_config" rows="20"
-                    placeholder="Вставьте конфигурацию устройства..."
+                <textarea class="form-textarea font-mono text-xs leading-relaxed" id="test_config" rows="18"
+                    placeholder="Вставьте конфигурацию устройства..." oninput="updateSandboxStats()"
                     style="background: var(--hcs-bg-tertiary); border: none;"></textarea>
             </div>
 
-            <div id="testResult"
-                class="test-result p-3 rounded bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm"
-                style="display: none;">
+            <div id="testResult" class="test-result p-3 rounded"
+                style="display: none; background: var(--hcs-bg-primary); border: 1px solid var(--hcs-bg-tertiary);">
                 <label class="text-xs font-bold uppercase text-muted mb-2 block">Результат проверки</label>
                 <div id="testResultContent"></div>
             </div>
@@ -478,10 +816,43 @@
         simple_match: { pattern: "^service password-encryption", match_mode: "must_exist", is_regex: true },
         block_match: { parent_block_start: "^interface Gi", child_rules: [{ pattern: "no ip redirects", mode: "must_exist" }] },
         structure_check: { path: "network.interfaces", operator: "eq", value: "up" },
-        version_check: { pattern: "version (\\d+)", operator: "ge", value: "15.0" }
+        version_check: { pattern: "version (\\d+)", operator: "ge", value: "15.0" },
+        textfsm_check: { template: "", column: "STATUS", operator: "all_eq", value: "up" },
+        xml_check: { xpath: "//system/services/ssh", operator: "exists" }
     };
 
     let isManualMode = false;
+
+    // --- Type Card & Severity Selectors ---
+
+    function selectType(card) {
+        document.querySelectorAll('.type-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        const type = card.dataset.type;
+        document.getElementById('logic_type').value = type;
+        updateBuilderMode();
+    }
+
+    function setSeverity(btn) {
+        document.querySelectorAll('.severity-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('severity').value = btn.dataset.severity;
+    }
+
+    function updateSandboxStats() {
+        const text = document.getElementById('test_config').value;
+        const lines = text ? text.split('\n').length : 0;
+        const blocks = text ? (text.match(/^\S/gm) || []).length : 0;
+        document.getElementById('statLines').textContent = lines;
+        document.getElementById('statBlocks').textContent = blocks;
+    }
+
+    function toggleXmlValue() {
+        const op = document.getElementById('xml_operator').value;
+        const noValOps = ['exists', 'not_exists'];
+        document.getElementById('xml_value_group').style.display = noValOps.includes(op) ? 'none' : 'block';
+        syncVisualToJson();
+    }
 
     // --- Core Lifecycle ---
 
@@ -522,9 +893,12 @@
         const form = document.getElementById(formId);
         if (form) {
             form.style.display = 'block';
-        } else {
-            document.getElementById('form_generic').style.display = 'flex'; // Flex for centering
         }
+
+        // Sync type cards
+        document.querySelectorAll('.type-card').forEach(c => {
+            c.classList.toggle('active', c.dataset.type === type);
+        });
 
         // Initialize default JSON if empty
         const jsonVal = document.getElementById('logic_payload').value.trim();
@@ -572,8 +946,24 @@
                     value: document.getElementById('vc_value').value,
                     version_group: 1
                 };
+            } else if (type === 'textfsm_check') {
+                payload = {
+                    template: document.getElementById('tfsm_template').value,
+                    column: document.getElementById('tfsm_column').value,
+                    operator: document.getElementById('tfsm_operator').value,
+                    value: document.getElementById('tfsm_value').value
+                };
+            } else if (type === 'xml_check') {
+                payload = {
+                    xpath: document.getElementById('xml_xpath').value,
+                    operator: document.getElementById('xml_operator').value,
+                    value: document.getElementById('xml_value').value
+                };
+                const ns = document.getElementById('xml_ns').value.trim();
+                if (ns) payload.namespaces = ns;
+                if (['exists', 'not_exists'].includes(payload.operator)) delete payload.value;
             } else {
-                return; // Unsupported type for visual builder
+                return;
             }
 
             document.getElementById('logic_payload').value = JSON.stringify(payload, null, 2);
@@ -619,6 +1009,17 @@
                 document.getElementById('vc_pattern').value = payload.pattern || '';
                 document.getElementById('vc_operator').value = payload.operator || 'ge';
                 document.getElementById('vc_value').value = payload.value || '';
+            } else if (type === 'textfsm_check') {
+                document.getElementById('tfsm_template').value = payload.template || '';
+                document.getElementById('tfsm_column').value = payload.column || '';
+                document.getElementById('tfsm_operator').value = payload.operator || 'all_eq';
+                document.getElementById('tfsm_value').value = payload.value || '';
+            } else if (type === 'xml_check') {
+                document.getElementById('xml_xpath').value = payload.xpath || '';
+                document.getElementById('xml_ns').value = payload.namespaces || '';
+                document.getElementById('xml_operator').value = payload.operator || 'eq';
+                document.getElementById('xml_value').value = payload.value || '';
+                toggleXmlValue();
             }
 
         } catch (e) {
@@ -782,6 +1183,7 @@ end`;
             vendor_code: document.getElementById('vendor_code').value,
             logic_type: document.getElementById('logic_type').value,
             logic_payload: logicPayload,
+            severity: document.getElementById('severity').value,
             description: document.getElementById('description').value,
             remediation: document.getElementById('remediation').value
         };
@@ -816,6 +1218,7 @@ end`;
     // Initialize
     document.addEventListener('DOMContentLoaded', async () => {
         initBuilder();
+        updateSandboxStats();
 
         // Check for edit/clone params
         const urlParams = new URLSearchParams(window.location.search);
@@ -834,6 +1237,19 @@ end`;
                     document.getElementById('description').value = rule.description || '';
                     document.getElementById('remediation').value = rule.remediation || '';
 
+                    // Sync severity
+                    if (rule.severity) {
+                        document.getElementById('severity').value = rule.severity;
+                        document.querySelectorAll('.severity-btn').forEach(b => {
+                            b.classList.toggle('active', b.dataset.severity === rule.severity);
+                        });
+                    }
+
+                    // Sync type card
+                    document.querySelectorAll('.type-card').forEach(c => {
+                        c.classList.toggle('active', c.dataset.type === rule.logic_type);
+                    });
+
                     if (rule.logic_payload) {
                         document.getElementById('logic_payload').value = JSON.stringify(rule.logic_payload, null, 2);
                         updateBuilderMode(); // Re-trigger visual sync
@@ -843,6 +1259,7 @@ end`;
         } else {
             // New rule defaults
             loadSampleConfig();
+            updateSandboxStats();
         }
     });
 </script>

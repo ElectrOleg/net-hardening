@@ -79,14 +79,14 @@ def test_data_source(source_id):
     
     try:
         from app.core.registry import get_config_provider
-        import os
+        from app.core.credentials import resolve_credential
         
-        # Get credentials
-        token = os.environ.get(source.credentials_ref, "") if source.credentials_ref else ""
+        # Get credentials via CredentialResolver
+        token = resolve_credential(source.credentials_ref) if source.credentials_ref else ""
         
-        # Prepare config
-        config = source.connection_params or {}
-        if "token" not in config:
+        # Prepare config (copy to avoid mutating DB object)
+        config = dict(source.connection_params or {})
+        if "token" not in config and token:
             config["token"] = token
         if "password" not in config and token:
             config["password"] = token
@@ -99,3 +99,4 @@ def test_data_source(source_id):
         
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
+

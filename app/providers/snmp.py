@@ -191,9 +191,16 @@ class SNMPProvider(ConfigSourceProvider):
     def list_devices(self) -> list[str]:
         return [self.host] if self.host else []
     
+    # Alias for backward compat
+    list_available_devices = list_devices
+    
     def test_connection(self) -> tuple[bool, str]:
         """Test SNMP connectivity."""
         result = self.fetch_config(self.host)
         if result.success:
             return True, "SNMP connection successful"
         return False, result.error or "Connection failed"
+    
+    def close(self):
+        """Clean up resources."""
+        pass

@@ -2,7 +2,7 @@
 import logging
 from app.extensions import celery, db
 from app.services import ScannerService, get_notification_service
-from celery import group
+from celery import chord
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,10 @@ def scan_device_task(self, scan_id: str, device_id: str):
         return {"device_id": device_id, "passed": passed, "failed": failed, "errors": errors}
     except Exception as e:
         logger.exception(f"Device scan failed {device_id}: {e}")
-        return {"device_id": device_id, "error": str(e)}
+        try:
+            self.retry(exc=e, countdown=2 ** self.request.retries)
+        except self.MaxRetriesExceededError:
+            return {"device_id": device_id, "error": str(e)}
 
 
 @celery.task
@@ -97,11 +100,19 @@ def run_scan(self, scan_id: str, device_ids: list[str] = None):
             service.complete_empty_scan(scan_id)
             return
 
-        # Create a group of tasks to run in parallel
-        job = group([scan_device_task.s(scan_id, d_id) for d_id in devices])
+        # Create a chord: parallel tasks → single callback
+        job = chord(
+            [scan_device_task.s(scan_id, d_id) for d_id in devices],
+            scan_completion_handler.s(scan_id)
+        )
+        chord_result = job.apply_async()
         
-        # Link callback
-        job.apply_async(link=scan_completion_handler.s(scan_id))
+        # Save orchestrator task ID for revocation
+        from app.models import Scan as ScanModel
+        scan_obj = ScanModel.query.get(scan_id)
+        if scan_obj:
+            scan_obj.celery_task_id = self.request.id
+            db.session.commit()
         
         logger.info(f"Launched {len(devices)} parallel scan tasks for {scan_id}")
         

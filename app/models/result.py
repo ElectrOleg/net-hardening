@@ -12,6 +12,7 @@ class Result(db.Model):
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     scan_id = db.Column(UUID(as_uuid=True), db.ForeignKey("hcs_scans.id"), nullable=False)
     device_id = db.Column(db.String(100), nullable=False)  # Hostname or IP
+    device_uuid = db.Column(UUID(as_uuid=True), db.ForeignKey("hcs_devices.id"), nullable=True)
     rule_id = db.Column(UUID(as_uuid=True), db.ForeignKey("hcs_rules.id"), nullable=False)
     
     # PASS, FAIL, ERROR, SKIPPED (если есть exception)
@@ -27,6 +28,7 @@ class Result(db.Model):
     # Relationships
     scan = db.relationship("Scan", back_populates="results")
     rule = db.relationship("Rule", back_populates="results")
+    device = db.relationship("Device", backref="results", foreign_keys=[device_uuid])
     
     # Indexes for fast queries
     __table_args__ = (
@@ -42,6 +44,7 @@ class Result(db.Model):
             "id": str(self.id),
             "scan_id": str(self.scan_id),
             "device_id": self.device_id,
+            "device_uuid": str(self.device_uuid) if self.device_uuid else None,
             "rule_id": str(self.rule_id),
             "status": self.status,
             "diff_data": self.diff_data,

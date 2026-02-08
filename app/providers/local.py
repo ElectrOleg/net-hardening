@@ -123,6 +123,9 @@ class LocalFileProvider(ConfigSourceProvider):
         self._discover_files()
         return list(self._file_cache.keys())
     
+    # Alias for backward compat
+    list_available_devices = list_devices
+    
     def test_connection(self) -> tuple[bool, str]:
         """Test that base path exists and is readable."""
         if not self.base_path.exists():
@@ -134,7 +137,7 @@ class LocalFileProvider(ConfigSourceProvider):
         self._discover_files()
         return True, f"Found {len(self._file_cache)} config files"
     
-    def cleanup(self):
+    def close(self):
         """Clear file cache."""
         self._file_cache.clear()
 
@@ -169,6 +172,9 @@ class SingleFileProvider(ConfigSourceProvider):
     
     def list_devices(self) -> list[str]:
         return [self.device_id]
+    
+    # Alias for backward compat
+    list_available_devices = list_devices
     
     def test_connection(self) -> tuple[bool, str]:
         if self.file_path.exists():
