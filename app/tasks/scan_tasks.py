@@ -36,6 +36,11 @@ def scan_completion_handler(results, scan_id: str):
     scan = Scan.query.get(scan_id)
     if not scan:
         return
+    
+    # Don't overwrite cancelled status
+    if scan.status == "cancelled":
+        logger.info(f"Scan {scan_id} was cancelled, skipping completion.")
+        return
 
     total_passed = 0
     total_failed = 0
@@ -45,11 +50,13 @@ def scan_completion_handler(results, scan_id: str):
     for res in results:
         if not isinstance(res, dict):
             continue
-        total_passed += res.get("passed", 0)
-        total_failed += res.get("failed", 0)
-        total_errors += res.get("errors", 0)
         if "error" in res:
-             total_errors += 1 # Count catastrophic task failures as errors
+            # Catastrophic task failure — count as single error
+            total_errors += 1
+        else:
+            total_passed += res.get("passed", 0)
+            total_failed += res.get("failed", 0)
+            total_errors += res.get("errors", 0)
 
     scan.passed_count = total_passed
     scan.failed_count = total_failed

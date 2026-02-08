@@ -33,7 +33,7 @@ class VersionChecker(RuleChecker):
     
     Example:
     {
-        "pattern": "version (\\d+\\.\\d+\\.\\d+)",
+        "pattern": "version (\\\\d+\\\\.\\\\d+\\\\.\\\\d+)",
         "operator": "ge",
         "value": "15.2.4",
         "version_format": "semver"
@@ -42,24 +42,24 @@ class VersionChecker(RuleChecker):
     
     LOGIC_TYPE = "version_check"
     
-    @classmethod
-    def validate_payload(cls, payload: dict) -> tuple[bool, str]:
+    def validate_payload(self, payload: dict) -> list[str]:
         """Validate checker payload."""
+        errors = []
         if not payload.get("pattern"):
-            return False, "'pattern' is required"
+            errors.append("'pattern' is required")
         
         operator = payload.get("operator", "ge")
         valid_ops = ["eq", "ne", "gt", "lt", "ge", "le", "in_range"]
         if operator not in valid_ops:
-            return False, f"Invalid operator. Must be one of: {valid_ops}"
+            errors.append(f"Invalid operator. Must be one of: {valid_ops}")
         
         if operator == "in_range":
             if not payload.get("min_version") or not payload.get("max_version"):
-                return False, "'min_version' and 'max_version' required for in_range"
+                errors.append("'min_version' and 'max_version' required for in_range")
         elif not payload.get("value"):
-            return False, "'value' is required"
+            errors.append("'value' is required")
         
-        return True, ""
+        return errors
     
     @classmethod
     def get_payload_schema(cls) -> dict:
@@ -89,17 +89,13 @@ class VersionChecker(RuleChecker):
         try:
             match = re.search(pattern, config_text, re.MULTILINE | re.IGNORECASE)
             if not match:
-                return CheckResult(
-                    status=CheckStatus.FAIL,
-                    passed=False,
-                    message=f"Version pattern not found"
+                return CheckResult.failure(
+                    message="Version pattern not found"
                 )
             
             actual_version = match.group(version_group)
         except Exception as e:
-            return CheckResult(
-                status=CheckStatus.ERROR,
-                passed=False,
+            return CheckResult.error(
                 message=f"Version extraction failed: {e}"
             )
         
@@ -112,16 +108,14 @@ class VersionChecker(RuleChecker):
             max_ver = self._parse_version(payload.get("max_version"), version_format)
             
             if min_ver <= actual_parsed <= max_ver:
-                return CheckResult(
-                    status=CheckStatus.PASS,
-                    passed=True,
-                    message=f"Version {actual_version} is in range [{payload['min_version']}, {payload['max_version']}]"
+                return CheckResult.success(
+                    message=f"Version {actual_version} is in range [{payload['min_version']}, {payload['max_version']}]",
+                    raw_value=actual_version
                 )
             else:
-                return CheckResult(
-                    status=CheckStatus.FAIL,
-                    passed=False,
-                    message=f"Version {actual_version} is not in range [{payload['min_version']}, {payload['max_version']}]"
+                return CheckResult.failure(
+                    message=f"Version {actual_version} is not in range [{payload['min_version']}, {payload['max_version']}]",
+                    diff_data=f"Actual: {actual_version}, Expected range: [{payload['min_version']}, {payload['max_version']}]"
                 )
         
         expected_parsed = self._parse_version(expected, version_format)
@@ -138,16 +132,15 @@ class VersionChecker(RuleChecker):
         passed = comparisons.get(operator, False)
         
         if passed:
-            return CheckResult(
-                status=CheckStatus.PASS,
-                passed=True,
-                message=f"Version {actual_version} {operator} {expected}"
+            return CheckResult.success(
+                message=f"Version {actual_version} {operator} {expected}",
+                raw_value=actual_version
             )
         else:
-            return CheckResult(
-                status=CheckStatus.FAIL,
-                passed=False,
-                message=f"Version {actual_version} does not satisfy {operator} {expected}"
+            return CheckResult.failure(
+                message=f"Version {actual_version} does not satisfy {operator} {expected}",
+                diff_data=f"Actual: {actual_version}, Expected: {operator} {expected}",
+                raw_value=actual_version
             )
     
     def _parse_version(self, version: str, format_type: str = "auto") -> tuple:

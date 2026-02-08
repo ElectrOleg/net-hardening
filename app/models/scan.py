@@ -37,8 +37,11 @@ class Scan(db.Model):
     
     @property
     def score(self):
-        """Calculate security score as percentage."""
-        total = self.passed_count + self.failed_count
+        """Calculate security score as percentage.
+        
+        Errors count against the score (treated as non-passing results).
+        """
+        total = self.passed_count + self.failed_count + self.error_count
         if total == 0:
             return 100.0
         return round((self.passed_count / total) * 100, 1)

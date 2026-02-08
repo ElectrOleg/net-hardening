@@ -3,7 +3,14 @@
 
 {% block content %}
 <div class="flex justify-between items-center mb-3">
-    <h2>Правила проверок</h2>
+    <div class="flex items-center" style="gap: 1rem;">
+        <h2>Правила проверок</h2>
+        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; cursor: pointer;">
+            <input type="checkbox" {% if show_inactive %}checked{% endif %}
+                onchange="window.location.href='{{ url_for('web.rules_list') }}' + (this.checked ? '?show_inactive=true' : '')">
+            Показать неактивные
+        </label>
+    </div>
     <a href="{{ url_for('web.rule_builder') }}" class="btn btn-primary">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 5v14" />

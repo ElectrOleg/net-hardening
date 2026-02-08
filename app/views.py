@@ -1,5 +1,5 @@
 """Web views for HCS UI."""
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, request
 from app.models import Scan, Result, Rule, Policy, Vendor
 
 web_bp = Blueprint("web", __name__)
@@ -64,8 +64,12 @@ def scan_detail(scan_id):
 @web_bp.route("/rules")
 def rules_list():
     """List of rules."""
-    rules = Rule.query.filter_by(is_active=True).all()
-    return render_template("rules/list.html", rules=rules)
+    show_inactive = request.args.get("show_inactive", "false").lower() == "true"
+    if show_inactive:
+        rules = Rule.query.all()
+    else:
+        rules = Rule.query.filter_by(is_active=True).all()
+    return render_template("rules/list.html", rules=rules, show_inactive=show_inactive)
 
 
 @web_bp.route("/rules/new")
@@ -73,7 +77,14 @@ def rule_builder():
     """Rule builder page."""
     policies = Policy.query.filter_by(is_active=True).all()
     vendors = Vendor.query.all()
-    return render_template("rules/builder.html", policies=policies, vendors=vendors)
+    
+    # Support cloning from existing rule
+    clone_id = request.args.get("clone")
+    clone_rule = None
+    if clone_id:
+        clone_rule = Rule.query.get(clone_id)
+    
+    return render_template("rules/builder.html", policies=policies, vendors=vendors, clone_rule=clone_rule)
 
 
 @web_bp.route("/rules/<uuid:rule_id>/edit")

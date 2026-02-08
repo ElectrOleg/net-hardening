@@ -4,6 +4,10 @@ from app.engine.base import RuleChecker, CheckResult
 from app.engine.simple_match import SimpleMatchChecker
 from app.engine.block_match import BlockMatchChecker
 from app.engine.structure_check import StructureChecker
+from app.engine.version_check import VersionChecker
+from app.engine.textfsm_check import TextFSMChecker
+from app.engine.xml_check import XMLChecker
+from app.engine.advanced_block import AdvancedBlockChecker
 
 
 class RuleEvaluator:
@@ -20,6 +24,12 @@ class RuleEvaluator:
         "block_context_match": BlockMatchChecker,  # Alias
         "structure_check": StructureChecker,
         "structured_check": StructureChecker,  # Alias
+        "version_check": VersionChecker,
+        "textfsm_check": TextFSMChecker,
+        "xml_check": XMLChecker,
+        "xpath_check": XMLChecker,  # Alias
+        "advanced_block_check": AdvancedBlockChecker,
+        "nested_block_check": AdvancedBlockChecker,  # Alias
     }
     
     def __init__(self):

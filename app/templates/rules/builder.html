@@ -27,9 +27,16 @@
         min-height: 300px;
         font-size: 0.9em;
         line-height: 1.5;
-        background-color: var(--hcs-bg-secondary);
-        border: 1px solid var(--hcs-border);
+        background-color: var(--hcs-bg-primary);
+        /* Fixed: Distinct background */
+        border: 1px solid var(--hcs-bg-tertiary);
         border-radius: var(--hcs-radius-md);
+        color: var(--hcs-text-primary);
+    }
+
+    .payload-editor:focus {
+        outline: none;
+        border-color: var(--hcs-accent);
     }
 
     .test-result {
@@ -44,22 +51,28 @@
         align-items: center;
         cursor: pointer;
         gap: 0.75rem;
+        user-select: none;
     }
 
     .toggle-switch input {
         opacity: 0;
         width: 0;
         height: 0;
+        position: absolute;
+        margin: 0;
     }
 
     .toggle-slider {
         position: relative;
+        display: inline-block;
         width: var(--switch-width);
+        min-width: var(--switch-width);
         height: var(--switch-height);
-        background-color: var(--hcs-border);
-        /* Inactive color */
+        background-color: var(--hcs-bg-tertiary);
+        border: 1px solid var(--hcs-bg-tertiary);
         border-radius: 34px;
         transition: .3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        vertical-align: middle;
     }
 
     .toggle-slider:before {
@@ -67,29 +80,46 @@
         content: "";
         height: var(--switch-thumb-size);
         width: var(--switch-thumb-size);
-        left: 3px;
-        bottom: 3px;
-        background-color: white;
+        left: 2px;
+        bottom: 2px;
+        background-color: var(--hcs-text-secondary);
         border-radius: 50%;
         transition: .3s cubic-bezier(0.4, 0.0, 0.2, 1);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     }
 
     .toggle-switch input:checked+.toggle-slider {
-        background-color: var(--hcs-primary);
+        background-color: var(--hcs-accent);
+        border-color: var(--hcs-accent);
     }
 
     .toggle-switch input:checked+.toggle-slider:before {
-        transform: translateX(22px);
+        transform: translateX(20px);
+        background-color: white;
     }
 
     /* Visual Builder Modern Container */
     .visual-builder-container {
-        background: var(--hcs-bg-secondary);
+        background: var(--hcs-bg-primary);
         padding: 1.5rem;
         border-radius: var(--hcs-radius-lg);
-        border: 1px solid var(--hcs-border);
+        border: 1px solid var(--hcs-bg-tertiary);
         position: relative;
+    }
+
+    .nested-group-container {
+        background: var(--hcs-bg-secondary);
+        padding: 1rem;
+        border-radius: var(--hcs-radius-md);
+        border: 1px solid var(--hcs-bg-tertiary);
+        margin-bottom: 1rem;
+    }
+
+    .child-rule-row {
+        background: var(--hcs-bg-primary);
+        padding: 0.75rem;
+        border-radius: var(--hcs-radius-sm);
+        border: 1px solid var(--hcs-bg-tertiary);
+        margin-bottom: 0.5rem;
     }
 
     .visual-label {
@@ -99,29 +129,33 @@
         text-transform: uppercase;
         font-size: 0.75rem;
         margin-bottom: 0.5rem;
+        display: block;
     }
 
     /* Input Group Modernization */
     .modern-input-group {
         display: flex;
-        border: 1px solid var(--hcs-border);
+        border: 1px solid var(--hcs-bg-tertiary);
         border-radius: var(--hcs-radius-md);
         overflow: hidden;
         transition: border-color 0.2s;
+        background: var(--hcs-bg-primary);
     }
 
     .modern-input-group:focus-within {
-        border-color: var(--hcs-primary);
-        box-shadow: 0 0 0 2px rgba(var(--hcs-primary-rgb), 0.1);
+        border-color: var(--hcs-accent);
+        box-shadow: 0 0 0 3px var(--hcs-accent-glow);
     }
 
     .modern-input-group .input-group-text {
-        background: var(--hcs-bg-tertiary);
-        padding: 0.5rem 1rem;
+        background: var(--hcs-bg-secondary);
+        padding: 0.625rem 1rem;
         font-size: 0.875rem;
-        color: var(--hcs-text-muted);
-        border-right: 1px solid var(--hcs-border);
+        color: var(--hcs-text-secondary);
+        border-right: 1px solid var(--hcs-bg-tertiary);
         white-space: nowrap;
+        display: flex;
+        align-items: center;
     }
 
     .modern-input-group .form-input {
@@ -129,21 +163,32 @@
         box-shadow: none;
         border-radius: 0;
         padding-left: 1rem;
+        background: transparent;
+    }
+
+    .modern-input-group .form-input:focus {
+        box-shadow: none;
+    }
+
+    /* Code textarea style override */
+    #test_config {
+        background-color: var(--hcs-bg-primary) !important;
+        border: 1px solid var(--hcs-bg-tertiary) !important;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="flex justify-between items-center mb-4">
-    <div class="flex items-center gap-3">
+<div class="flex justify-between items-center mb-3">
+    <div class="flex items-center gap-2">
         <a href="{{ url_for('web.rules_list') }}" class="btn btn-ghost btn-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M15 18l-6-6 6-6" />
             </svg>
         </a>
         <div>
-            <h2 class="text-xl font-bold">Конструктор правил</h2>
-            <p class="text-sm text-muted">Создавайте и тестируйте политики безопасности</p>
+            <h2 style="margin: 0;">Конструктор правил</h2>
+            <p class="text-sm text-muted" style="margin: 0;">Создание и редактирование политик</p>
         </div>
     </div>
 </div>
@@ -151,26 +196,26 @@
 <div class="builder-grid">
     <!-- Rule Form -->
     <div class="card fade-in">
-        <div class="card-header flex justify-between items-center pb-0 border-b-0">
-            <h4 class="m-0 text-lg">Настройка</h4>
+        <div class="card-header">
+            <h4 style="margin: 0;">Настройка</h4>
 
             <!-- Integrated Modern Toggle -->
             <label class="toggle-switch" title="Переключить в режим ручного редактирования JSON">
                 <input type="checkbox" id="manualModeToggle" onchange="toggleManualMode()">
                 <span class="toggle-slider"></span>
-                <span class="text-xs font-medium text-muted uppercase tracking-wider">JSON Mode</span>
+                <span class="text-xs font-bold text-muted uppercase">JSON Mode</span>
             </label>
         </div>
 
-        <div class="card-body pt-2">
+        <div class="card-body">
             <form id="ruleForm">
-                <div class="form-group mb-4">
+                <div class="form-group">
                     <label class="form-label">Название правила</label>
-                    <input type="text" class="form-input text-lg font-medium" id="title"
-                        placeholder="Например: Запрет Telnet" required>
+                    <input type="text" class="form-input" id="title" placeholder="Например: Запрет Telnet"
+                        style="font-size: 1.1rem;" required>
                 </div>
 
-                <div class="grid grid-2 gap-4 mb-4">
+                <div class="grid grid-2 gap-2 mb-2">
                     <div class="form-group">
                         <label class="form-label">Политика</label>
                         <select class="form-select" id="policy_id" required>
@@ -189,10 +234,10 @@
                     </div>
                 </div>
 
-                <div class="form-group mb-6">
+                <div class="form-group mb-3">
                     <label class="form-label">Тип проверки</label>
                     <select class="form-select" id="logic_type" onchange="updateBuilderMode()"
-                        style="font-weight: 500; color: var(--hcs-primary);">
+                        style="font-weight: 600; color: var(--hcs-accent-light);">
                         <option value="simple_match">Simple Match (Regex Search)</option>
                         <option value="block_match">Block Context Match</option>
                         <option value="structure_check">Structure Check (JSON Query)</option>
@@ -202,14 +247,14 @@
                     </select>
                 </div>
 
-                <hr class="border-t border-gray-100 dark:border-gray-800 mb-6" />
+                <hr style="border: 0; border-top: 1px solid var(--hcs-bg-tertiary); margin: 1.5rem 0;" />
 
                 <!-- VISUAL BUILDER UI -->
-                <div id="visualBuilder" class="visual-builder-container mb-4">
+                <div id="visualBuilder" class="visual-builder-container mb-3">
 
                     <!-- 1. Simple Match Form -->
                     <div id="form_simple_match" class="logic-form" style="display: none;">
-                        <div class="form-group mb-4">
+                        <div class="form-group mb-3">
                             <label class="visual-label">1. Искомый паттерн</label>
                             <div class="modern-input-group">
                                 <span class="input-group-text">
@@ -223,7 +268,7 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-2 gap-4">
+                        <div class="grid grid-2 gap-2">
                             <div class="form-group">
                                 <label class="visual-label">2. Ожидаемое состояние</label>
                                 <select class="form-select" id="sm_mode">
@@ -232,16 +277,16 @@
                                 </select>
                             </div>
 
-                            <div class="flex flex-col gap-3 justify-center">
+                            <div class="flex flex-col gap-2 justify-between" style="padding-top: 24px;">
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="sm_regex" checked>
                                     <span class="toggle-slider"></span>
-                                    <span class="text-sm">Regex (Регулярные выражения)</span>
+                                    <span class="text-sm">Regex Mode</span>
                                 </label>
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="sm_case">
                                     <span class="toggle-slider"></span>
-                                    <span class="text-sm">Игнорировать регистр (Case Insensitive)</span>
+                                    <span class="text-sm">Case Insensitive</span>
                                 </label>
                             </div>
                         </div>
@@ -249,32 +294,31 @@
 
                     <!-- 2. Block Match Form -->
                     <div id="form_block_match" class="logic-form" style="display: none;">
-                        <div class="grid grid-2 gap-3 mb-3">
+                        <div class="grid grid-2 gap-2 mb-2">
                             <div class="form-group">
                                 <label class="visual-label">Начало блока (Regex)</label>
                                 <input type="text" class="form-input" id="bm_parent" placeholder="^interface (Gi|Te)">
                             </div>
                             <div class="form-group">
-                                <label class="visual-label">Конец блока (Regex) <span
-                                        class="text-muted lowercase font-normal">(опц.)</span></label>
+                                <label class="visual-label">Конец блока (Regex) <span class="text-muted"
+                                        style="font-weight: normal; text-transform: none;">(opt.)</span></label>
                                 <input type="text" class="form-input" id="bm_end" placeholder="^!">
                             </div>
                         </div>
 
-                        <div class="form-group mb-4">
+                        <div class="form-group mb-3">
                             <label class="visual-label">Исключить блоки (Filter)</label>
                             <input type="text" class="form-input" id="bm_exclude"
                                 placeholder="e.g. description .*UPLINK.*">
-                            <small class="text-muted block mt-1">Не проверять блоки, подходящие под этот pattern</small>
+                            <small class="text-muted">Пропускать блоки, совпадающие с фильтром</small>
                         </div>
 
-                        <div
-                            class="bg-white dark:bg-gray-800 p-3 rounded-md border border-gray-200 dark:border-gray-700 mb-4">
+                        <div class="nested-group-container">
                             <label class="visual-label mb-2 block">Вложенные проверки (Child Rules)</label>
                             <div id="bm_children_container" class="flex flex-col gap-2 mb-3">
                                 <!-- JS Generated -->
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-primary w-full border-dashed"
+                            <button type="button" class="btn btn-secondary w-full" style="border-style: dashed;"
                                 onclick="addBlockChildRow()">
                                 + Добавить проверку
                             </button>
@@ -291,7 +335,7 @@
 
                     <!-- 3. Structure Check Form -->
                     <div id="form_structure_check" class="logic-form" style="display: none;">
-                        <div class="form-group mb-4">
+                        <div class="form-group mb-3">
                             <label class="visual-label">JMESPath Query</label>
                             <div class="modern-input-group">
                                 <span class="input-group-text">$.</span>
@@ -299,7 +343,7 @@
                                     placeholder="network.interfaces[?name=='eth0'].enabled">
                             </div>
                         </div>
-                        <div class="grid grid-2 gap-4">
+                        <div class="grid grid-2 gap-2">
                             <div class="form-group">
                                 <label class="visual-label">Оператор</label>
                                 <select class="form-select" id="sc_operator" onchange="toggleScValue()">
@@ -321,7 +365,7 @@
 
                     <!-- 4. Version Check Form -->
                     <div id="form_version_check" class="logic-form" style="display: none;">
-                        <div class="form-group mb-4">
+                        <div class="form-group mb-3">
                             <label class="visual-label">Regex паттерн версии</label>
                             <div class="modern-input-group">
                                 <span class="input-group-text">v</span>
@@ -329,7 +373,7 @@
                                     placeholder="version (\d+\.\d+\.\d+)">
                             </div>
                         </div>
-                        <div class="grid grid-2 gap-4">
+                        <div class="grid grid-2 gap-2">
                             <div class="form-group">
                                 <label class="visual-label">Оператор</label>
                                 <select class="form-select" id="vc_operator">
@@ -347,8 +391,8 @@
                     </div>
 
                     <!-- Placeholder -->
-                    <div id="form_generic" class="logic-form flex flex-col items-center justify-center p-8 text-center"
-                        style="display: none;">
+                    <div id="form_generic" class="logic-form"
+                        style="display: none; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; text-align: center;">
                         <svg class="text-muted mb-2" width="32" height="32" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="1.5">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -357,7 +401,7 @@
                             <line x1="16" y1="17" x2="8" y2="17"></line>
                             <polyline points="10 9 9 9 8 9"></polyline>
                         </svg>
-                        <p class="text-sm text-muted">Для этого типа проверки используйте режим <strong>JSON</strong>
+                        <p class="text-sm text-muted">Для этого типа проверки используйте <strong>JSON Mode</strong>
                         </p>
                     </div>
                 </div>
@@ -368,23 +412,22 @@
                     <textarea class="form-textarea payload-editor" id="logic_payload" required></textarea>
                 </div>
 
-                <div class="grid grid-2 gap-4 mt-6">
+                <div class="grid grid-2 gap-2 mt-3">
                     <div class="form-group">
-                        <label class="form-label">Описание (Optional)</label>
-                        <textarea class="form-textarea" id="description" rows="2"
-                            placeholder="Добавьте контекст..."></textarea>
+                        <label class="form-label">Описание</label>
+                        <textarea class="form-textarea" id="description" rows="2" placeholder="Контекст..."></textarea>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Remediation (Optional)</label>
+                        <label class="form-label">Remediation</label>
                         <textarea class="form-textarea" id="remediation" rows="2"
-                            placeholder="Команды для исправления..."></textarea>
+                            placeholder="Как исправить..."></textarea>
                     </div>
                 </div>
             </form>
         </div>
-        <div class="card-footer flex justify-between bg-transparent border-t border-gray-100 dark:border-gray-800">
+        <div class="card-footer flex justify-between">
             <button class="btn btn-ghost" type="button" onclick="history.back()">Отмена</button>
-            <button class="btn btn-primary px-6" type="button" onclick="saveRule()">
+            <button class="btn btn-primary" type="button" onclick="saveRule()">
                 Сохранить правило
             </button>
         </div>
@@ -589,7 +632,7 @@
     function addBlockChildRow(pattern = '', mode = 'must_exist') {
         const container = document.getElementById('bm_children_container');
         const div = document.createElement('div');
-        div.className = 'grid grid-2 gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded items-center border border-gray-100 dark:border-gray-700';
+        div.className = 'child-rule-row grid grid-2 gap-2 items-center';
         div.style.gridTemplateColumns = '2fr 1fr auto';
 
         div.innerHTML = `
@@ -696,23 +739,23 @@ end`;
 
             let html = '';
             if (data.passed) {
-                html = `<div class="p-3 bg-green-50 text-green-800 rounded border border-green-200 flex items-center gap-2">
+                html = `<div class="alert alert-success flex items-center gap-2">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                 <strong>PASS:</strong> ${data.message}
             </div>`;
             } else if (data.status === 'ERROR') {
-                html = `<div class="p-3 bg-yellow-50 text-yellow-800 rounded border border-yellow-200">
+                html = `<div class="alert alert-warning">
                 <strong>⚠ ERROR:</strong> ${data.message}
             </div>`;
             } else {
-                html = `<div class="p-3 bg-red-50 text-red-800 rounded border border-red-200">
+                html = `<div class="alert alert-danger">
                 <div class="flex items-center gap-2 mb-1">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
                     <strong>FAIL:</strong> ${data.message}
                 </div>
             </div>`;
                 if (data.diff_data) {
-                    html += `<pre class="mt-2 text-xs bg-gray-900 text-gray-100 p-2 rounded overflow-x-auto">${data.diff_data}</pre>`;
+                    html += `<pre class="mt-2" style="background: var(--hcs-bg-primary); padding: 0.5rem; font-size: 0.75rem;">${data.diff_data}</pre>`;
                 }
             }
             resultContent.innerHTML = html;

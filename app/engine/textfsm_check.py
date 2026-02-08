@@ -60,25 +60,25 @@ class TextFSMChecker(RuleChecker):
         "not_empty": lambda a, b: a and a != "",
     }
     
-    @classmethod
-    def validate_payload(cls, payload: dict) -> tuple[bool, str]:
+    def validate_payload(self, payload: dict) -> list[str]:
         """Validate checker payload."""
+        errors = []
         if not payload.get("template") and not payload.get("template_name"):
-            return False, "Either 'template' or 'template_name' is required"
+            errors.append("Either 'template' or 'template_name' is required")
         
         checks = payload.get("checks", [])
         if not checks:
-            return False, "'checks' array is required"
+            errors.append("'checks' array is required")
         
         for i, check in enumerate(checks):
             if "field" not in check:
-                return False, f"Check {i}: 'field' is required"
+                errors.append(f"Check {i}: 'field' is required")
             if "operator" not in check:
-                return False, f"Check {i}: 'operator' is required"
-            if check["operator"] not in cls.OPERATORS:
-                return False, f"Check {i}: unknown operator '{check['operator']}'"
+                errors.append(f"Check {i}: 'operator' is required")
+            elif check["operator"] not in self.OPERATORS:
+                errors.append(f"Check {i}: unknown operator '{check['operator']}'")
         
-        return True, ""
+        return errors
     
     @classmethod
     def get_payload_schema(cls) -> dict:
@@ -121,9 +121,7 @@ class TextFSMChecker(RuleChecker):
         try:
             import textfsm
         except ImportError:
-            return CheckResult(
-                status=CheckStatus.ERROR,
-                passed=False,
+            return CheckResult.error(
                 message="textfsm not installed. pip install textfsm"
             )
         
@@ -142,16 +140,12 @@ class TextFSMChecker(RuleChecker):
                     return self._validate_parsed_data(parsed, payload)
             except Exception as e:
                 logger.warning(f"NTC-templates failed: {e}")
-                return CheckResult(
-                    status=CheckStatus.ERROR,
-                    passed=False,
+                return CheckResult.error(
                     message=f"Failed to use template '{template_name}': {e}"
                 )
         
         if not template_content:
-            return CheckResult(
-                status=CheckStatus.ERROR,
-                passed=False,
+            return CheckResult.error(
                 message="No template content provided"
             )
         
@@ -169,9 +163,7 @@ class TextFSMChecker(RuleChecker):
             return self._validate_parsed_data(data, payload)
             
         except Exception as e:
-            return CheckResult(
-                status=CheckStatus.ERROR,
-                passed=False,
+            return CheckResult.error(
                 message=f"TextFSM parsing failed: {e}"
             )
     
@@ -189,16 +181,12 @@ class TextFSMChecker(RuleChecker):
         max_rows = payload.get("max_rows")
         
         if min_rows and len(data) < min_rows:
-            return CheckResult(
-                status=CheckStatus.FAIL,
-                passed=False,
+            return CheckResult.failure(
                 message=f"Expected at least {min_rows} rows, got {len(data)}"
             )
         
         if max_rows and len(data) > max_rows:
-            return CheckResult(
-                status=CheckStatus.FAIL,
-                passed=False,
+            return CheckResult.failure(
                 message=f"Expected at most {max_rows} rows, got {len(data)}"
             )
         
@@ -238,15 +226,11 @@ class TextFSMChecker(RuleChecker):
                     failures.append(f"No data rows to check")
         
         if failures:
-            return CheckResult(
-                status=CheckStatus.FAIL,
-                passed=False,
+            return CheckResult.failure(
                 message="; ".join(failures[:5]),  # Limit messages
                 diff_data="\n".join(failures)
             )
         
-        return CheckResult(
-            status=CheckStatus.PASS,
-            passed=True,
+        return CheckResult.success(
             message=f"All {len(checks)} checks passed on {len(data)} rows"
         )

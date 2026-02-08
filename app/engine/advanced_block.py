@@ -122,21 +122,21 @@ class AdvancedBlockChecker(RuleChecker):
     
     LOGIC_TYPE = "advanced_block_check"
     
-    @classmethod
-    def validate_payload(cls, payload: dict) -> tuple[bool, str]:
+    def validate_payload(self, payload: dict) -> list[str]:
         """Validate payload structure."""
+        errors = []
         if not payload.get("block"):
-            return False, "'block' configuration is required"
+            errors.append("'block' configuration is required")
         
         block_config = payload.get("block", {})
         if not block_config.get("start"):
-            return False, "'block.start' pattern is required"
+            errors.append("'block.start' pattern is required")
         
         checks = payload.get("checks", [])
         if not checks:
-            return False, "'checks' array is required"
+            errors.append("'checks' array is required")
         
-        return True, ""
+        return errors
     
     @classmethod
     def get_payload_schema(cls) -> dict:
@@ -172,9 +172,7 @@ class AdvancedBlockChecker(RuleChecker):
         try:
             from ciscoconfparse2 import CiscoConfParse
         except ImportError:
-            return CheckResult(
-                status=CheckStatus.ERROR,
-                passed=False,
+            return CheckResult.error(
                 message="ciscoconfparse2 not installed"
             )
         
@@ -187,9 +185,7 @@ class AdvancedBlockChecker(RuleChecker):
         try:
             parse = CiscoConfParse(config_text.splitlines())
         except Exception as e:
-            return CheckResult(
-                status=CheckStatus.ERROR,
-                passed=False,
+            return CheckResult.error(
                 message=f"Config parse error: {e}"
             )
         
@@ -198,14 +194,10 @@ class AdvancedBlockChecker(RuleChecker):
         
         if not blocks:
             if fail_on_no_blocks:
-                return CheckResult(
-                    status=CheckStatus.FAIL,
-                    passed=False,
+                return CheckResult.failure(
                     message=f"No blocks matching '{block_config.get('start')}' found"
                 )
-            return CheckResult(
-                status=CheckStatus.PASS,
-                passed=True,
+            return CheckResult.success(
                 message="No blocks to check"
             )
         
@@ -243,9 +235,7 @@ class AdvancedBlockChecker(RuleChecker):
         
         if logic == "ANY":
             if passed_blocks > 0:
-                return CheckResult(
-                    status=CheckStatus.PASS,
-                    passed=True,
+                return CheckResult.success(
                     message=f"{passed_blocks}/{total_blocks} blocks passed (ANY mode)"
                 )
         
@@ -256,16 +246,12 @@ class AdvancedBlockChecker(RuleChecker):
                 for fail in f['failures'][:5]:
                     diff_lines.append(f"  ✗ {fail}")
             
-            return CheckResult(
-                status=CheckStatus.FAIL,
-                passed=False,
+            return CheckResult.failure(
                 message=f"{len(all_failures)}/{total_blocks} blocks failed",
                 diff_data="\n".join(diff_lines)
             )
         
-        return CheckResult(
-            status=CheckStatus.PASS,
-            passed=True,
+        return CheckResult.success(
             message=f"All {total_blocks} blocks passed"
         )
     

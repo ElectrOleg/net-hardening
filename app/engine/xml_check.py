@@ -69,9 +69,9 @@ class XMLChecker(RuleChecker):
         "le": lambda actual, expected: float(actual) <= float(expected),
     }
     
-    @classmethod
-    def validate_payload(cls, payload: dict) -> tuple[bool, str]:
+    def validate_payload(self, payload: dict) -> list[str]:
         """Validate checker payload."""
+        errors = []
         checks = payload.get("checks", [])
         
         # Single check mode
@@ -79,18 +79,19 @@ class XMLChecker(RuleChecker):
             checks = [payload]
         
         if not checks:
-            return False, "'xpath' or 'checks' array is required"
+            errors.append("'xpath' or 'checks' array is required")
+            return errors
         
         for i, check in enumerate(checks):
             if not check.get("xpath"):
-                return False, f"Check {i}: 'xpath' is required"
+                errors.append(f"Check {i}: 'xpath' is required")
             
             operator = check.get("operator", "exists")
-            all_ops = set(cls.OPERATORS.keys()) | set(cls.VALUE_OPERATORS.keys())
+            all_ops = set(self.OPERATORS.keys()) | set(self.VALUE_OPERATORS.keys())
             if operator not in all_ops:
-                return False, f"Check {i}: unknown operator '{operator}'"
+                errors.append(f"Check {i}: unknown operator '{operator}'")
         
-        return True, ""
+        return errors
     
     @classmethod
     def get_payload_schema(cls) -> dict:
@@ -147,9 +148,7 @@ class XMLChecker(RuleChecker):
                 root = etree.XML(config_clean)
                 
         except Exception as e:
-            return CheckResult(
-                status=CheckStatus.ERROR,
-                passed=False,
+            return CheckResult.error(
                 message=f"XML parse error: {e}"
             )
         
@@ -169,16 +168,12 @@ class XMLChecker(RuleChecker):
                 failures.append(result.message)
         
         if failures:
-            return CheckResult(
-                status=CheckStatus.FAIL,
-                passed=False,
+            return CheckResult.failure(
                 message="; ".join(failures[:3]),
                 diff_data="\n".join(failures)
             )
         
-        return CheckResult(
-            status=CheckStatus.PASS,
-            passed=True,
+        return CheckResult.success(
             message=f"All {len(checks)} XPath checks passed"
         )
     
@@ -199,9 +194,7 @@ class XMLChecker(RuleChecker):
                 # stdlib - limited XPath support
                 elements = root.findall(xpath, namespaces)
         except Exception as e:
-            return CheckResult(
-                status=CheckStatus.ERROR,
-                passed=False,
+            return CheckResult.error(
                 message=f"XPath error '{xpath}': {e}"
             )
         
@@ -209,20 +202,16 @@ class XMLChecker(RuleChecker):
         if operator in self.OPERATORS:
             op_func = self.OPERATORS[operator]
             if op_func(elements, expected):
-                return CheckResult(status=CheckStatus.PASS, passed=True, message="OK")
+                return CheckResult.success(message="OK")
             else:
-                return CheckResult(
-                    status=CheckStatus.FAIL,
-                    passed=False,
+                return CheckResult.failure(
                     message=f"XPath '{xpath}': {operator} failed (found {len(elements)} elements)"
                 )
         
         # Value-based operators
         if operator in self.VALUE_OPERATORS:
             if not elements:
-                return CheckResult(
-                    status=CheckStatus.FAIL,
-                    passed=False,
+                return CheckResult.failure(
                     message=f"XPath '{xpath}': no elements found"
                 )
             
@@ -245,16 +234,12 @@ class XMLChecker(RuleChecker):
                     failed_elements.append(f"comparison error: {e}")
             
             if failed_elements:
-                return CheckResult(
-                    status=CheckStatus.FAIL,
-                    passed=False,
+                return CheckResult.failure(
                     message=f"XPath '{xpath}': " + "; ".join(failed_elements[:3])
                 )
             
-            return CheckResult(status=CheckStatus.PASS, passed=True, message="OK")
+            return CheckResult.success(message="OK")
         
-        return CheckResult(
-            status=CheckStatus.ERROR,
-            passed=False,
+        return CheckResult.error(
             message=f"Unknown operator: {operator}"
         )
