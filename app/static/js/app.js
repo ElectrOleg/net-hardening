@@ -7,26 +7,23 @@
     const layout = document.querySelector('.app-layout');
     if (!layout) return;
 
-    // Suppress transitions during initial state restore to prevent
-    // the sidebar from visibly animating on every page navigation.
-    const saved = localStorage.getItem('hcs-sidebar-collapsed');
-    if (saved === 'true') {
-        layout.style.setProperty('--t-slow', '0ms');
-        layout.classList.add('collapsed');
-        // Re-enable transitions after the browser has painted.
-        requestAnimationFrame(function () {
-            requestAnimationFrame(function () {
-                layout.style.removeProperty('--t-slow');
-            });
-        });
+    // The <head> inline script already set html.sidebar-collapsed
+    // before the body rendered, preventing any visual flash.
+    // Now transfer that state to .app-layout for CSS rules to work.
+    if (document.documentElement.classList.contains('sidebar-collapsed')) {
+        layout.classList.add('no-transition', 'collapsed');
+        // Re-enable transitions after the collapsed state is painted.
+        setTimeout(function () {
+            layout.classList.remove('no-transition');
+        }, 50);
     }
 
     window.toggleSidebar = function () {
         layout.classList.toggle('collapsed');
-        localStorage.setItem(
-            'hcs-sidebar-collapsed',
-            layout.classList.contains('collapsed')
-        );
+        const isCollapsed = layout.classList.contains('collapsed');
+        localStorage.setItem('hcs-sidebar-collapsed', isCollapsed);
+        // Keep html class in sync so head script works on next page load.
+        document.documentElement.classList.toggle('sidebar-collapsed', isCollapsed);
     };
 })();
 

@@ -6,6 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}HCS{% endblock %} — Hardening & Compliance System</title>
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <script>
+        // Pre-apply collapsed state BEFORE body renders to prevent flash.
+        if (localStorage.getItem('hcs-sidebar-collapsed') === 'true') {
+            document.documentElement.classList.add('sidebar-collapsed');
+        }
+    </script>
     {% block extra_css %}{% endblock %}
 </head>
 
