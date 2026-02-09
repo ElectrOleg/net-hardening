@@ -48,7 +48,6 @@
 
     .type-card:hover {
         border-color: var(--hcs-accent);
-        transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
@@ -110,7 +109,6 @@
         border-color: var(--color);
         background: var(--bg);
         color: var(--color);
-        font-weight: 600;
     }
 
     /* ── Step Indicator ── */
@@ -788,8 +786,7 @@
                     <span>Строк: <strong id="statLines">0</strong></span>
                     <span>Блоков: <strong id="statBlocks">0</strong></span>
                 </div>
-                <button class="text-xs text-primary hover:underline bg-transparent border-0 cursor-pointer"
-                    onclick="loadSampleConfig()">
+                <button class="btn btn-link" type="button" onclick="loadSampleConfig()">
                     Загрузить пример
                 </button>
             </div>

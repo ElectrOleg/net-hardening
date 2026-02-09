@@ -419,7 +419,6 @@ p {
 
 .sidebar-scan-btn:hover {
   box-shadow: var(--shadow-glow);
-  transform: translateY(-1px);
 }
 
 .sidebar-scan-btn svg {
@@ -779,7 +778,6 @@ p {
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
   border-color: var(--border-hover);
   box-shadow: var(--shadow-md);
 }
@@ -899,7 +897,7 @@ p {
 
 .btn-primary:hover {
   box-shadow: var(--shadow-glow);
-  transform: translateY(-1px);
+  color: var(--text-inverse);
 }
 
 .btn-secondary {
@@ -945,6 +943,23 @@ p {
 .btn-icon {
   padding: 0.45rem;
   aspect-ratio: 1;
+}
+
+.btn-link {
+  background: transparent;
+  border: none;
+  color: var(--accent-hover);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--r-sm);
+  transition: all var(--t-fast) var(--ease);
+}
+
+.btn-link:hover {
+  color: var(--accent);
+  background: var(--accent-muted);
 }
 
 .btn-sm {
@@ -1083,6 +1098,48 @@ select option,
 .form-select option {
   background: var(--bg-card-solid);
   color: var(--text-primary);
+}
+
+/* ─── Checkboxes ─────────────────────────────────────────────────── */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  border: 1.5px solid var(--border-hover);
+  border-radius: 4px;
+  background: var(--bg-root);
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+  position: relative;
+  vertical-align: middle;
+}
+
+input[type="checkbox"]:hover {
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4.5px;
+  top: 1.5px;
+  width: 6px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 /* ═══ CODE ═════════════════════════════════════════════════════════ */
@@ -1824,7 +1881,6 @@ code {
 
 .login-btn:hover {
   box-shadow: var(--shadow-glow);
-  transform: translateY(-1px);
 }
 
 /* ═══ RESPONSIVE ═══════════════════════════════════════════════════ */

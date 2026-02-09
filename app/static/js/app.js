@@ -7,9 +7,18 @@
     const layout = document.querySelector('.app-layout');
     if (!layout) return;
 
+    // Suppress transitions during initial state restore to prevent
+    // the sidebar from visibly animating on every page navigation.
     const saved = localStorage.getItem('hcs-sidebar-collapsed');
     if (saved === 'true') {
+        layout.style.setProperty('--t-slow', '0ms');
         layout.classList.add('collapsed');
+        // Re-enable transitions after the browser has painted.
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                layout.style.removeProperty('--t-slow');
+            });
+        });
     }
 
     window.toggleSidebar = function () {
