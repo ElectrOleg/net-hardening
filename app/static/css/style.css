@@ -231,14 +231,7 @@ p {
 
 /* ═══ APP LAYOUT ═══════════════════════════════════════════════════ */
 .app-layout {
-  display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
   min-height: 100vh;
-  transition: grid-template-columns var(--t-slow) var(--ease);
-}
-
-.app-layout.collapsed {
-  grid-template-columns: var(--sidebar-w-collapsed) 1fr;
 }
 
 /* ─── Sidebar ───────────────────────────────────────────────────── */
@@ -320,7 +313,7 @@ p {
 }
 
 .app-layout.collapsed .sidebar-toggle {
-  margin-left: 0;
+  margin: 0 auto;
   transform: rotate(180deg);
 }
 
@@ -571,6 +564,7 @@ p {
   flex: 1;
   padding: 2rem 2.5rem;
   max-width: 1600px;
+  width: 100%;
 }
 
 /* Page header with breadcrumbs */
@@ -1835,10 +1829,6 @@ code {
 
 /* ═══ RESPONSIVE ═══════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .app-layout {
-    grid-template-columns: 1fr;
-  }
-
   .sidebar {
     transform: translateX(-100%);
     transition: transform var(--t-slow) var(--ease);
