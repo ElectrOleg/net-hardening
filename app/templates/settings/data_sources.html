@@ -2,9 +2,11 @@
 {% block title %}Data Sources{% endblock %}
 
 {% block content %}
+{% set settings_section = 'Источники данных' %}
+{% include 'settings/_nav.html' %}
+
 <div class="flex justify-between items-center mb-3">
     <div>
-        <h2>Источники данных</h2>
         <p class="text-muted text-sm">Настройка подключений к GitLab, SSH, API и локальным файлам</p>
     </div>
     <button class="btn btn-primary" onclick="openCreateModal()">

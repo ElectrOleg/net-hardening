@@ -41,4 +41,13 @@ def create_app(config_class=FlaskConfig):
     app.cli.add_command(seed_command)
     app.cli.add_command(seed_admin_command)
 
+    # Ensure all tables exist (safe: only creates missing ones)
+    with app.app_context():
+        from app import models as _models  # noqa: F401 — ensure all models are imported
+        try:
+            db.create_all()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning("db.create_all() skipped — database not reachable")
+
     return app

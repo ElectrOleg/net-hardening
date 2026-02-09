@@ -960,6 +960,7 @@ html.sidebar-collapsed .main-area {
 .btn-primary {
   background: var(--gradient-brand);
   color: var(--text-inverse);
+  border: 1px solid transparent;
 }
 
 .btn-primary:hover {

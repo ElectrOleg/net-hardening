@@ -2,9 +2,11 @@
 {% block title %}Devices{% endblock %}
 
 {% block content %}
+{% set settings_section = 'Устройства' %}
+{% include 'settings/_nav.html' %}
+
 <div class="flex justify-between items-center mb-3">
     <div>
-        <h2>Устройства</h2>
         <p class="text-muted text-sm">Управление устройствами и назначение политик</p>
     </div>
     <div class="flex gap-1">

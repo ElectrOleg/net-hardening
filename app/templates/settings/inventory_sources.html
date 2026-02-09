@@ -2,9 +2,11 @@
 {% block title %}Inventory Sources{% endblock %}
 
 {% block content %}
+{% set settings_section = 'Инвентарь' %}
+{% include 'settings/_nav.html' %}
+
 <div class="flex justify-between items-center mb-3">
     <div>
-        <h2>Источники инвентаря</h2>
         <p class="text-muted text-sm">Настройка внешних источников списков устройств (БД, API, статический список)</p>
     </div>
     <button class="btn btn-primary" onclick="openCreateModal()">
