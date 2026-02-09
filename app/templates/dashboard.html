@@ -203,18 +203,16 @@
     (function () {
         const ring = document.getElementById('scoreRing');
         if (!ring) return;
-        const score = {{ score }
-    };
-    const circumference = 2 * Math.PI * 65; // r=65
-    const offset = circumference - (score / 100) * circumference;
-    // Start fully hidden, then animate
-    ring.style.strokeDasharray = circumference;
-    ring.style.strokeDashoffset = circumference;
-    requestAnimationFrame(function () {
+        const score = {{ score }};
+        const circumference = 2 * Math.PI * 65;
+        const offset = circumference - (score / 100) * circumference;
+        ring.style.strokeDasharray = circumference;
+        ring.style.strokeDashoffset = circumference;
         requestAnimationFrame(function () {
-            ring.style.strokeDashoffset = offset;
+            requestAnimationFrame(function () {
+                ring.style.strokeDashoffset = offset;
+            });
         });
-    });
-    }) ();
+    })();
 </script>
 {% endblock %}

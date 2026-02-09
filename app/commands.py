@@ -12,12 +12,20 @@ def seed_command():
     
     # 1. Vendors
     vendors = [
-        {"code": "cisco_ios", "name": "Cisco IOS", "parser_driver": "textfsm"},
-        {"code": "cisco_xe", "name": "Cisco IOS-XE", "parser_driver": "textfsm"},
-        {"code": "cisco_nxos", "name": "Cisco NX-OS", "parser_driver": "textfsm"},
-        {"code": "juniper_junos", "name": "Juniper JunOS", "parser_driver": "textfsm"},
-        {"code": "huawei", "name": "Huawei VRP", "parser_driver": "textfsm"},
-        {"code": "eltex", "name": "Eltex ESR", "parser_driver": "textfsm"},
+        {"code": "cisco_ios", "name": "Cisco IOS", "parser_driver": "ciscoconfparse"},
+        {"code": "cisco_iosxe", "name": "Cisco IOS-XE", "parser_driver": "ciscoconfparse"},
+        {"code": "cisco_iosxr", "name": "Cisco IOS-XR", "parser_driver": "ciscoconfparse"},
+        {"code": "cisco_nxos", "name": "Cisco NX-OS", "parser_driver": "ciscoconfparse"},
+        {"code": "juniper_junos", "name": "Juniper JunOS", "parser_driver": "json"},
+        {"code": "arista_eos", "name": "Arista EOS", "parser_driver": "ciscoconfparse"},
+        {"code": "huawei", "name": "Huawei VRP", "parser_driver": "ciscoconfparse"},
+        {"code": "eltex_esr", "name": "Eltex ESR", "parser_driver": "ciscoconfparse"},
+        {"code": "fortinet_fortios", "name": "Fortinet FortiOS", "parser_driver": "json"},
+        {"code": "paloalto_panos", "name": "Palo Alto PAN-OS", "parser_driver": "json"},
+        {"code": "mikrotik_routeros", "name": "MikroTik RouterOS", "parser_driver": "ciscoconfparse"},
+        {"code": "linux", "name": "Linux", "parser_driver": "json"},
+        {"code": "usergate", "name": "UserGate", "parser_driver": "json"},
+        {"code": "checkpoint", "name": "Check Point", "parser_driver": "json"},
     ]
     
     for v_data in vendors:
