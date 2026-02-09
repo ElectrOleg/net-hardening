@@ -32,7 +32,29 @@ def upgrade():
         sa.Column('is_active', sa.Boolean, server_default='true'),
     )
 
-    # Seed default vendor mappings
+    # ── Ensure all referenced vendors exist ──────────────────────
+    # The seed data may only have a subset; vendor mappings need more.
+    conn = op.get_bind()
+
+    # Insert any vendors that don't exist yet
+    new_vendors = [
+        ("cisco_iosxr", "Cisco IOS-XR",   "ciscoconfparse",  "Cisco IOS-XR routers"),
+        ("cisco_iosxe", "Cisco IOS-XE",   "ciscoconfparse",  "Cisco IOS-XE devices"),
+        ("juniper_junos", "Juniper JUNOS", "json",            "Juniper JUNOS devices"),
+        ("arista_eos",  "Arista EOS",     "ciscoconfparse",  "Arista EOS switches"),
+        ("huawei",      "Huawei",         "ciscoconfparse",  "Huawei VRP devices"),
+        ("fortinet_fortios", "Fortinet FortiOS", "json",     "FortiGate firewalls"),
+        ("paloalto_panos", "Palo Alto PAN-OS",  "json",      "Palo Alto firewalls"),
+        ("mikrotik_routeros", "MikroTik RouterOS", "ciscoconfparse", "MikroTik routers"),
+        ("linux",       "Linux",          "json",            "Linux hosts"),
+    ]
+    for code, name, driver, desc in new_vendors:
+        conn.execute(sa.text(
+            "INSERT INTO hcs_vendors (code, name, parser_driver, description) "
+            "VALUES (:code, :name, :driver, :desc) ON CONFLICT (code) DO NOTHING"
+        ), {"code": code, "name": name, "driver": driver, "desc": desc})
+
+    # ── Seed default vendor mappings ─────────────────────────────
     from app.models.vendor_mapping import DEFAULT_VENDOR_MAPPINGS
     
     mappings_table = sa.table(

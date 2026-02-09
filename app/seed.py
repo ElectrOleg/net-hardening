@@ -6,42 +6,20 @@ from app.models import Vendor, Policy, Rule
 def seed_vendors():
     """Create default vendors."""
     vendors = [
-        Vendor(
-            code="cisco_ios",
-            name="Cisco IOS",
-            parser_driver="ciscoconfparse",
-            description="Cisco IOS and IOS-XE devices"
-        ),
-        Vendor(
-            code="cisco_nxos",
-            name="Cisco NX-OS",
-            parser_driver="ciscoconfparse",
-            description="Cisco Nexus switches"
-        ),
-        Vendor(
-            code="eltex_esr",
-            name="Eltex ESR",
-            parser_driver="ciscoconfparse",
-            description="Eltex ESR series routers"
-        ),
-        Vendor(
-            code="usergate",
-            name="UserGate",
-            parser_driver="json",
-            description="UserGate NGFW (JSON API)"
-        ),
-        Vendor(
-            code="checkpoint",
-            name="Check Point",
-            parser_driver="json",
-            description="Check Point firewalls (JSON API)"
-        ),
-        Vendor(
-            code="huawei",
-            name="Huawei",
-            parser_driver="ciscoconfparse",
-            description="Huawei VRP devices"
-        ),
+        Vendor(code="cisco_ios",    name="Cisco IOS",     parser_driver="ciscoconfparse", description="Cisco IOS devices"),
+        Vendor(code="cisco_nxos",   name="Cisco NX-OS",   parser_driver="ciscoconfparse", description="Cisco Nexus switches"),
+        Vendor(code="cisco_iosxr",  name="Cisco IOS-XR",  parser_driver="ciscoconfparse", description="Cisco IOS-XR routers"),
+        Vendor(code="cisco_iosxe",  name="Cisco IOS-XE",  parser_driver="ciscoconfparse", description="Cisco IOS-XE devices"),
+        Vendor(code="eltex_esr",    name="Eltex ESR",     parser_driver="ciscoconfparse", description="Eltex ESR series routers"),
+        Vendor(code="juniper_junos", name="Juniper JUNOS", parser_driver="json",           description="Juniper JUNOS devices"),
+        Vendor(code="arista_eos",   name="Arista EOS",    parser_driver="ciscoconfparse", description="Arista EOS switches"),
+        Vendor(code="huawei",       name="Huawei",        parser_driver="ciscoconfparse", description="Huawei VRP devices"),
+        Vendor(code="fortinet_fortios", name="Fortinet FortiOS", parser_driver="json",     description="FortiGate firewalls"),
+        Vendor(code="paloalto_panos", name="Palo Alto PAN-OS", parser_driver="json",       description="Palo Alto firewalls"),
+        Vendor(code="mikrotik_routeros", name="MikroTik RouterOS", parser_driver="ciscoconfparse", description="MikroTik routers"),
+        Vendor(code="linux",        name="Linux",         parser_driver="json",           description="Linux hosts"),
+        Vendor(code="usergate",     name="UserGate",      parser_driver="json",           description="UserGate NGFW (JSON API)"),
+        Vendor(code="checkpoint",   name="Check Point",   parser_driver="json",           description="Check Point firewalls (JSON API)"),
     ]
     
     for vendor in vendors:

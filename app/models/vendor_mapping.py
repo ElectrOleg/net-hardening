@@ -63,7 +63,7 @@ DEFAULT_VENDOR_MAPPINGS = [
     {"vendor_code": "arista_eos", "pattern": r"(?i)!\s*Command:.*Arista", "match_field": "config_content", "priority": 30, "description": "Arista EOS header"},
     
     # Huawei
-    {"vendor_code": "huawei_vrp", "pattern": r"(?i)sysname.*huawei", "match_field": "config_content", "priority": 30, "description": "Huawei VRP sysname"},
+    {"vendor_code": "huawei", "pattern": r"(?i)sysname.*huawei", "match_field": "config_content", "priority": 30, "description": "Huawei VRP sysname"},
     
     # Fortinet
     {"vendor_code": "fortinet_fortios", "pattern": r"config system global", "match_field": "config_content", "priority": 30, "description": "FortiOS config block"},
