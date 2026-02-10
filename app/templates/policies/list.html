@@ -39,9 +39,10 @@
                 <span class="text-sm">
                     <strong>{{ policy.rules.count() }}</strong> правил
                 </span>
-                <button class="btn btn-ghost btn-icon" onclick="openEditModal(this)" data-id="{{ policy.id }}"
-                    data-name="{{ policy.name }}" data-desc="{{ policy.description or '' }}"
-                    data-severity="{{ policy.severity }}">
+                {% if policy.scope_filter %}
+                <span class="text-xs text-muted" title="{{ policy.scope_filter }}">⚙ scope‑filter</span>
+                {% endif %}
+                <button class="btn btn-ghost btn-icon" onclick="openEditModal('{{ policy.id }}')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
                         <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -95,6 +96,21 @@
                     <option value="low">Low</option>
                 </select>
             </div>
+
+            <!-- Scope Filter -->
+            <details class="form-group mb-3">
+                <summary style="cursor:pointer;font-weight:600;font-size:.95rem;color:var(--primary);user-select:none;">
+                    Scope Filter
+                    <small style="font-weight:400;color:var(--text-secondary);margin-left:.5rem;">location, extra_data и
+                        т.д.</small>
+                </summary>
+                <div id="policyScopeContainer" style="margin-top:.5rem;"></div>
+                <button type="button" class="btn btn-secondary"
+                    style="font-size:.85rem;padding:.35rem .75rem;margin-top:.5rem;" onclick="addPolicyScopeRow()">
+                    + Добавить условие
+                </button>
+            </details>
+
             <div class="flex justify-end gap-2">
                 <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
                 <button class="btn btn-primary" onclick="savePolicy()">Сохранить</button>
@@ -110,29 +126,92 @@
     const modal = document.getElementById('policyModal');
     let isEditing = false;
 
+    // Store policy data for edit
+    const policiesData = {};
+    {% for policy in policies %}
+    policiesData['{{ policy.id }}'] = {{ policy.to_dict() | tojson | safe }};
+    {% endfor %}
+
+    // Datalist for scope field suggestions
+    if (!document.getElementById('scopeFieldSuggestions')) {
+        const dl = document.createElement('datalist');
+        dl.id = 'scopeFieldSuggestions';
+        ['location', 'os_version', 'hardware', 'vendor_code', 'extra_data.department', 'extra_data.environment', 'extra_data.rack', 'extra_data.serial'].forEach(v => {
+            const o = document.createElement('option'); o.value = v; dl.appendChild(o);
+        });
+        document.body.appendChild(dl);
+    }
+
+    function addPolicyScopeRow(field = '', matchType = 'exact', value = '') {
+        const c = document.getElementById('policyScopeContainer');
+        const row = document.createElement('div');
+        row.className = 'grid gap-2 mb-2';
+        row.style.gridTemplateColumns = '2fr 1fr 2fr auto';
+        row.style.alignItems = 'center';
+        row.innerHTML = `
+            <input type="text" class="form-control scope-field" placeholder="Поле (location, extra_data.env...)" value="${field}" list="scopeFieldSuggestions">
+            <select class="form-select scope-match">
+                <option value="exact" ${matchType === 'exact' ? 'selected' : ''}>=</option>
+                <option value="regex" ${matchType === 'regex' ? 'selected' : ''}>regex</option>
+                <option value="contains" ${matchType === 'contains' ? 'selected' : ''}>contains</option>
+            </select>
+            <input type="text" class="form-control scope-value" placeholder="Значение" value="${value}">
+            <button type="button" class="btn btn-ghost btn-icon" onclick="this.parentElement.remove()" title="Удалить" style="min-width:36px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>`;
+        c.appendChild(row);
+    }
+
+    function getPolicyScopeFilter() {
+        const result = {};
+        document.querySelectorAll('#policyScopeContainer .scope-field').forEach(el => {
+            const row = el.parentElement;
+            const field = el.value.trim();
+            const matchType = row.querySelector('.scope-match').value;
+            const value = row.querySelector('.scope-value').value.trim();
+            if (!field || !value) return;
+            let key = field;
+            if (matchType === 'regex') key += '_regex';
+            if (matchType === 'contains') key += '_contains';
+            result[key] = value;
+        });
+        return Object.keys(result).length > 0 ? result : null;
+    }
+
     function openCreateModal() {
-        if (!modal) return; // Guard
+        if (!modal) return;
         document.getElementById('modalTitle').innerText = 'Создать политику';
         document.getElementById('policyId').value = '';
         document.getElementById('policyName').value = '';
         document.getElementById('policyDesc').value = '';
         document.getElementById('policySeverity').value = 'medium';
+        document.getElementById('policyScopeContainer').innerHTML = '';
         modal.style.display = 'flex';
         isEditing = false;
     }
 
-    function openEditModal(btn) {
+    function openEditModal(id) {
         if (!modal) return;
-        const id = btn.dataset.id;
-        const name = btn.dataset.name;
-        const desc = btn.dataset.desc;
-        const severity = btn.dataset.severity;
+        const policy = policiesData[id];
+        if (!policy) return;
 
         document.getElementById('modalTitle').innerText = 'Редактировать политику';
         document.getElementById('policyId').value = id;
-        document.getElementById('policyName').value = name;
-        document.getElementById('policyDesc').value = desc === 'None' ? '' : desc;
-        document.getElementById('policySeverity').value = severity;
+        document.getElementById('policyName').value = policy.name;
+        document.getElementById('policyDesc').value = policy.description || '';
+        document.getElementById('policySeverity').value = policy.severity;
+
+        // Load scope_filter
+        document.getElementById('policyScopeContainer').innerHTML = '';
+        if (policy.scope_filter && typeof policy.scope_filter === 'object') {
+            for (const [key, value] of Object.entries(policy.scope_filter)) {
+                let field = key, matchType = 'exact';
+                if (key.endsWith('_regex')) { field = key.slice(0, -6); matchType = 'regex'; }
+                if (key.endsWith('_contains')) { field = key.slice(0, -9); matchType = 'contains'; }
+                addPolicyScopeRow(field, matchType, String(value));
+            }
+        }
+
         modal.style.display = 'flex';
         isEditing = true;
     }
@@ -153,6 +232,7 @@
         const name = document.getElementById('policyName').value;
         const description = document.getElementById('policyDesc').value;
         const severity = document.getElementById('policySeverity').value;
+        const scope_filter = getPolicyScopeFilter();
 
         if (!name) {
             showNotification('Введите название', 'warning');
@@ -166,7 +246,7 @@
             const response = await fetch(url, {
                 method: method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, description, severity })
+                body: JSON.stringify({ name, description, severity, scope_filter })
             });
 
             if (response.ok) {

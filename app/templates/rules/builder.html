@@ -444,6 +444,33 @@
                     <input type="hidden" id="severity" value="medium">
                 </div>
 
+                <!-- Applicability Conditions -->
+                <details class="form-group mb-3">
+                    <summary class="form-label" style="cursor:pointer;user-select:none;">
+                        Область применения
+                        <small style="font-weight:400;color:var(--hcs-text-muted);margin-left:.5rem;">ограничить
+                            location, os_version, extra_data и т.д.</small>
+                    </summary>
+                    <div id="applicabilityContainer" style="margin-top:.5rem;"></div>
+                    <button type="button" class="btn btn-secondary"
+                        style="font-size:.85rem;padding:.35rem .75rem;margin-top:.5rem;"
+                        onclick="addApplicabilityRow()">
+                        + Добавить условие
+                    </button>
+                </details>
+
+                <!-- Datalist for field suggestions -->
+                <datalist id="applFieldSuggestions">
+                    <option value="location">
+                    <option value="os_version">
+                    <option value="hardware">
+                    <option value="vendor_code">
+                    <option value="extra_data.department">
+                    <option value="extra_data.environment">
+                    <option value="extra_data.rack">
+                    <option value="extra_data.serial">
+                </datalist>
+
                 <!-- Type Selector Cards -->
                 <div class="form-group mb-3">
                     <label class="form-label">Тип проверки</label>
@@ -851,6 +878,44 @@
         syncVisualToJson();
     }
 
+    // --- Applicability Helpers ---
+
+    function addApplicabilityRow(field = '', matchType = 'exact', value = '') {
+        const c = document.getElementById('applicabilityContainer');
+        const row = document.createElement('div');
+        row.className = 'grid gap-2 mb-2';
+        row.style.gridTemplateColumns = '2fr 1fr 2fr auto';
+        row.style.alignItems = 'center';
+        row.innerHTML = `
+            <input type="text" class="form-control appl-field" placeholder="Поле (location, extra_data.dept...)" value="${field}" list="applFieldSuggestions">
+            <select class="form-select appl-match">
+                <option value="exact" ${matchType === 'exact' ? 'selected' : ''}>=</option>
+                <option value="regex" ${matchType === 'regex' ? 'selected' : ''}>regex</option>
+                <option value="contains" ${matchType === 'contains' ? 'selected' : ''}>contains</option>
+            </select>
+            <input type="text" class="form-control appl-value" placeholder="Значение" value="${value}">
+            <button type="button" class="btn btn-ghost btn-icon" onclick="this.parentElement.remove()" title="Удалить" style="min-width:36px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>`;
+        c.appendChild(row);
+    }
+
+    function getApplicability() {
+        const result = {};
+        document.querySelectorAll('#applicabilityContainer .appl-field').forEach(el => {
+            const row = el.parentElement;
+            const field = el.value.trim();
+            const matchType = row.querySelector('.appl-match').value;
+            const value = row.querySelector('.appl-value').value.trim();
+            if (!field || !value) return;
+            let key = field;
+            if (matchType === 'regex') key += '_regex';
+            if (matchType === 'contains') key += '_contains';
+            result[key] = value;
+        });
+        return Object.keys(result).length > 0 ? result : null;
+    }
+
     // --- Core Lifecycle ---
 
     function initBuilder() {
@@ -1182,7 +1247,8 @@ end`;
             logic_payload: logicPayload,
             severity: document.getElementById('severity').value,
             description: document.getElementById('description').value,
-            remediation: document.getElementById('remediation').value
+            remediation: document.getElementById('remediation').value,
+            applicability: getApplicability()
         };
 
         if (!rule.title) return showNotification('Введите название', 'warning');
@@ -1250,6 +1316,17 @@ end`;
                     if (rule.logic_payload) {
                         document.getElementById('logic_payload').value = JSON.stringify(rule.logic_payload, null, 2);
                         updateBuilderMode(); // Re-trigger visual sync
+                    }
+
+                    // Load applicability
+                    if (rule.applicability && typeof rule.applicability === 'object') {
+                        document.getElementById('applicabilityContainer').innerHTML = '';
+                        for (const [key, value] of Object.entries(rule.applicability)) {
+                            let field = key, matchType = 'exact';
+                            if (key.endsWith('_regex')) { field = key.slice(0, -6); matchType = 'regex'; }
+                            if (key.endsWith('_contains')) { field = key.slice(0, -9); matchType = 'contains'; }
+                            addApplicabilityRow(field, matchType, String(value));
+                        }
                     }
                 }
             } catch (e) { console.error(e); }

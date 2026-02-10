@@ -181,6 +181,75 @@
                     <label>Filter SQL (WHERE clause)</label>
                     <input type="text" id="pgFilter" class="form-control" placeholder="is_active = true">
                 </div>
+
+                <!-- Column Mapping -->
+                <details class="mb-2" style="margin-top:1rem;">
+                    <summary
+                        style="cursor:pointer;font-weight:600;font-size:.95rem;color:var(--primary);user-select:none;">
+                        Маппинг колонок
+                        <small style="font-weight:400;color:var(--text-secondary);margin-left:.5rem;">имя колонки во
+                            внешней таблице</small>
+                    </summary>
+                    <div style="margin-top:.75rem;">
+                        <div class="grid grid-2 gap-2">
+                            <div class="form-group mb-2">
+                                <label>hostname</label>
+                                <input type="text" id="pgColHostname" class="form-control" placeholder="hostname">
+                            </div>
+                            <div class="form-group mb-2">
+                                <label>ip_address</label>
+                                <input type="text" id="pgColIp" class="form-control" placeholder="ip">
+                            </div>
+                        </div>
+                        <div class="grid grid-2 gap-2">
+                            <div class="form-group mb-2">
+                                <label>vendor_code</label>
+                                <input type="text" id="pgColVendor" class="form-control" placeholder="vendor">
+                            </div>
+                            <div class="form-group mb-2">
+                                <label>os_version</label>
+                                <input type="text" id="pgColOs" class="form-control" placeholder="os_version">
+                            </div>
+                        </div>
+                        <div class="grid grid-2 gap-2">
+                            <div class="form-group mb-2">
+                                <label>hardware</label>
+                                <input type="text" id="pgColHardware" class="form-control" placeholder="hardware">
+                            </div>
+                            <div class="form-group mb-2">
+                                <label>location</label>
+                                <input type="text" id="pgColLocation" class="form-control" placeholder="location">
+                            </div>
+                        </div>
+                        <div class="grid grid-2 gap-2">
+                            <div class="form-group mb-2">
+                                <label>group</label>
+                                <input type="text" id="pgColGroup" class="form-control" placeholder="device_group">
+                            </div>
+                            <div class="form-group mb-2">
+                                <label>is_active</label>
+                                <input type="text" id="pgColActive" class="form-control" placeholder="is_active">
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Extra Columns -->
+                <details class="mb-2">
+                    <summary
+                        style="cursor:pointer;font-weight:600;font-size:.95rem;color:var(--primary);user-select:none;">
+                        Дополнительные поля
+                        <small style="font-weight:400;color:var(--text-secondary);margin-left:.5rem;">попадут в
+                            extra_data устройства</small>
+                    </summary>
+                    <div id="pgExtraColumnsContainer" style="margin-top:.75rem;">
+                        <!-- dynamic rows inserted here -->
+                    </div>
+                    <button type="button" class="btn btn-secondary"
+                        style="margin-top:.5rem;font-size:.85rem;padding:.35rem .75rem;" onclick="addPgExtraRow()">
+                        + Добавить поле
+                    </button>
+                </details>
             </div>
 
             <!-- API Fields -->
@@ -194,6 +263,71 @@
                     <label>Devices Endpoint</label>
                     <input type="text" id="apiEndpoint" class="form-control" placeholder="/v1/devices">
                 </div>
+                <div class="form-group mb-2">
+                    <label>Response Path (JSONPath к массиву)</label>
+                    <input type="text" id="apiResponsePath" class="form-control" placeholder="data.items">
+                    <small style="color:var(--text-secondary)">Путь к массиву устройств в ответе API, например
+                        data.items</small>
+                </div>
+
+                <!-- API Field Mapping -->
+                <details class="mb-2" style="margin-top:1rem;">
+                    <summary
+                        style="cursor:pointer;font-weight:600;font-size:.95rem;color:var(--primary);user-select:none;">
+                        Маппинг полей
+                        <small style="font-weight:400;color:var(--text-secondary);margin-left:.5rem;">ключ в JSON-ответе
+                            API</small>
+                    </summary>
+                    <div style="margin-top:.75rem;">
+                        <div class="grid grid-2 gap-2">
+                            <div class="form-group mb-2">
+                                <label>hostname</label>
+                                <input type="text" id="apiMapHostname" class="form-control" placeholder="hostname">
+                            </div>
+                            <div class="form-group mb-2">
+                                <label>ip_address</label>
+                                <input type="text" id="apiMapIp" class="form-control" placeholder="primary_ip">
+                            </div>
+                        </div>
+                        <div class="grid grid-2 gap-2">
+                            <div class="form-group mb-2">
+                                <label>vendor_code</label>
+                                <input type="text" id="apiMapVendor" class="form-control" placeholder="platform">
+                            </div>
+                            <div class="form-group mb-2">
+                                <label>os_version</label>
+                                <input type="text" id="apiMapOs" class="form-control" placeholder="sw_version">
+                            </div>
+                        </div>
+                        <div class="grid grid-2 gap-2">
+                            <div class="form-group mb-2">
+                                <label>hardware</label>
+                                <input type="text" id="apiMapHardware" class="form-control" placeholder="model">
+                            </div>
+                            <div class="form-group mb-2">
+                                <label>location</label>
+                                <input type="text" id="apiMapLocation" class="form-control" placeholder="site">
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- API Extra Fields -->
+                <details class="mb-2">
+                    <summary
+                        style="cursor:pointer;font-weight:600;font-size:.95rem;color:var(--primary);user-select:none;">
+                        Дополнительные поля
+                        <small style="font-weight:400;color:var(--text-secondary);margin-left:.5rem;">ключи из JSON,
+                            попадут в extra_data</small>
+                    </summary>
+                    <div id="apiExtraFieldsContainer" style="margin-top:.75rem;">
+                        <!-- dynamic rows -->
+                    </div>
+                    <button type="button" class="btn btn-secondary"
+                        style="margin-top:.5rem;font-size:.85rem;padding:.35rem .75rem;" onclick="addApiExtraRow()">
+                        + Добавить поле
+                    </button>
+                </details>
             </div>
 
             <!-- Static Fields -->
@@ -242,6 +376,25 @@ switch1,10.0.0.2,cisco_ios"></textarea>
         document.getElementById('sourceActive').checked = true;
         document.getElementById('sourceSyncEnabled').checked = true;
         document.getElementById('sourceSyncInterval').value = 60;
+
+        // Clear PG connection fields
+        ['pgHost', 'pgDatabase', 'pgUser', 'pgTable', 'pgFilter'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('pgPort').value = 5432;
+
+        // Clear PG column mapping
+        ['pgColHostname', 'pgColIp', 'pgColVendor', 'pgColOs', 'pgColHardware', 'pgColLocation', 'pgColGroup', 'pgColActive']
+            .forEach(id => document.getElementById(id).value = '');
+        document.getElementById('pgExtraColumnsContainer').innerHTML = '';
+
+        // Clear API fields
+        ['apiBaseUrl', 'apiEndpoint', 'apiResponsePath'].forEach(id => document.getElementById(id).value = '');
+        ['apiMapHostname', 'apiMapIp', 'apiMapVendor', 'apiMapOs', 'apiMapHardware', 'apiMapLocation']
+            .forEach(id => document.getElementById(id).value = '');
+        document.getElementById('apiExtraFieldsContainer').innerHTML = '';
+
+        // Clear static
+        document.getElementById('staticDevices').value = '';
+
         updateFormFields();
         modal.style.display = 'flex';
         isEditing = false;
@@ -270,10 +423,43 @@ switch1,10.0.0.2,cisco_ios"></textarea>
             document.getElementById('pgUser').value = params.user || '';
             document.getElementById('pgTable').value = params.table || 'devices';
             document.getElementById('pgFilter').value = params.filter_sql || '';
+
+            // Column mapping
+            const cols = params.columns || {};
+            document.getElementById('pgColHostname').value = cols.hostname || '';
+            document.getElementById('pgColIp').value = cols.ip_address || '';
+            document.getElementById('pgColVendor').value = cols.vendor_code || '';
+            document.getElementById('pgColOs').value = cols.os_version || '';
+            document.getElementById('pgColHardware').value = cols.hardware || '';
+            document.getElementById('pgColLocation').value = cols.location || '';
+            document.getElementById('pgColGroup').value = cols.group || '';
+            document.getElementById('pgColActive').value = cols.is_active || '';
+
+            // Extra columns
+            document.getElementById('pgExtraColumnsContainer').innerHTML = '';
+            for (const [key, col] of Object.entries(params.extra_columns || {})) {
+                addPgExtraRow(key, col);
+            }
         }
         if (source.type === 'api') {
             document.getElementById('apiBaseUrl').value = params.base_url || '';
             document.getElementById('apiEndpoint').value = params.endpoint || '';
+            document.getElementById('apiResponsePath').value = params.response_path || '';
+
+            // Field mapping
+            const fm = params.field_mapping || {};
+            document.getElementById('apiMapHostname').value = fm.hostname || '';
+            document.getElementById('apiMapIp').value = fm.ip_address || '';
+            document.getElementById('apiMapVendor').value = fm.vendor_code || '';
+            document.getElementById('apiMapOs').value = fm.os_version || '';
+            document.getElementById('apiMapHardware').value = fm.hardware || '';
+            document.getElementById('apiMapLocation').value = fm.location || '';
+
+            // Extra fields
+            document.getElementById('apiExtraFieldsContainer').innerHTML = '';
+            for (const f of (params.extra_fields || [])) {
+                addApiExtraRow(f);
+            }
         }
         if (source.type === 'static') {
             document.getElementById('staticDevices').value = (params.devices || []).map(d =>
@@ -290,6 +476,92 @@ switch1,10.0.0.2,cisco_ios"></textarea>
         modal.style.display = 'none';
     }
 
+    /* ═══ Dynamic extra-column / extra-field helpers ═══ */
+    function addPgExtraRow(key = '', col = '') {
+        const c = document.getElementById('pgExtraColumnsContainer');
+        const row = document.createElement('div');
+        row.className = 'grid gap-2 mb-2';
+        row.style.gridTemplateColumns = '1fr 1fr auto';
+        row.innerHTML = `
+            <input type="text" class="form-control pg-extra-key" placeholder="Ключ (напр. department)" value="${key}">
+            <input type="text" class="form-control pg-extra-col" placeholder="Колонка (напр. dept_name)" value="${col}">
+            <button type="button" class="btn btn-ghost btn-icon" onclick="this.parentElement.remove()" title="Удалить" style="min-width:36px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>`;
+        c.appendChild(row);
+    }
+
+    function addApiExtraRow(field = '') {
+        const c = document.getElementById('apiExtraFieldsContainer');
+        const row = document.createElement('div');
+        row.className = 'flex gap-2 mb-2 items-center';
+        row.innerHTML = `
+            <input type="text" class="form-control api-extra-field" placeholder="Ключ JSON (напр. serial_number)" value="${field}" style="flex:1;">
+            <button type="button" class="btn btn-ghost btn-icon" onclick="this.parentElement.remove()" title="Удалить" style="min-width:36px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>`;
+        c.appendChild(row);
+    }
+
+    /* ═══ Collect column mapping from form ═══ */
+    function getPgColumns() {
+        const mapping = {};
+        const fields = [
+            ['hostname', 'pgColHostname'],
+            ['ip_address', 'pgColIp'],
+            ['vendor_code', 'pgColVendor'],
+            ['os_version', 'pgColOs'],
+            ['hardware', 'pgColHardware'],
+            ['location', 'pgColLocation'],
+            ['group', 'pgColGroup'],
+            ['is_active', 'pgColActive']
+        ];
+        for (const [key, id] of fields) {
+            const val = document.getElementById(id).value.trim();
+            if (val) mapping[key] = val;
+        }
+        // id always maps to the same as hostname
+        if (mapping.hostname) mapping.id = mapping.hostname;
+        return Object.keys(mapping).length ? mapping : undefined;
+    }
+
+    function getPgExtraColumns() {
+        const extras = {};
+        document.querySelectorAll('#pgExtraColumnsContainer .pg-extra-key').forEach((el, i) => {
+            const key = el.value.trim();
+            const col = el.parentElement.querySelector('.pg-extra-col').value.trim();
+            if (key && col) extras[key] = col;
+        });
+        return Object.keys(extras).length ? extras : undefined;
+    }
+
+    function getApiFieldMapping() {
+        const mapping = {};
+        const fields = [
+            ['hostname', 'apiMapHostname'],
+            ['ip_address', 'apiMapIp'],
+            ['vendor_code', 'apiMapVendor'],
+            ['os_version', 'apiMapOs'],
+            ['hardware', 'apiMapHardware'],
+            ['location', 'apiMapLocation']
+        ];
+        for (const [key, id] of fields) {
+            const val = document.getElementById(id).value.trim();
+            if (val) mapping[key] = val;
+        }
+        if (mapping.hostname) mapping.id = mapping.hostname;
+        return Object.keys(mapping).length ? mapping : undefined;
+    }
+
+    function getApiExtraFields() {
+        const fields = [];
+        document.querySelectorAll('#apiExtraFieldsContainer .api-extra-field').forEach(el => {
+            const val = el.value.trim();
+            if (val) fields.push(val);
+        });
+        return fields.length ? fields : undefined;
+    }
+
     function getConnectionParams() {
         const type = document.getElementById('sourceType').value;
         let params = {};
@@ -303,11 +575,20 @@ switch1,10.0.0.2,cisco_ios"></textarea>
                 table: document.getElementById('pgTable').value,
                 filter_sql: document.getElementById('pgFilter').value || null
             };
+            const columns = getPgColumns();
+            if (columns) params.columns = columns;
+            const extra = getPgExtraColumns();
+            if (extra) params.extra_columns = extra;
         } else if (type === 'api') {
             params = {
                 base_url: document.getElementById('apiBaseUrl').value,
-                endpoint: document.getElementById('apiEndpoint').value
+                endpoint: document.getElementById('apiEndpoint').value,
+                response_path: document.getElementById('apiResponsePath').value || null
             };
+            const mapping = getApiFieldMapping();
+            if (mapping) params.field_mapping = mapping;
+            const extra = getApiExtraFields();
+            if (extra) params.extra_fields = extra;
         } else if (type === 'static') {
             const lines = document.getElementById('staticDevices').value.split('\n').filter(l => l.trim());
             params = {

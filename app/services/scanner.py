@@ -290,6 +290,25 @@ class ScannerService:
         if not device_vendor:
             device_vendor = self._detect_vendor(config, device_obj)
         
+        # Pre-filter by Policy scope_filter (skip entire policy if device doesn't match)
+        if device_obj:
+            _policy_cache: dict[str, bool] = {}
+            filtered_rules = []
+            for rule in rules:
+                pid = str(rule.policy_id)
+                if pid not in _policy_cache:
+                    sf = rule.policy.scope_filter if rule.policy else None
+                    if sf and isinstance(sf, dict):
+                        # Reuse applicability matcher via a lightweight shim
+                        class _ScopeShim:
+                            applicability = sf
+                        _policy_cache[pid] = self._check_applicability(_ScopeShim(), device_obj)
+                    else:
+                        _policy_cache[pid] = True
+                if _policy_cache[pid]:
+                    filtered_rules.append(rule)
+            rules = filtered_rules
+        
         # Evaluate each rule
         for rule in rules:
             # 1. Vendor Check

@@ -34,6 +34,7 @@ def create_policy():
         name=data["name"],
         description=data.get("description"),
         severity=data.get("severity", "medium"),
+        scope_filter=data.get("scope_filter"),
         is_active=data.get("is_active", True)
     )
     
@@ -49,7 +50,7 @@ def update_policy(policy_id):
     policy = Policy.query.get_or_404(policy_id)
     data = request.get_json()
     
-    for field in ["name", "description", "severity", "is_active"]:
+    for field in ["name", "description", "severity", "scope_filter", "is_active"]:
         if field in data:
             setattr(policy, field, data[field])
     

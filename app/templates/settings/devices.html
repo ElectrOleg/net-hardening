@@ -67,6 +67,7 @@
                     <th>Vendor</th>
                     <th>Группа</th>
                     <th>OS Version</th>
+                    <th>Extra</th>
                     <th>Политики</th>
                     <th>Last Sync</th>
                     <th></th>
@@ -86,6 +87,15 @@
                     </td>
                     <td>{{ d.group.name if d.group else '-' }}</td>
                     <td class="text-xs">{{ d.os_version or '-' }}</td>
+                    <td>
+                        {% if d.extra_data %}
+                        {% for ek, ev in d.extra_data.items() %}
+                        <span class="badge badge-neutral" style="font-size:.7rem;margin:1px;">{{ ek }}: {{ ev }}</span>
+                        {% endfor %}
+                        {% else %}
+                        <span class="text-muted text-xs">-</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if d.policies %}
                         <span class="badge badge-success">{{ d.policies | length }} policies</span>
@@ -107,7 +117,7 @@
                 </tr>
                 {% else %}
                 <tr id="emptyRow">
-                    <td colspan="8">
+                    <td colspan="9">
                         <div class="empty-state">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48"
                                 height="48">
@@ -201,6 +211,15 @@
                     {% endfor %}
                 </div>
             </div>
+
+            <!-- Extra Data (readonly, from sync) -->
+            <details id="extraDataSection" style="display:none;" class="mb-2">
+                <summary style="cursor:pointer;font-weight:600;font-size:.95rem;color:var(--primary);user-select:none;">
+                    Extra Data <small style="font-weight:400;color:var(--text-secondary);margin-left:.5rem;">из
+                        синхронизации</small>
+                </summary>
+                <div id="extraDataContainer" style="margin-top:.5rem;"></div>
+            </details>
 
             <div class="flex justify-end gap-2 mt-3">
                 <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
@@ -301,6 +320,23 @@ switch-02,10.0.0.2,cisco_xe,17.3,C9300,DC1"></textarea>
             document.querySelectorAll('input[name="policies"]').forEach(cb => {
                 cb.checked = device.policies.includes(cb.value);
             });
+
+            // Extra data
+            const extra = device.extra_data || {};
+            const edSection = document.getElementById('extraDataSection');
+            const edContainer = document.getElementById('extraDataContainer');
+            if (Object.keys(extra).length > 0) {
+                edSection.style.display = 'block';
+                edContainer.innerHTML = Object.entries(extra).map(([k, v]) =>
+                    `<div class="grid gap-2 mb-1" style="grid-template-columns: 1fr 2fr;">
+                        <span class="text-sm" style="font-weight:600;color:var(--text-secondary)">${k}</span>
+                        <span class="text-sm">${v}</span>
+                    </div>`
+                ).join('');
+            } else {
+                edSection.style.display = 'none';
+                edContainer.innerHTML = '';
+            }
 
             deviceModal.style.display = 'flex';
             isEditing = true;

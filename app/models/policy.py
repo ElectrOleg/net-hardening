@@ -1,6 +1,6 @@
 """Policy model - группы проверок."""
 import uuid
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.extensions import db
 
 
@@ -13,6 +13,11 @@ class Policy(db.Model):
     name = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.Text)
     severity = db.Column(db.String(20), default="medium")  # critical, high, medium, low
+    # Scope filter — JSONB conditions for device field matching.
+    # Same format as Rule.applicability: {"location": "DC1", "extra_data.env": "prod"}
+    # When set, the policy only applies to devices matching ALL conditions.
+    scope_filter = db.Column(JSONB, nullable=True)
+    
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     updated_at = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
@@ -29,6 +34,7 @@ class Policy(db.Model):
             "name": self.name,
             "description": self.description,
             "severity": self.severity,
+            "scope_filter": self.scope_filter,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

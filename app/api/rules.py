@@ -74,6 +74,7 @@ def create_rule():
         logic_type=data["logic_type"],
         logic_payload=data["logic_payload"],
         severity=data.get("severity", "medium"),
+        applicability=data.get("applicability"),
         is_active=data.get("is_active", True)
     )
     
@@ -91,7 +92,7 @@ def update_rule(rule_id):
     data = request.get_json()
     
     # Update simple fields
-    for field in ["title", "description", "remediation", "severity", "is_active"]:
+    for field in ["title", "description", "remediation", "severity", "applicability", "is_active"]:
         if field in data:
             setattr(rule, field, data[field])
     
