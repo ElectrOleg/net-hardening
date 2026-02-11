@@ -253,43 +253,6 @@ class ScannerService:
         ).first()
         device_uuid = device_obj.id if device_obj else None
         
-        # Fetch config
-        config = None
-        device_vendor = None
-        
-        for ds in data_sources:
-            provider = self._create_provider(ds)
-            if provider:
-                result = provider.fetch_config(device_id)
-                if result.success:
-                    config = result.config
-                    # Try vendor from provider metadata
-                    if result.metadata and "vendor" in result.metadata:
-                        device_vendor = result.metadata["vendor"]
-                    provider.close()
-                    break
-                provider.close()
-        
-        if config is None:
-            # Create error results for all rules
-            for rule in rules:
-                result = Result(
-                    scan_id=scan.id,
-                    device_id=device_id,
-                    device_uuid=device_uuid,
-                    rule_id=rule.id,
-                    status="ERROR",
-                    message="Could not fetch configuration"
-                )
-                db.session.add(result)
-                errors += 1
-            db.session.commit()
-            return passed, failed, errors
-        
-        # Detect vendor using priority chain
-        if not device_vendor:
-            device_vendor = self._detect_vendor(config, device_obj)
-        
         # Pre-filter by Policy scope_filter (skip entire policy if device doesn't match)
         if device_obj:
             _policy_cache: dict[str, bool] = {}
@@ -299,7 +262,6 @@ class ScannerService:
                 if pid not in _policy_cache:
                     sf = rule.policy.scope_filter if rule.policy else None
                     if sf and isinstance(sf, dict):
-                        # Reuse applicability matcher via a lightweight shim
                         class _ScopeShim:
                             applicability = sf
                         _policy_cache[pid] = self._check_applicability(_ScopeShim(), device_obj)
@@ -309,69 +271,148 @@ class ScannerService:
                     filtered_rules.append(rule)
             rules = filtered_rules
         
-        # Evaluate each rule
+        # --- Group rules by data_source_id ---
+        # None key = rules that should use any available source (legacy/default behavior)
+        from collections import defaultdict
+        rule_groups: dict[str | None, list[Rule]] = defaultdict(list)
         for rule in rules:
-            # 1. Vendor Check
-            if rule.vendor_code and rule.vendor_code != "any":
-                if device_vendor and rule.vendor_code != device_vendor:
+            ds_key = str(rule.data_source_id) if rule.data_source_id else None
+            rule_groups[ds_key].append(rule)
+        
+        # Build a lookup of data sources by id
+        ds_by_id = {str(ds.id): ds for ds in data_sources}
+        
+        # Cache for fetched configs: data_source_id -> (config, vendor)
+        config_cache: dict[str | None, tuple[str | None, str | None]] = {}
+        
+        device_vendor = None  # Will be set once from first successful fetch
+        
+        def _fetch_config_for_source(ds_id: str | None) -> tuple[str | None, str | None]:
+            """Fetch config for a specific source id, or any source if None."""
+            nonlocal device_vendor
+            
+            if ds_id is not None:
+                # Specific data source
+                ds = ds_by_id.get(ds_id)
+                if not ds:
+                    logger.warning(f"DataSource {ds_id} not found for device {device_id}")
+                    return None, None
+                provider = self._create_provider(ds)
+                if provider:
+                    result = provider.fetch_config(device_id)
+                    provider.close()
+                    if result.success:
+                        v = result.metadata.get("vendor") if result.metadata else None
+                        if v and not device_vendor:
+                            device_vendor = v
+                        return result.config, v
+                return None, None
+            else:
+                # Any available source (legacy behavior)
+                for ds in data_sources:
+                    provider = self._create_provider(ds)
+                    if provider:
+                        result = provider.fetch_config(device_id)
+                        if result.success:
+                            v = result.metadata.get("vendor") if result.metadata else None
+                            if v and not device_vendor:
+                                device_vendor = v
+                            provider.close()
+                            return result.config, v
+                        provider.close()
+                return None, None
+        
+        # --- Process each rule group ---
+        for ds_key, group_rules in rule_groups.items():
+            # Fetch config (with caching to avoid redundant fetches)
+            if ds_key not in config_cache:
+                config_cache[ds_key] = _fetch_config_for_source(ds_key)
+            
+            config, _vendor = config_cache[ds_key]
+            
+            if config is None:
+                # Config unavailable for this source — mark all rules as ERROR
+                ds_name = ds_by_id[ds_key].name if ds_key and ds_key in ds_by_id else "any"
+                for rule in group_rules:
+                    result = Result(
+                        scan_id=scan.id,
+                        device_id=device_id,
+                        device_uuid=device_uuid,
+                        rule_id=rule.id,
+                        status="ERROR",
+                        message=f"Could not fetch configuration from source: {ds_name}"
+                    )
+                    db.session.add(result)
+                    errors += 1
+                continue
+            
+            # Detect vendor once (from first successful config)
+            if not device_vendor:
+                device_vendor = self._detect_vendor(config, device_obj)
+            
+            # Evaluate each rule against its source's config
+            for rule in group_rules:
+                # 1. Vendor Check
+                if rule.vendor_code and rule.vendor_code != "any":
+                    if device_vendor and rule.vendor_code != device_vendor:
+                        continue
+
+                # 2. Applicability Check
+                if not self._check_applicability(rule, device_obj):
                     continue
 
-            # 2. Applicability Check (os_version, hardware, extra_data, etc.)
-            if not self._check_applicability(rule, device_obj):
-                continue
-
-            # 3. Exception Check
-            if self._has_active_exception(device_id, rule.id):
-                result = Result(
-                    scan_id=scan.id,
-                    device_id=device_id,
-                    device_uuid=device_uuid,
-                    rule_id=rule.id,
-                    status="SKIPPED",
-                    message="Exception/waiver active"
-                )
-                db.session.add(result)
-                continue
-            
-            # 3. Evaluate rule
-            try:
-                check_result = self.evaluator.evaluate(
-                    config=config,
-                    logic_type=rule.logic_type,
-                    logic_payload=rule.logic_payload
-                )
+                # 3. Exception Check
+                if self._has_active_exception(device_id, rule.id):
+                    result = Result(
+                        scan_id=scan.id,
+                        device_id=device_id,
+                        device_uuid=device_uuid,
+                        rule_id=rule.id,
+                        status="SKIPPED",
+                        message="Exception/waiver active"
+                    )
+                    db.session.add(result)
+                    continue
                 
-                result = Result(
-                    scan_id=scan.id,
-                    device_id=device_id,
-                    device_uuid=device_uuid,
-                    rule_id=rule.id,
-                    status=check_result.status.value,
-                    message=check_result.message,
-                    diff_data=check_result.diff_data,
-                    raw_value=str(check_result.raw_value) if check_result.raw_value else None
-                )
-                
-                if check_result.passed:
-                    passed += 1
-                elif check_result.status.value == "ERROR":
-                    errors += 1
-                else:
-                    failed += 1
+                # 4. Evaluate rule
+                try:
+                    check_result = self.evaluator.evaluate(
+                        config=config,
+                        logic_type=rule.logic_type,
+                        logic_payload=rule.logic_payload
+                    )
                     
-            except Exception as e:
-                logger.error(f"Error evaluating rule {rule.id} for {device_id}: {e}")
-                result = Result(
-                    scan_id=scan.id,
-                    device_id=device_id,
-                    device_uuid=device_uuid,
-                    rule_id=rule.id,
-                    status="ERROR",
-                    message=str(e)
-                )
-                errors += 1
-            
-            db.session.add(result)
+                    result = Result(
+                        scan_id=scan.id,
+                        device_id=device_id,
+                        device_uuid=device_uuid,
+                        rule_id=rule.id,
+                        status=check_result.status.value,
+                        message=check_result.message,
+                        diff_data=check_result.diff_data,
+                        raw_value=str(check_result.raw_value) if check_result.raw_value else None
+                    )
+                    
+                    if check_result.passed:
+                        passed += 1
+                    elif check_result.status.value == "ERROR":
+                        errors += 1
+                    else:
+                        failed += 1
+                        
+                except Exception as e:
+                    logger.error(f"Error evaluating rule {rule.id} for {device_id}: {e}")
+                    result = Result(
+                        scan_id=scan.id,
+                        device_id=device_id,
+                        device_uuid=device_uuid,
+                        rule_id=rule.id,
+                        status="ERROR",
+                        message=str(e)
+                    )
+                    errors += 1
+                
+                db.session.add(result)
         
         db.session.commit()
         return passed, failed, errors

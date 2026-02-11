@@ -1,6 +1,6 @@
 """Web views for HCS UI."""
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, g
-from app.models import Scan, Result, Rule, Policy, Vendor
+from app.models import Scan, Result, Rule, Policy, Vendor, DataSource
 
 web_bp = Blueprint("web", __name__)
 
@@ -125,6 +125,7 @@ def rule_builder():
     """Rule builder page."""
     policies = Policy.query.filter_by(is_active=True).all()
     vendors = Vendor.query.all()
+    data_sources = DataSource.query.filter_by(is_active=True).all()
     
     # Support cloning from existing rule
     clone_id = request.args.get("clone")
@@ -132,7 +133,7 @@ def rule_builder():
     if clone_id:
         clone_rule = Rule.query.get(clone_id)
     
-    return render_template("rules/builder.html", policies=policies, vendors=vendors, clone_rule=clone_rule)
+    return render_template("rules/builder.html", policies=policies, vendors=vendors, data_sources=data_sources, clone_rule=clone_rule)
 
 
 @web_bp.route("/rules/<uuid:rule_id>/edit")
@@ -141,7 +142,8 @@ def rule_edit(rule_id):
     rule = Rule.query.get_or_404(rule_id)
     policies = Policy.query.filter_by(is_active=True).all()
     vendors = Vendor.query.all()
-    return render_template("rules/builder.html", policies=policies, vendors=vendors, rule=rule)
+    data_sources = DataSource.query.filter_by(is_active=True).all()
+    return render_template("rules/builder.html", policies=policies, vendors=vendors, data_sources=data_sources, rule=rule)
 
 
 @web_bp.route("/policies")

@@ -68,6 +68,7 @@ def create_rule():
     rule = Rule(
         policy_id=data["policy_id"],
         vendor_code=data["vendor_code"],
+        data_source_id=data.get("data_source_id"),
         title=data["title"],
         description=data.get("description"),
         remediation=data.get("remediation"),
@@ -92,7 +93,7 @@ def update_rule(rule_id):
     data = request.get_json()
     
     # Update simple fields
-    for field in ["title", "description", "remediation", "severity", "applicability", "is_active"]:
+    for field in ["title", "description", "remediation", "severity", "applicability", "data_source_id", "is_active"]:
         if field in data:
             setattr(rule, field, data[field])
     

@@ -12,6 +12,7 @@ class Rule(db.Model):
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     policy_id = db.Column(UUID(as_uuid=True), db.ForeignKey("hcs_policies.id"), nullable=False)
     vendor_code = db.Column(db.String(50), db.ForeignKey("hcs_vendors.code"), nullable=False)
+    data_source_id = db.Column(UUID(as_uuid=True), db.ForeignKey("hcs_data_sources.id"), nullable=True)
     
     title = db.Column(db.String(200), nullable=False)  # "No Telnet"
     description = db.Column(db.Text)  # Описание уязвимости
@@ -37,6 +38,7 @@ class Rule(db.Model):
     # Relationships
     policy = db.relationship("Policy", back_populates="rules")
     vendor = db.relationship("Vendor", back_populates="rules")
+    data_source = db.relationship("DataSource")
     results = db.relationship("Result", back_populates="rule", lazy="dynamic")
     exceptions = db.relationship("RuleException", back_populates="rule", lazy="dynamic")
     
@@ -48,6 +50,7 @@ class Rule(db.Model):
             "id": str(self.id),
             "policy_id": str(self.policy_id),
             "vendor_code": self.vendor_code,
+            "data_source_id": str(self.data_source_id) if self.data_source_id else None,
             "title": self.title,
             "description": self.description,
             "remediation": self.remediation,

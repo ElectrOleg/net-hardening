@@ -402,7 +402,7 @@
                         style="font-size: 1.1rem;" required>
                 </div>
 
-                <div class="grid grid-2 gap-2 mb-2">
+                <div class="grid grid-3 gap-2 mb-2">
                     <div class="form-group">
                         <label class="form-label">Политика</label>
                         <select class="form-select" id="policy_id" required>
@@ -416,6 +416,15 @@
                         <select class="form-select" id="vendor_code" required>
                             {% for vendor in vendors %}
                             <option value="{{ vendor.code }}">{{ vendor.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Источник данных</label>
+                        <select class="form-select" id="data_source_id">
+                            <option value="">Любой доступный</option>
+                            {% for ds in data_sources %}
+                            <option value="{{ ds.id }}">{{ ds.name }} ({{ ds.type }})</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -1248,7 +1257,8 @@ end`;
             severity: document.getElementById('severity').value,
             description: document.getElementById('description').value,
             remediation: document.getElementById('remediation').value,
-            applicability: getApplicability()
+            applicability: getApplicability(),
+            data_source_id: document.getElementById('data_source_id').value || null
         };
 
         if (!rule.title) return showNotification('Введите название', 'warning');
@@ -1296,6 +1306,7 @@ end`;
                     document.getElementById('title').value = rule.title + (urlParams.get('clone') ? " (Copy)" : "");
                     document.getElementById('policy_id').value = rule.policy_id;
                     document.getElementById('vendor_code').value = rule.vendor_code;
+                    document.getElementById('data_source_id').value = rule.data_source_id || '';
                     document.getElementById('logic_type').value = rule.logic_type;
                     document.getElementById('description').value = rule.description || '';
                     document.getElementById('remediation').value = rule.remediation || '';
