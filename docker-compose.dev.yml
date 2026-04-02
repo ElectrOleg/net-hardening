@@ -1,0 +1,43 @@
+########################################################################################
+# HCS Docker Compose — Development Override
+#
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Overrides production settings:
+#   - Builds from source (Dockerfile) instead of using pre-built image
+#   - Mounts source code for hot-reload
+#   - Uses Flask dev server instead of Gunicorn
+########################################################################################
+
+services:
+  web:
+    build: .
+    image: hcs:dev
+    command: ["web"]
+    volumes:
+      - ./app:/app/app
+    environment:
+      - FLASK_ENV=development
+      - GUNICORN_WORKERS=1
+
+  collector-scan:
+    build: .
+    image: hcs:dev
+    volumes:
+      - ./app:/app/app
+
+  collector-sync:
+    build: .
+    image: hcs:dev
+    volumes:
+      - ./app:/app/app
+
+  beat:
+    build: .
+    image: hcs:dev
+
+  maintenance:
+    build: .
+    image: hcs:dev
+    volumes:
+      - ./app:/app/app
