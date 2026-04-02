@@ -236,9 +236,15 @@ class InventorySyncService:
 
 
 class VendorDetector:
-    """Detect device vendor from config content using VendorMapping rules."""
+    """Detect device vendor from config content using VendorMapping rules.
+    
+    Cache auto-expires after _CACHE_TTL seconds to pick up changes
+    without requiring explicit invalidation.
+    """
     
     _cache: Optional[list[VendorMapping]] = None
+    _cache_loaded_at: float = 0.0
+    _CACHE_TTL: float = 300.0  # 5 minutes
     
     @classmethod
     def detect(cls, config_content: str, match_field: str = "config_content") -> Optional[str]:
@@ -264,15 +270,23 @@ class VendorDetector:
     
     @classmethod
     def _get_mappings(cls, match_field: str) -> list[VendorMapping]:
-        """Get active mappings sorted by priority, filtered by match_field."""
-        if cls._cache is None:
+        """Get active mappings sorted by priority, filtered by match_field.
+        
+        Cache is refreshed when TTL expires or after explicit invalidation.
+        """
+        import time
+        now = time.monotonic()
+        
+        if cls._cache is None or (now - cls._cache_loaded_at) > cls._CACHE_TTL:
             try:
                 cls._cache = VendorMapping.query.filter_by(
                     is_active=True
                 ).order_by(VendorMapping.priority).all()
+                cls._cache_loaded_at = now
             except Exception:
                 # Table might not exist yet
                 cls._cache = []
+                cls._cache_loaded_at = now
         
         return [m for m in cls._cache if m.match_field == match_field]
     
@@ -280,3 +294,4 @@ class VendorDetector:
     def invalidate_cache(cls):
         """Clear cached mappings (call after updating VendorMapping table)."""
         cls._cache = None
+        cls._cache_loaded_at = 0.0

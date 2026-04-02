@@ -49,8 +49,8 @@ class Device(db.Model):
     def __repr__(self):
         return f"<Device {self.hostname}>"
     
-    def to_dict(self):
-        return {
+    def to_dict(self, include_policies=False):
+        data = {
             "id": str(self.id),
             "external_id": self.external_id,
             "hostname": self.hostname,
@@ -66,8 +66,10 @@ class Device(db.Model):
             "last_sync_at": self.last_sync_at.isoformat() if self.last_sync_at else None,
             "last_scan_at": self.last_scan_at.isoformat() if self.last_scan_at else None,
             "is_active": self.is_active,
-            "policies": [str(p.id) for p in self.policies],
         }
+        if include_policies:
+            data["policies"] = [str(p.id) for p in self.policies]
+        return data
 
 
 # M2M table for Device <-> Policy

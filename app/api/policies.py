@@ -11,7 +11,7 @@ def list_policies():
     """List all policies."""
     query = Policy.query.filter_by(is_active=True)
     result = paginate_query(query)
-    result["items"] = [p.to_dict() for p in result["items"]]
+    result["items"] = [p.to_dict(include_rules_count=True) for p in result["items"]]
     return jsonify(result)
 
 
@@ -19,7 +19,7 @@ def list_policies():
 def get_policy(policy_id):
     """Get policy by ID."""
     policy = Policy.query.get_or_404(policy_id)
-    return jsonify(policy.to_dict())
+    return jsonify(policy.to_dict(include_rules_count=True))
 
 
 @api_bp.route("/policies", methods=["POST"])

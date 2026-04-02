@@ -1,7 +1,10 @@
 """Scanner Service - orchestrates the scanning process."""
 import logging
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Optional
+
+from sqlalchemy.orm import joinedload
 
 from app.extensions import db
 from app.models import Scan, Rule, Result, RuleException, DataSource, Device
@@ -39,6 +42,7 @@ class ScannerService:
         self._cached_scan_id = None
         self._cached_rules = None
         self._cached_data_sources = None
+        self._exception_set: set[tuple] = set()
     
     def initialize_scan(self, scan_id: str, device_ids: Optional[list[str]] = None) -> list[str]:
         """
@@ -79,12 +83,30 @@ class ScannerService:
         scan = Scan.query.get(scan_id)
         if not scan:
             return 0, 0, 0
+        
+        # Early exit if scan was cancelled (race condition guard)
+        if scan.status == "cancelled":
+            return 0, 0, 0
             
         # Cache rules/sources per scan to avoid N+1 queries
         if self._cached_scan_id != scan_id:
             self._cached_data_sources = DataSource.query.filter_by(is_active=True).all()
             self._cached_rules = self._get_applicable_rules(scan.policies_filter)
             self._cached_scan_id = scan_id
+            
+            # Pre-load ALL active exceptions into a set for O(1) lookup
+            from datetime import date
+            exceptions = RuleException.query.filter(
+                RuleException.is_active == True,
+                (RuleException.expiry_date == None) | (RuleException.expiry_date >= date.today())
+            ).all()
+            self._exception_set = set()
+            for exc in exceptions:
+                rid = str(exc.rule_id)
+                self._exception_set.add((exc.device_id, rid))
+                if exc.device_id is None:
+                    # Global exception — mark with None key
+                    self._exception_set.add((None, rid))
         
         passed, failed, errors = 0, 0, 0
         try:
@@ -122,8 +144,14 @@ class ScannerService:
         return list(all_devices)
     
     def _get_applicable_rules(self, policies_filter: Optional[list] = None) -> list[Rule]:
-        """Get active rules, optionally filtered by policies."""
-        query = Rule.query.filter_by(is_active=True)
+        """Get active rules, optionally filtered by policies.
+        
+        Uses joinedload to eager-load Policy relationship,
+        avoiding N+1 queries in _process_device scope_filter check.
+        """
+        query = Rule.query.options(
+            joinedload(Rule.policy)
+        ).filter_by(is_active=True)
         
         if policies_filter:
             query = query.filter(Rule.policy_id.in_(policies_filter))
@@ -253,6 +281,10 @@ class ScannerService:
         ).first()
         device_uuid = device_obj.id if device_obj else None
         
+        # Normalize device_id to canonical hostname (fixes IP/hostname mixing)
+        if device_obj:
+            device_id = device_obj.hostname
+        
         # Pre-filter by Policy scope_filter (skip entire policy if device doesn't match)
         if device_obj:
             _policy_cache: dict[str, bool] = {}
@@ -262,9 +294,8 @@ class ScannerService:
                 if pid not in _policy_cache:
                     sf = rule.policy.scope_filter if rule.policy else None
                     if sf and isinstance(sf, dict):
-                        class _ScopeShim:
-                            applicability = sf
-                        _policy_cache[pid] = self._check_applicability(_ScopeShim(), device_obj)
+                        shim = SimpleNamespace(applicability=sf)
+                        _policy_cache[pid] = self._check_applicability(shim, device_obj)
                     else:
                         _policy_cache[pid] = True
                 if _policy_cache[pid]:
@@ -414,21 +445,24 @@ class ScannerService:
                 
                 db.session.add(result)
         
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Failed to commit results for device {device_id}: {e}")
+            raise
+        
         return passed, failed, errors
     
     def _has_active_exception(self, device_id: str, rule_id) -> bool:
-        """Check for active exception for device + rule."""
-        from datetime import date
+        """Check for active exception for device + rule.
         
-        exc = RuleException.query.filter(
-            RuleException.rule_id == rule_id,
-            RuleException.is_active == True,
-            (RuleException.expiry_date == None) | (RuleException.expiry_date >= date.today()),
-            (RuleException.device_id == device_id) | (RuleException.device_id == None)
-        ).first()
-        
-        return exc is not None
+        Uses pre-loaded _exception_set for O(1) lookup.
+        Checks both device-specific and global (device_id=None) exceptions.
+        """
+        rid = str(rule_id)
+        return (device_id, rid) in self._exception_set or \
+               (None, rid) in self._exception_set
     
     def _create_provider(self, ds: DataSource) -> Optional[ConfigSourceProvider]:
         """Create appropriate provider using Registry."""

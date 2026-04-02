@@ -68,7 +68,7 @@ def create_device():
 def get_device(device_id):
     """Get a single device."""
     device = Device.query.get_or_404(device_id)
-    return jsonify(device.to_dict())
+    return jsonify(device.to_dict(include_policies=True))
 
 
 @devices_bp.route("/<uuid:device_id>", methods=["PUT"])

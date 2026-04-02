@@ -146,6 +146,13 @@ def auto_run_scheduled_scans():
             devices = device_query.all()
             scan.total_devices = len(devices)
             
+            # Count applicable rules
+            from app.models import Rule
+            rules_query = Rule.query.filter_by(is_active=True)
+            if schedule.policies_filter:
+                rules_query = rules_query.filter(Rule.policy_id.in_(schedule.policies_filter))
+            scan.total_rules = rules_query.count()
+            
             # Queue device scan tasks
             if devices:
                 task_group = celery_group(

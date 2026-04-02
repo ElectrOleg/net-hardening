@@ -28,7 +28,7 @@ class Policy(db.Model):
     def __repr__(self):
         return f"<Policy {self.name}>"
     
-    def to_dict(self, include_rules_count=True):
+    def to_dict(self, include_rules_count=False):
         data = {
             "id": str(self.id),
             "name": self.name,

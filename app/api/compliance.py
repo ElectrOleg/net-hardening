@@ -24,7 +24,7 @@ def _get_latest_scan_id():
     scan = Scan.query.filter_by(status="completed").order_by(
         Scan.finished_at.desc()
     ).first()
-    return str(scan.id) if scan else None
+    return scan.id if scan else None
 
 
 def _compute_score(passed: int, failed: int, errors: int) -> float:

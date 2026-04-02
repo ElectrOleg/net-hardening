@@ -63,7 +63,23 @@ def update_vendor(code):
 @api_bp.route("/vendors/<code>", methods=["DELETE"])
 def delete_vendor(code):
     """Delete vendor."""
+    from app.models import Rule, Device
     vendor = Vendor.query.get_or_404(code)
+    
+    # Check for dependent records
+    rule_count = Rule.query.filter_by(vendor_code=code).count()
+    device_count = Device.query.filter_by(vendor_code=code).count()
+    
+    if rule_count > 0 or device_count > 0:
+        parts = []
+        if rule_count:
+            parts.append(f"{rule_count} rule(s)")
+        if device_count:
+            parts.append(f"{device_count} device(s)")
+        return jsonify({
+            "error": f"Cannot delete: {' and '.join(parts)} reference this vendor."
+        }), 409
+    
     db.session.delete(vendor)
     db.session.commit()
     return "", 204

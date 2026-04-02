@@ -29,6 +29,19 @@ def init_celery(app):
     }
     celery.conf.timezone = "UTC"
     
+    # Queue routing — allows running separate workers per task type.
+    # Start workers with: celery worker -Q scan,sync,maintenance
+    # Or split across machines: celery worker -Q scan (on collector nodes)
+    celery.conf.task_routes = {
+        "hcs.scan_*":       {"queue": "scan"},
+        "hcs.sync_*":       {"queue": "sync"},
+        "hcs.cleanup_*":    {"queue": "maintenance"},
+        "hcs.auto_run_*":   {"queue": "maintenance"},
+        "hcs.collector_*":  {"queue": "maintenance"},
+    }
+    # Default queue for unrouted tasks
+    celery.conf.task_default_queue = "default"
+    
     class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):
             with app.app_context():
@@ -92,10 +105,10 @@ def init_csrf(app):
         if request.path == "/health":
             return None
 
-        # If the cookie was just generated in this request,
-        # this is the first visit — skip enforcement
-        from flask import g
-        if getattr(g, '_new_csrf_token', None):
+        # Skip CSRF for Bearer-token authenticated requests
+        # (they don't rely on cookies, so CSRF doesn't apply)
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
             return None
 
         cookie_token = request.cookies.get("csrf_token")

@@ -66,7 +66,17 @@ def update_data_source(source_id):
 @data_sources_bp.route("/<uuid:source_id>", methods=["DELETE"])
 def delete_data_source(source_id):
     """Delete a data source."""
+    from app.models import Rule
     source = DataSource.query.get_or_404(source_id)
+    
+    # Check for dependent rules
+    rule_count = Rule.query.filter_by(data_source_id=source_id).count()
+    if rule_count > 0:
+        return jsonify({
+            "error": f"Cannot delete: {rule_count} rule(s) use this data source. "
+                     f"Remove or reassign them first."
+        }), 409
+    
     db.session.delete(source)
     db.session.commit()
     return "", 204
@@ -78,20 +88,13 @@ def test_data_source(source_id):
     source = DataSource.query.get_or_404(source_id)
     
     try:
-        from app.core.registry import get_config_provider
-        from app.core.credentials import resolve_credential
+        from app.services.scanner import ScannerService
+        service = ScannerService()
+        provider = service._create_provider(source)
         
-        # Get credentials via CredentialResolver
-        token = resolve_credential(source.credentials_ref) if source.credentials_ref else ""
+        if not provider:
+            return jsonify({"success": False, "message": "Failed to create provider"})
         
-        # Prepare config (copy to avoid mutating DB object)
-        config = dict(source.connection_params or {})
-        if "token" not in config and token:
-            config["token"] = token
-        if "password" not in config and token:
-            config["password"] = token
-        
-        provider = get_config_provider(source.type, config)
         success, message = provider.test_connection()
         provider.close()
         

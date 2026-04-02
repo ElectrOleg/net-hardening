@@ -7,12 +7,18 @@ from celery import chord
 logger = logging.getLogger(__name__)
 
 
-@celery.task(bind=True, max_retries=3)
+@celery.task(name="hcs.scan_device", bind=True, max_retries=3)
 def scan_device_task(self, scan_id: str, device_id: str):
     """
     Scan a single device.
     """
     try:
+        # Early exit if scan was cancelled
+        from app.models import Scan as ScanModel
+        scan = ScanModel.query.get(scan_id)
+        if scan and scan.status == "cancelled":
+            return {"device_id": device_id, "skipped": True, "reason": "cancelled"}
+        
         service = ScannerService()
         # process_single_device is a new method we need to expose or use existent internal
         passed, failed, errors = service.scan_single_device(scan_id, device_id)
@@ -25,7 +31,7 @@ def scan_device_task(self, scan_id: str, device_id: str):
             return {"device_id": device_id, "error": str(e)}
 
 
-@celery.task
+@celery.task(name="hcs.scan_completion")
 def scan_completion_handler(results, scan_id: str):
     """
     Called when all device scans are finished.
@@ -83,7 +89,7 @@ def scan_completion_handler(results, scan_id: str):
         logger.warning(f"Notification failed: {e}")
 
 
-@celery.task(bind=True)
+@celery.task(name="hcs.scan_run", bind=True)
 def run_scan(self, scan_id: str, device_ids: list[str] = None):
     """
     Orchestrator: Discovers devices and launches parallel tasks.
@@ -127,7 +133,7 @@ def run_scan(self, scan_id: str, device_ids: list[str] = None):
             db.session.commit()
 
 
-@celery.task
+@celery.task(name="hcs.scan_scheduled")
 def scheduled_scan():
     """Periodic scan task."""
     from app.models import Scan

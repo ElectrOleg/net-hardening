@@ -29,6 +29,83 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Web UI + API ────────────────────────────────────────────
+  web:
+    build: .
+    container_name: hcs-web
+    command: >
+      gunicorn -w 4 -b 0.0.0.0:8000
+      --access-logfile - --error-logfile -
+      "app:create_app()"
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Scan Collector (scale with --scale collector-scan=N) ────
+  collector-scan:
+    build: .
+    command: >
+      celery -A app.tasks worker
+      -Q scan
+      -c 4
+      --hostname=scan-worker@%h
+      --loglevel=info
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Sync Collector ──────────────────────────────────────────
+  collector-sync:
+    build: .
+    command: >
+      celery -A app.tasks worker
+      -Q sync
+      -c 2
+      --hostname=sync-worker@%h
+      --loglevel=info
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Maintenance Worker + Beat Scheduler ─────────────────────
+  beat:
+    build: .
+    container_name: hcs-beat
+    command: >
+      celery -A app.tasks beat
+      --loglevel=info
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  maintenance:
+    build: .
+    container_name: hcs-maintenance
+    command: >
+      celery -A app.tasks worker
+      -Q maintenance,default
+      -c 1
+      --hostname=maint-worker@%h
+      --loglevel=info
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:
