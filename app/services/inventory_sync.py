@@ -119,8 +119,9 @@ class InventorySyncService:
             
             seen_external_ids.add(ext_id)
             
-            # Resolve vendor code
-            vendor_code = rd.vendor_code
+            # Resolve vendor code (normalize empty → None)
+            vendor_code = rd.vendor_code.strip() if rd.vendor_code else None
+            vendor_code = vendor_code or None  # '' → None
             if vendor_code and vendor_mapping:
                 # Apply vendor code translation from source config
                 vendor_code = vendor_mapping.get(vendor_code, vendor_code)
@@ -153,14 +154,14 @@ class InventorySyncService:
                 if device:
                     # Update existing
                     device.hostname = rd.hostname
-                    device.ip_address = rd.ip_address
+                    device.ip_address = rd.ip_address or None
                     device.vendor_code = vendor_code or device.vendor_code
                     if rd.group:
                         # Note: group assignment by name would require DeviceGroup lookup
                         pass
                     device.location = rd.location or device.location
-                    device.os_version = rd.os_version or device.os_version
-                    device.hardware = rd.hardware or device.hardware
+                    device.os_version = (rd.os_version or "").strip() or device.os_version
+                    device.hardware = (rd.hardware or "").strip() or device.hardware
                     device.is_active = rd.is_active
                     device.last_sync_at = datetime.utcnow()
                     
@@ -173,15 +174,15 @@ class InventorySyncService:
                     
                     result.updated += 1
                 else:
-                    # Create new
+                    # Create new (normalize '' → None for optional fields)
                     device = Device(
                         external_id=ext_id,
                         hostname=rd.hostname,
-                        ip_address=rd.ip_address,
+                        ip_address=rd.ip_address or None,
                         vendor_code=vendor_code,
-                        location=rd.location,
-                        os_version=rd.os_version,
-                        hardware=rd.hardware,
+                        location=rd.location or None,
+                        os_version=(rd.os_version or "").strip() or None,
+                        hardware=(rd.hardware or "").strip() or None,
                         source_id=source.id,
                         is_active=rd.is_active,
                         last_sync_at=datetime.utcnow(),
