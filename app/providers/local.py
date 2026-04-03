@@ -67,7 +67,7 @@ class LocalFileProvider(ConfigSourceProvider):
         else:  # filename
             return file_path.stem
     
-    def fetch_config(self, device_id: str) -> FetchResult:
+    def fetch_config(self, device_id: str, context: dict = None) -> FetchResult:
         """
         Load configuration from file.
         
@@ -156,7 +156,7 @@ class SingleFileProvider(ConfigSourceProvider):
         self.encoding = config.get("encoding", "utf-8")
         self.device_id = config.get("device_id", self.file_path.stem)
     
-    def fetch_config(self, device_id: str) -> FetchResult:
+    def fetch_config(self, device_id: str, context: dict = None) -> FetchResult:
         """Load the configured file."""
         if not self.file_path.exists():
             return FetchResult(

@@ -193,7 +193,7 @@ class SSHProvider(ConfigSourceProvider):
             return True, f"Successfully connected to {self.devices[0]}"
         return False, f"Connection failed: {result.error}"
     
-    def fetch_config(self, device_id: str) -> FetchResult:
+    def fetch_config(self, device_id: str, context: dict = None) -> FetchResult:
         """Fetch config from device via SSH (supports multiple commands).
         
         When multiple commands are configured, each command's output is returned

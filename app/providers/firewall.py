@@ -152,7 +152,7 @@ class CheckPointProvider(ConfigSourceProvider):
         
         return all_objects
     
-    def fetch_config(self, device_id: str = "") -> FetchResult:
+    def fetch_config(self, device_id: str = "", context: dict = None) -> FetchResult:
         """Fetch full policy configuration from CheckPoint management."""
         try:
             self._login()
@@ -321,7 +321,7 @@ class FortiGateProvider(ConfigSourceProvider):
         resp.raise_for_status()
         return resp.json()
     
-    def fetch_config(self, device_id: str = "") -> FetchResult:
+    def fetch_config(self, device_id: str = "", context: dict = None) -> FetchResult:
         """Fetch configuration sections from FortiGate."""
         try:
             config = {}
@@ -463,7 +463,7 @@ class UserGateProvider(ConfigSourceProvider):
         resp.raise_for_status()
         return resp.json()
     
-    def fetch_config(self, device_id: str = "") -> FetchResult:
+    def fetch_config(self, device_id: str = "", context: dict = None) -> FetchResult:
         try:
             self._login()
             
@@ -576,7 +576,7 @@ class PaloAltoProvider(ConfigSourceProvider):
         resp.raise_for_status()
         return resp
     
-    def fetch_config(self, device_id: str = "") -> FetchResult:
+    def fetch_config(self, device_id: str = "", context: dict = None) -> FetchResult:
         """Fetch configuration sections via XPath queries."""
         try:
             if self.config_format == "json":

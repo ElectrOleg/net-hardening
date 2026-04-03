@@ -72,14 +72,26 @@ class GitLabProvider(ConfigSourceProvider):
         except Exception as e:
             return False, f"Connection failed: {str(e)}"
     
-    def fetch_config(self, device_id: str) -> FetchResult:
-        """Fetch configuration file for device."""
-        # Build file path from template
-        file_path = self.path_template.format(
-            hostname=device_id,
-            device_id=device_id,
-            ip=device_id
-        )
+    def fetch_config(self, device_id: str, context: dict = None) -> FetchResult:
+        """Fetch configuration file for device.
+        
+        Args:
+            device_id: hostname or IP of the device
+            context: dict with substitution variables for path_template
+                     (hostname, ip, dns_name, and any extra_data fields)
+        """
+        # Build file path from template using context
+        fmt_vars = {"hostname": device_id, "device_id": device_id, "ip": device_id}
+        if context:
+            fmt_vars.update(context)
+        
+        try:
+            file_path = self.path_template.format(**fmt_vars)
+        except KeyError as e:
+            return FetchResult(
+                success=False,
+                error=f"path_template references unknown variable: {e}"
+            )
         
         if self.base_path:
             file_path = f"{self.base_path}/{file_path}"

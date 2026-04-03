@@ -78,7 +78,7 @@ class APIProvider(ConfigSourceProvider):
         except Exception as e:
             return False, f"Connection failed: {str(e)}"
     
-    def fetch_config(self, device_id: str) -> FetchResult:
+    def fetch_config(self, device_id: str, context: dict = None) -> FetchResult:
         """Fetch configuration from API."""
         endpoint = self.endpoint_template.format(
             device_id=device_id,

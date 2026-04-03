@@ -90,7 +90,7 @@ class NetconfProvider(ConfigSourceProvider):
         self._manager = manager.connect(**connect_params)
         return self._manager
     
-    def fetch_config(self, device_id: str) -> FetchResult:
+    def fetch_config(self, device_id: str, context: dict = None) -> FetchResult:
         """
         Fetch running configuration via NETCONF.
         

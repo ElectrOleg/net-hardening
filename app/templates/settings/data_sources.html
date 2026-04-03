@@ -2,12 +2,12 @@
 {% block title %}Data Sources{% endblock %}
 
 {% block content %}
-{% set settings_section = 'Источники данных' %}
+{% set settings_section = 'Источники конфигов' %}
 {% include 'settings/_nav.html' %}
 
 <div class="flex justify-between items-center mb-3">
     <div>
-        <p class="text-muted text-sm">Настройка подключений к GitLab, SSH, API и локальным файлам</p>
+        <p class="text-muted text-sm">Откуда система берёт конфигурации устройств для проверок (GitLab, SSH, API, файлы)</p>
     </div>
     <button class="btn btn-primary" onclick="openCreateModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -73,7 +73,7 @@
                 <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
                 <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
             </svg>
-            <div>Источников данных нет</div>
+            <div>Источников конфигов нет</div>
             <button class="btn btn-primary mt-2" onclick="openCreateModal()">Добавить первый</button>
         </div>
     </div>
@@ -144,6 +144,7 @@
                 <div class="form-group mb-2">
                     <label>Path Template</label>
                     <input type="text" id="gitlabPath" class="form-control" placeholder="configs/{hostname}.cfg">
+                    <small class="text-muted">Переменные: <code>{hostname}</code>, <code>{ip}</code>, <code>{dns_name}</code> и любые extra_data поля</small>
                 </div>
             </div>
 

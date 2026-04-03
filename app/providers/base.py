@@ -18,12 +18,14 @@ class ConfigSourceProvider(ABC):
     """Abstract base class for configuration source providers."""
     
     @abstractmethod
-    def fetch_config(self, device_id: str) -> FetchResult:
+    def fetch_config(self, device_id: str, context: dict = None) -> FetchResult:
         """
         Fetch configuration for a specific device.
         
         Args:
             device_id: Device identifier (hostname, IP, etc.)
+            context: Optional dict with device metadata for path resolution
+                     (hostname, ip, dns_name, extra_data fields, etc.)
             
         Returns:
             FetchResult with config text/dict or error

@@ -74,7 +74,7 @@ class SNMPProvider(ConfigSourceProvider):
         self.oids = config.get("oids", ["sysDescr", "sysName"])
         self.walk_oid = config.get("walk_oid")
     
-    def fetch_config(self, device_id: str) -> FetchResult:
+    def fetch_config(self, device_id: str, context: dict = None) -> FetchResult:
         """
         Fetch SNMP data and return as JSON structure.
         """

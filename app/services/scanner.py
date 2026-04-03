@@ -322,6 +322,14 @@ class ScannerService:
             """Fetch config for a specific source id, or any source if None."""
             nonlocal device_vendor
             
+            # Build context dict for path_template substitution
+            device_context = {"hostname": device_id, "device_id": device_id, "ip": device_id}
+            if device_obj:
+                device_context["ip"] = device_obj.ip_address or device_id
+                if device_obj.extra_data and isinstance(device_obj.extra_data, dict):
+                    for k, v in device_obj.extra_data.items():
+                        device_context[k] = str(v) if v else ""
+            
             if ds_id is not None:
                 # Specific data source
                 ds = ds_by_id.get(ds_id)
@@ -330,7 +338,7 @@ class ScannerService:
                     return None, None
                 provider = self._create_provider(ds)
                 if provider:
-                    result = provider.fetch_config(device_id)
+                    result = provider.fetch_config(device_id, context=device_context)
                     provider.close()
                     if result.success:
                         v = result.metadata.get("vendor") if result.metadata else None
@@ -343,7 +351,7 @@ class ScannerService:
                 for ds in data_sources:
                     provider = self._create_provider(ds)
                     if provider:
-                        result = provider.fetch_config(device_id)
+                        result = provider.fetch_config(device_id, context=device_context)
                         if result.success:
                             v = result.metadata.get("vendor") if result.metadata else None
                             if v and not device_vendor:

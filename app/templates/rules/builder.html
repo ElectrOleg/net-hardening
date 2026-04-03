@@ -1290,57 +1290,85 @@ end`;
         }
     }
 
+    // --- Populate form from rule data (used by both edit and clone) ---
+    function populateRuleForm(rule, isClone) {
+        document.getElementById('title').value = rule.title + (isClone ? " (Copy)" : "");
+        document.getElementById('policy_id').value = rule.policy_id;
+        document.getElementById('vendor_code').value = rule.vendor_code || '';
+
+        const dsEl = document.getElementById('data_source_id');
+        if (dsEl) dsEl.value = rule.data_source_id || '';
+
+        document.getElementById('logic_type').value = rule.logic_type;
+        document.getElementById('description').value = rule.description || '';
+        document.getElementById('remediation').value = rule.remediation || '';
+
+        // Sync severity
+        if (rule.severity) {
+            document.getElementById('severity').value = rule.severity;
+            document.querySelectorAll('.severity-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.severity === rule.severity);
+            });
+        }
+
+        // Sync type card
+        document.querySelectorAll('.type-card').forEach(c => {
+            c.classList.toggle('active', c.dataset.type === rule.logic_type);
+        });
+
+        // Set JSON payload and sync to visual
+        if (rule.logic_payload) {
+            const payloadObj = typeof rule.logic_payload === 'string'
+                ? rule.logic_payload
+                : JSON.stringify(rule.logic_payload, null, 2);
+            document.getElementById('logic_payload').value = payloadObj;
+            updateBuilderMode();
+            trySyncJsonToVisual();
+
+            // For types without visual builder (composite_check, etc.),
+            // auto-switch to JSON Mode so user sees the payload
+            const visualTypes = ['simple_match', 'block_match', 'structure_check',
+                                 'version_check', 'textfsm_check', 'xml_check'];
+            if (!visualTypes.includes(rule.logic_type)) {
+                document.getElementById('manualModeToggle').checked = true;
+                toggleManualMode();
+            }
+        }
+
+        // Load applicability
+        if (rule.applicability && typeof rule.applicability === 'object') {
+            document.getElementById('applicabilityContainer').innerHTML = '';
+            for (const [key, value] of Object.entries(rule.applicability)) {
+                let field = key, matchType = 'exact';
+                if (key.endsWith('_regex')) { field = key.slice(0, -6); matchType = 'regex'; }
+                if (key.endsWith('_contains')) { field = key.slice(0, -9); matchType = 'contains'; }
+                addApplicabilityRow(field, matchType, String(value));
+            }
+        }
+    }
+
     // Initialize
     document.addEventListener('DOMContentLoaded', async () => {
         initBuilder();
         updateSandboxStats();
 
-        // Check for edit/clone params
+        // 1. Edit mode: rule passed via Jinja2 template variable
+        {% if rule is defined and rule %}
+        const serverRule = {{ rule.to_dict() | tojson | safe }};
+        populateRuleForm(serverRule, false);
+        {% elif clone_rule is defined and clone_rule %}
+        const cloneRule = {{ clone_rule.to_dict() | tojson | safe }};
+        populateRuleForm(cloneRule, true);
+        {% else %}
+        // 2. Clone via query param (?clone=uuid)
         const urlParams = new URLSearchParams(window.location.search);
-        const editId = urlParams.get('edit') || urlParams.get('clone');
-
-        if (editId) {
+        const cloneId = urlParams.get('clone');
+        if (cloneId) {
             try {
-                const response = await fetch(`/api/rules/${editId}`);
+                const response = await fetch(`/api/rules/${cloneId}`);
                 if (response.ok) {
                     const rule = await response.json();
-
-                    document.getElementById('title').value = rule.title + (urlParams.get('clone') ? " (Copy)" : "");
-                    document.getElementById('policy_id').value = rule.policy_id;
-                    document.getElementById('vendor_code').value = rule.vendor_code;
-                    document.getElementById('data_source_id').value = rule.data_source_id || '';
-                    document.getElementById('logic_type').value = rule.logic_type;
-                    document.getElementById('description').value = rule.description || '';
-                    document.getElementById('remediation').value = rule.remediation || '';
-
-                    // Sync severity
-                    if (rule.severity) {
-                        document.getElementById('severity').value = rule.severity;
-                        document.querySelectorAll('.severity-btn').forEach(b => {
-                            b.classList.toggle('active', b.dataset.severity === rule.severity);
-                        });
-                    }
-
-                    // Sync type card
-                    document.querySelectorAll('.type-card').forEach(c => {
-                        c.classList.toggle('active', c.dataset.type === rule.logic_type);
-                    });
-
-                    if (rule.logic_payload) {
-                        document.getElementById('logic_payload').value = JSON.stringify(rule.logic_payload, null, 2);
-                        updateBuilderMode(); // Re-trigger visual sync
-                    }
-
-                    // Load applicability
-                    if (rule.applicability && typeof rule.applicability === 'object') {
-                        document.getElementById('applicabilityContainer').innerHTML = '';
-                        for (const [key, value] of Object.entries(rule.applicability)) {
-                            let field = key, matchType = 'exact';
-                            if (key.endsWith('_regex')) { field = key.slice(0, -6); matchType = 'regex'; }
-                            if (key.endsWith('_contains')) { field = key.slice(0, -9); matchType = 'contains'; }
-                            addApplicabilityRow(field, matchType, String(value));
-                        }
-                    }
+                    populateRuleForm(rule, true);
                 }
             } catch (e) { console.error(e); }
         } else {
@@ -1348,6 +1376,7 @@ end`;
             loadSampleConfig();
             updateSandboxStats();
         }
+        {% endif %}
     });
 </script>
 {% endblock %}

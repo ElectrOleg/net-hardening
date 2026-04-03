@@ -724,8 +724,12 @@ switch1,10.0.0.2,cisco_ios"></textarea>
             const response = await fetch(`/api/inventory-sources/${id}/sync`, { method: 'POST' });
             const result = await response.json();
 
-            if (result.success) {
-                showNotification(result.message, 'success');
+            if (result.total > 0 || result.success) {
+                let msg = `✅ ${result.message}`;
+                if (result.errors && result.errors.length) {
+                    msg += ` (${result.errors.length} предупреждений)`;
+                }
+                showNotification(msg, 'success');
                 window.location.reload();
             } else {
                 showNotification('Ошибка: ' + result.message, 'danger');
