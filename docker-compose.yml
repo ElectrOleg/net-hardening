@@ -53,6 +53,9 @@ services:
     environment:
       - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
       - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
+      - REQUESTS_CA_BUNDLE=${REQUESTS_CA_BUNDLE:-}
+    volumes:
+      - ${HOST_CA_BUNDLE:-/etc/pki/tls/certs/ca-bundle.crt}:/etc/ssl/certs/ca-certificates.crt:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,6 +70,9 @@ services:
     env_file: .env
     environment:
       - CELERY_CONCURRENCY=${SCAN_CONCURRENCY:-4}
+      - REQUESTS_CA_BUNDLE=${REQUESTS_CA_BUNDLE:-}
+    volumes:
+      - ${HOST_CA_BUNDLE:-/etc/pki/tls/certs/ca-bundle.crt}:/etc/ssl/certs/ca-certificates.crt:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -82,6 +88,9 @@ services:
     env_file: .env
     environment:
       - CELERY_CONCURRENCY=${SYNC_CONCURRENCY:-2}
+      - REQUESTS_CA_BUNDLE=${REQUESTS_CA_BUNDLE:-}
+    volumes:
+      - ${HOST_CA_BUNDLE:-/etc/pki/tls/certs/ca-bundle.crt}:/etc/ssl/certs/ca-certificates.crt:ro
     depends_on:
       postgres:
         condition: service_healthy

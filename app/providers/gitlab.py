@@ -20,7 +20,8 @@ class GitLabProvider(ConfigSourceProvider):
         "branch": "main",
         "path_template": "configs/{hostname}.cfg",
         "file_pattern": "*.cfg",
-        "base_path": "configs"
+        "base_path": "configs",
+        "ssl_verify": true | false | "/path/to/ca-bundle.crt"
     }
     """
     
@@ -33,6 +34,13 @@ class GitLabProvider(ConfigSourceProvider):
         self.file_pattern = config.get("file_pattern", "*.cfg")
         self.base_path = config.get("base_path", "").rstrip("/")
         
+        # SSL verification: true (default), false (disable), or path to CA bundle
+        ssl_val = config.get("ssl_verify", True)
+        if isinstance(ssl_val, str) and ssl_val.lower() in ("false", "0", "no"):
+            self.ssl_verify = False
+        else:
+            self.ssl_verify = ssl_val
+        
         self._gl = None
         self._project = None
         self._file_cache: dict[str, str] = {}
@@ -42,7 +50,11 @@ class GitLabProvider(ConfigSourceProvider):
         """Lazy initialization of GitLab client."""
         if self._gl is None:
             import gitlab
-            self._gl = gitlab.Gitlab(self.url, private_token=self.token)
+            self._gl = gitlab.Gitlab(
+                self.url,
+                private_token=self.token,
+                ssl_verify=self.ssl_verify,
+            )
         return self._gl
     
     @property
