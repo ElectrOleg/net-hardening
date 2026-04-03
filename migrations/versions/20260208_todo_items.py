@@ -1,8 +1,11 @@
 """add device_uuid to result and celery_task_id to scan
 
 Revision ID: 20260208_todo
-Revises: None
+Revises: 20260208_init
 Create Date: 2026-02-08 16:40:00
+
+NOTE: These columns are now created in the initial migration (20260208_init).
+      This migration is kept for chain integrity but is a no-op.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -10,30 +13,18 @@ from sqlalchemy.dialects.postgresql import UUID
 
 # revision identifiers, used by Alembic.
 revision = '20260208_todo'
-down_revision = None
+down_revision = '20260208_init'
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
-    # Add device_uuid FK to hcs_results
-    op.add_column('hcs_results', sa.Column(
-        'device_uuid',
-        UUID(as_uuid=True),
-        sa.ForeignKey('hcs_devices.id'),
-        nullable=True,
-    ))
-    op.create_index('ix_hcs_results_device_uuid', 'hcs_results', ['device_uuid'])
-
-    # Add celery_task_id to hcs_scans
-    op.add_column('hcs_scans', sa.Column(
-        'celery_task_id',
-        sa.String(200),
-        nullable=True,
-    ))
+    # Columns device_uuid and celery_task_id are now created in 20260208_init.
+    # This migration is a no-op but kept for chain integrity.
+    pass
 
 
 def downgrade():
-    op.drop_index('ix_hcs_results_device_uuid', table_name='hcs_results')
-    op.drop_column('hcs_results', 'device_uuid')
-    op.drop_column('hcs_scans', 'celery_task_id')
+    # No-op: columns are managed by 20260208_init
+    pass
+
