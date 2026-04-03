@@ -107,6 +107,10 @@ class InventorySyncService:
         # Column mapping from source config
         vendor_mapping = (source.connection_params or {}).get("vendor_mapping", {})
         
+        # Pre-load valid vendor codes (for FK validation)
+        from app.models import Vendor
+        valid_vendors = {v.code for v in Vendor.query.all()}
+        
         for rd in remote_devices:
             ext_id = rd.id or rd.hostname
             if not ext_id:
@@ -120,6 +124,25 @@ class InventorySyncService:
             if vendor_code and vendor_mapping:
                 # Apply vendor code translation from source config
                 vendor_code = vendor_mapping.get(vendor_code, vendor_code)
+            
+            # Validate vendor_code against hcs_vendors table
+            if vendor_code and vendor_code not in valid_vendors:
+                # Auto-create unknown vendor to prevent FK violation
+                new_vendor = Vendor(
+                    code=vendor_code,
+                    name=vendor_code,
+                    parser_driver="ciscoconfparse",
+                    description=f"Auto-created from inventory sync ({source.name})",
+                )
+                db.session.add(new_vendor)
+                try:
+                    db.session.flush()
+                    valid_vendors.add(vendor_code)
+                    logger.info(f"Auto-created vendor '{vendor_code}' from inventory source '{source.name}'")
+                except Exception:
+                    db.session.rollback()
+                    logger.warning(f"Could not create vendor '{vendor_code}', setting to None")
+                    vendor_code = None
             
             try:
                 device = Device.query.filter_by(

@@ -340,6 +340,24 @@ switch1,10.0.0.2,cisco_ios"></textarea>
                 </div>
             </div>
 
+            <!-- Vendor Mapping (common for all types) -->
+            <details class="mb-3" id="vendorMappingSection">
+                <summary
+                    style="cursor:pointer;font-weight:600;font-size:.95rem;color:var(--primary);user-select:none;">
+                    Маппинг вендоров
+                    <small style="font-weight:400;color:var(--text-secondary);margin-left:.5rem;">
+                        Перевод кодов из источника → HCS (напр. nxos → cisco_nxos)
+                    </small>
+                </summary>
+                <div id="vendorMappingContainer" style="margin-top:.75rem;">
+                    <!-- dynamic rows -->
+                </div>
+                <button type="button" class="btn btn-secondary"
+                    style="margin-top:.5rem;font-size:.85rem;padding:.35rem .75rem;" onclick="addVendorMappingRow()">
+                    + Добавить маппинг
+                </button>
+            </details>
+
             <div class="flex justify-end gap-2 mt-3">
                 <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
                 <button class="btn btn-primary" onclick="saveSource()">Сохранить</button>
@@ -399,6 +417,7 @@ switch1,10.0.0.2,cisco_ios"></textarea>
 
         // Clear static
         document.getElementById('staticDevices').value = '';
+        document.getElementById('vendorMappingContainer').innerHTML = '';
 
         updateFormFields();
         modal.style.display = 'flex';
@@ -472,6 +491,12 @@ switch1,10.0.0.2,cisco_ios"></textarea>
             ).join('\n');
         }
 
+        // Vendor mapping
+        document.getElementById('vendorMappingContainer').innerHTML = '';
+        for (const [from, to] of Object.entries(params.vendor_mapping || {})) {
+            addVendorMappingRow(from, to);
+        }
+
         updateFormFields();
         modal.style.display = 'flex';
         isEditing = true;
@@ -479,6 +504,32 @@ switch1,10.0.0.2,cisco_ios"></textarea>
 
     function closeModal() {
         modal.style.display = 'none';
+    }
+
+    /* ═══ Vendor mapping helpers ═══ */
+    function addVendorMappingRow(from = '', to = '') {
+        const c = document.getElementById('vendorMappingContainer');
+        const row = document.createElement('div');
+        row.className = 'grid gap-2 mb-2';
+        row.style.gridTemplateColumns = '1fr auto 1fr auto';
+        row.innerHTML = `
+            <input type="text" class="form-control vm-from" placeholder="Код из источника (напр. nxos)" value="${from}">
+            <span style="line-height:2.4rem;color:var(--text-secondary);font-weight:600;">→</span>
+            <input type="text" class="form-control vm-to" placeholder="Код HCS (напр. cisco_nxos)" value="${to}">
+            <button type="button" class="btn btn-ghost btn-icon" onclick="this.parentElement.remove()" title="Удалить" style="min-width:36px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>`;
+        c.appendChild(row);
+    }
+
+    function getVendorMapping() {
+        const mapping = {};
+        document.querySelectorAll('#vendorMappingContainer .vm-from').forEach(el => {
+            const from = el.value.trim();
+            const to = el.parentElement.querySelector('.vm-to').value.trim();
+            if (from && to) mapping[from] = to;
+        });
+        return Object.keys(mapping).length ? mapping : undefined;
     }
 
     /* ═══ Dynamic extra-column / extra-field helpers ═══ */
@@ -603,6 +654,10 @@ switch1,10.0.0.2,cisco_ios"></textarea>
                 })
             };
         }
+
+        // Vendor mapping (common for all types)
+        const vm = getVendorMapping();
+        if (vm) params.vendor_mapping = vm;
 
         return params;
     }

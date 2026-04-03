@@ -943,6 +943,8 @@
         const jsonGroup = document.getElementById('jsonPayloadGroup');
 
         if (isManualMode) {
+            // Sync visual → JSON before switching so textarea has current payload
+            syncVisualToJson();
             visualBuilder.style.display = 'none';
             jsonGroup.style.display = 'block';
         } else {

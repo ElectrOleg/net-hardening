@@ -117,7 +117,8 @@ def rules_list():
         rules = Rule.query.all()
     else:
         rules = Rule.query.filter_by(is_active=True).all()
-    return render_template("rules/list.html", rules=rules, show_inactive=show_inactive)
+    policies = Policy.query.filter_by(is_active=True).all()
+    return render_template("rules/list.html", rules=rules, show_inactive=show_inactive, policies=policies)
 
 
 @web_bp.route("/rules/new")

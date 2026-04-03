@@ -16,13 +16,31 @@
             Показать неактивные
         </label>
     </div>
-    <a href="{{ url_for('web.rule_builder') }}" class="btn btn-primary">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 5v14" />
-            <path d="M5 12h14" />
-        </svg>
-        Создать правило
-    </a>
+    <div class="flex items-center" style="gap: 0.5rem;">
+        <button class="btn btn-ghost" onclick="showImportModal()" title="Импорт правил из JSON">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Импорт
+        </button>
+        <button class="btn btn-ghost" onclick="exportRules()" title="Экспорт правил в JSON">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Экспорт
+        </button>
+        <a href="{{ url_for('web.rule_builder') }}" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+            </svg>
+            Создать правило
+        </a>
+    </div>
 </div>
 
 <div class="card fade-in">
@@ -97,10 +115,65 @@
         </table>
     </div>
 </div>
+
+<!-- Import Modal -->
+<div id="importModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content card" style="max-width: 520px; margin: 10vh auto;">
+        <div class="card-header flex justify-between items-center">
+            <h4 style="margin: 0;">Импорт правил из JSON</h4>
+            <button class="btn btn-ghost btn-icon" onclick="hideImportModal()">&times;</button>
+        </div>
+        <div class="card-body">
+            <div class="form-group mb-3">
+                <label class="form-label">Целевая политика</label>
+                <select class="form-select" id="importPolicyId">
+                    {% for policy in policies %}
+                    <option value="{{ policy.id }}">{{ policy.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group mb-3">
+                <label class="form-label">Режим</label>
+                <select class="form-select" id="importMode">
+                    <option value="merge">Merge (пропустить дубликаты)</option>
+                    <option value="replace">Replace (удалить существующие + импорт)</option>
+                </select>
+            </div>
+
+            <div class="form-group mb-3">
+                <label class="form-label">JSON файл</label>
+                <input type="file" class="form-input" id="importFile" accept=".json"
+                    style="padding: 0.6rem;" onchange="previewImport()">
+            </div>
+
+            <div id="importPreview" style="display: none;" class="mb-3">
+                <div class="badge badge-info" id="importCount"></div>
+            </div>
+
+            <div id="importResult" style="display: none;" class="mb-2"></div>
+        </div>
+        <div class="card-footer flex justify-between">
+            <button class="btn btn-ghost" onclick="runImport(true)">Dry Run</button>
+            <button class="btn btn-primary" id="importBtn" onclick="runImport(false)" disabled>
+                Импортировать
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.modal-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+}
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+    let importData = null;
+
     function editRule(ruleId) {
         window.location.href = '/rules/' + ruleId + '/edit';
     }
@@ -108,5 +181,94 @@
     function cloneRule(ruleId) {
         window.location.href = "{{ url_for('web.rule_builder') }}?clone=" + ruleId;
     }
+
+    // ── Export ────────────────────────────────────────────────
+    function exportRules() {
+        window.open('/api/rules/export', '_blank');
+    }
+
+    // ── Import Modal ─────────────────────────────────────────
+    function showImportModal() {
+        document.getElementById('importModal').style.display = 'block';
+        document.getElementById('importResult').style.display = 'none';
+    }
+
+    function hideImportModal() {
+        document.getElementById('importModal').style.display = 'none';
+    }
+
+    function previewImport() {
+        const fileInput = document.getElementById('importFile');
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                const rules = data.rules || data;
+                if (!Array.isArray(rules)) {
+                    throw new Error('Expected "rules" array in JSON');
+                }
+                importData = rules;
+                document.getElementById('importCount').textContent =
+                    `${rules.length} правил найдено в файле`;
+                document.getElementById('importPreview').style.display = 'block';
+                document.getElementById('importBtn').disabled = false;
+            } catch (err) {
+                alert('Ошибка чтения JSON: ' + err.message);
+                importData = null;
+                document.getElementById('importBtn').disabled = true;
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    async function runImport(dryRun) {
+        if (!importData) return;
+
+        const policyId = document.getElementById('importPolicyId').value;
+        const mode = document.getElementById('importMode').value;
+        const resultDiv = document.getElementById('importResult');
+
+        try {
+            const resp = await fetch('/api/rules/import', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    rules: importData,
+                    policy_id: policyId,
+                    mode: mode,
+                    dry_run: dryRun
+                })
+            });
+            const result = await resp.json();
+
+            let html = `<div class="card" style="background: var(--surface-secondary); padding: 1rem;">`;
+            html += dryRun ? '<strong>🔍 Dry Run результат:</strong><br>' : '<strong>✅ Импорт завершён:</strong><br>';
+            html += `Импортировано: <b>${result.imported}</b>`;
+            if (result.skipped) html += ` | Пропущено: ${result.skipped}`;
+            if (result.deleted) html += ` | Удалено: ${result.deleted}`;
+            if (result.errors && result.errors.length) {
+                html += `<br><span class="text-danger">Ошибки: ${result.errors.join(', ')}</span>`;
+            }
+            html += '</div>';
+
+            resultDiv.innerHTML = html;
+            resultDiv.style.display = 'block';
+
+            if (!dryRun && result.imported > 0) {
+                setTimeout(() => location.reload(), 1500);
+            }
+        } catch (err) {
+            resultDiv.innerHTML = `<div class="text-danger">Ошибка: ${err.message}</div>`;
+            resultDiv.style.display = 'block';
+        }
+    }
+
+    // Close modal on overlay click
+    document.getElementById('importModal')?.addEventListener('click', function(e) {
+        if (e.target === this) hideImportModal();
+    });
 </script>
 {% endblock %}
