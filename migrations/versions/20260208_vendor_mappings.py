@@ -32,23 +32,28 @@ def upgrade():
         sa.Column('is_active', sa.Boolean, server_default='true'),
     )
 
-    # ── Ensure all referenced vendors exist ──────────────────────
-    # The seed data may only have a subset; vendor mappings need more.
+    # ── Ensure ALL vendors exist (base + extended) ─────────────
     conn = op.get_bind()
 
-    # Insert any vendors that don't exist yet
-    new_vendors = [
-        ("cisco_iosxr", "Cisco IOS-XR",   "ciscoconfparse",  "Cisco IOS-XR routers"),
-        ("cisco_iosxe", "Cisco IOS-XE",   "ciscoconfparse",  "Cisco IOS-XE devices"),
-        ("juniper_junos", "Juniper JUNOS", "json",            "Juniper JUNOS devices"),
-        ("arista_eos",  "Arista EOS",     "ciscoconfparse",  "Arista EOS switches"),
-        ("huawei",      "Huawei",         "ciscoconfparse",  "Huawei VRP devices"),
-        ("fortinet_fortios", "Fortinet FortiOS", "json",     "FortiGate firewalls"),
-        ("paloalto_panos", "Palo Alto PAN-OS",  "json",      "Palo Alto firewalls"),
+    all_vendors = [
+        # Base vendors (from seed)
+        ("cisco_ios",    "Cisco IOS",          "ciscoconfparse",  "Cisco IOS devices"),
+        ("cisco_nxos",   "Cisco NX-OS",        "ciscoconfparse",  "Cisco Nexus switches"),
+        ("eltex_esr",    "Eltex ESR",          "ciscoconfparse",  "Eltex ESR series routers"),
+        ("usergate",     "UserGate",           "json",            "UserGate NGFW (JSON API)"),
+        ("checkpoint",   "Check Point",        "json",            "Check Point firewalls (JSON API)"),
+        # Extended vendors
+        ("cisco_iosxr",  "Cisco IOS-XR",       "ciscoconfparse",  "Cisco IOS-XR routers"),
+        ("cisco_iosxe",  "Cisco IOS-XE",       "ciscoconfparse",  "Cisco IOS-XE devices"),
+        ("juniper_junos", "Juniper JUNOS",      "json",            "Juniper JUNOS devices"),
+        ("arista_eos",   "Arista EOS",          "ciscoconfparse",  "Arista EOS switches"),
+        ("huawei",       "Huawei",              "ciscoconfparse",  "Huawei VRP devices"),
+        ("fortinet_fortios", "Fortinet FortiOS", "json",           "FortiGate firewalls"),
+        ("paloalto_panos", "Palo Alto PAN-OS",  "json",            "Palo Alto firewalls"),
         ("mikrotik_routeros", "MikroTik RouterOS", "ciscoconfparse", "MikroTik routers"),
-        ("linux",       "Linux",          "json",            "Linux hosts"),
+        ("linux",        "Linux",               "json",            "Linux hosts"),
     ]
-    for code, name, driver, desc in new_vendors:
+    for code, name, driver, desc in all_vendors:
         conn.execute(sa.text(
             "INSERT INTO hcs_vendors (code, name, parser_driver, description) "
             "VALUES (:code, :name, :driver, :desc) ON CONFLICT (code) DO NOTHING"
