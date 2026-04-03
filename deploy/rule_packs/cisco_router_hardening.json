@@ -1,0 +1,330 @@
+{
+  "_comment": "HCS Rule Pack: Cisco Router Hardening Checks (импорт из legacy)",
+  "rules": [
+    {
+      "title": "Service password-encryption",
+      "vendor_code": "cisco_ios",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^service password-encryption\\s*$",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "high",
+      "description": "Пароли в конфигурации должны быть зашифрованы. Без этой команды пароли хранятся в открытом виде.",
+      "remediation": "service password-encryption"
+    },
+    {
+      "title": "Service timestamps debug and log",
+      "vendor_code": "cisco_ios",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^service timestamps debug",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^service timestamps log",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "medium",
+      "description": "Временные метки в debug и log сообщениях необходимы для корректного аудита и расследования инцидентов.",
+      "remediation": "service timestamps debug datetime msec localtime show-timezone\nservice timestamps log datetime msec localtime show-timezone"
+    },
+    {
+      "title": "Brut-force defense",
+      "vendor_code": "cisco_ios",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^\\s*login delay 2\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^\\s*ip ssh authentication-retries 2\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "high",
+      "description": "Защита от брутфорса SSH: ограничение попыток аутентификации и задержка между попытками.",
+      "remediation": "login delay 2\nip ssh authentication-retries 2"
+    },
+    {
+      "title": "Device Login log",
+      "vendor_code": "cisco_ios",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^login on-success log",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "Логирование успешных входов на устройство для аудита доступа.",
+      "remediation": "login on-success log"
+    },
+    {
+      "title": "Disable HTTP and HTTPS server",
+      "vendor_code": "cisco_ios",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^\\s*no ip http server\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^\\s*no ip http secure-server\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "critical",
+      "description": "HTTP/HTTPS сервер на роутере — потенциальный вектор атаки. Должен быть отключен если не используется.",
+      "remediation": "no ip http server\nno ip http secure-server"
+    },
+    {
+      "title": "SSH session timeout",
+      "vendor_code": "cisco_ios",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^ip ssh time-out 60",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "Тайм-аут SSH сессии ограничивает время незавершённых подключений.",
+      "remediation": "ip ssh time-out 60"
+    },
+    {
+      "title": "Enable SSH version 2",
+      "vendor_code": "cisco_ios",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^ip ssh version 2",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "critical",
+      "description": "SSH v1 содержит известные уязвимости. Должна использоваться только версия 2.",
+      "remediation": "ip ssh version 2"
+    },
+    {
+      "title": "SNMP group access",
+      "vendor_code": "cisco_ios",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^snmp-server group.*access SNMP-IN",
+        "match_mode": "must_exist",
+        "is_regex": true,
+        "case_insensitive": true
+      },
+      "severity": "high",
+      "description": "SNMP должен быть ограничен ACL для предотвращения несанкционированного доступа.",
+      "remediation": "snmp-server group <GROUP> v3 priv access SNMP-IN"
+    },
+    {
+      "title": "ICMP flooding protection (CoPP)",
+      "vendor_code": "cisco_ios",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^control-plane",
+        "child_rules": [
+          {"pattern": "service-policy input COPP-IN", "mode": "must_exist"},
+          {"pattern": "service-policy output COPP-OUT", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "high",
+      "description": "Control Plane Policing (CoPP) защищает CPU роутера от ICMP flooding и других DoS-атак.",
+      "remediation": "control-plane\n service-policy input COPP-IN\n service-policy output COPP-OUT"
+    },
+    {
+      "title": "Banner login",
+      "vendor_code": "cisco_ios",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^banner login",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "low",
+      "description": "Баннер при входе — юридическое требование для предупреждения о несанкционированном доступе.",
+      "remediation": "banner login ^C\nAuthorized access only. All activity is monitored.\n^C"
+    },
+    {
+      "title": "VTY line 0-4 access",
+      "vendor_code": "cisco_ios",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^line vty 0 4",
+        "child_rules": [
+          {"pattern": "access-class SSH-IN in", "mode": "must_exist"},
+          {"pattern": "transport input ssh", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "critical",
+      "description": "VTY линии 0-4 должны быть ограничены SSH с ACL. Telnet запрещён.",
+      "remediation": "line vty 0 4\n access-class SSH-IN in\n transport input ssh"
+    },
+    {
+      "title": "VTY line 5-15 access",
+      "vendor_code": "cisco_ios",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^line vty 5 15",
+        "child_rules": [
+          {"pattern": "access-class SSH-IN in vrf-also", "mode": "must_exist"},
+          {"pattern": "transport input ssh", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "critical",
+      "description": "VTY линии 5-15 должны быть ограничены SSH с ACL (включая VRF).",
+      "remediation": "line vty 5 15\n access-class SSH-IN in vrf-also\n transport input ssh"
+    },
+    {
+      "title": "NTP access",
+      "vendor_code": "cisco_ios",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^ntp access-group peer 1423\\s*$",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "NTP должен быть ограничен ACL для предотвращения NTP amplification атак.",
+      "remediation": "ntp access-group peer 1423"
+    },
+    {
+      "title": "Exec timeout",
+      "vendor_code": "cisco_ios",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^\\s*exec-timeout 30 0",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "Тайм-аут неактивной консольной/VTY сессии предотвращает оставление незакрытых сессий.",
+      "remediation": "line con 0\n exec-timeout 30 0\nline vty 0 15\n exec-timeout 30 0"
+    },
+    {
+      "title": "Pad service disabled",
+      "vendor_code": "cisco_ios",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^no service pad\\s*$",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "PAD (Packet Assembler/Disassembler) — устаревший X.25 сервис, должен быть отключен.",
+      "remediation": "no service pad"
+    },
+    {
+      "title": "CPU threshold monitoring",
+      "vendor_code": "cisco_ios",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^process cpu threshold type total",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "Мониторинг загрузки CPU помогает обнаружить DoS-атаки и аномалии.",
+      "remediation": "process cpu threshold type total rising 80 interval 5 falling 20 interval 5"
+    },
+    {
+      "title": "Syslog logging",
+      "vendor_code": "cisco_ios",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^logging host",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "high",
+      "description": "Логи должны отправляться на внешний syslog-сервер для централизованного аудита.",
+      "remediation": "logging host <SYSLOG_SERVER_IP>"
+    },
+    {
+      "title": "AAA enable",
+      "vendor_code": "cisco_ios",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa authentication",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa authorization",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa accounting",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "critical",
+      "description": "AAA (Authentication, Authorization, Accounting) — обязательный компонент безопасности.",
+      "remediation": "aaa new-model\naaa authentication login default group tacacs+ local\naaa authorization exec default group tacacs+ local\naaa accounting exec default start-stop group tacacs+"
+    }
+  ]
+}
