@@ -36,10 +36,11 @@ class CredentialResolver:
         
         Args:
             ref: Credential reference string. Formats:
-                - "env://VAR_NAME" - environment variable
+                - "env://VAR_NAME" - environment variable (explicit)
                 - "file:///path/to/secret" - read from file
                 - "vault://secret/path#key" - HashiCorp Vault
-                - "VAR_NAME" - plain env var name (legacy/default)
+                - "VAR_NAME" - env var name; if not found, used as literal value
+                - "glpat-xxx..." - literal token value (used as-is)
                 
         Returns:
             Resolved credential string, or empty string if not found.
@@ -57,8 +58,12 @@ class CredentialResolver:
             elif ref.startswith("vault://"):
                 return self._from_vault(ref[8:])
             else:
-                # Legacy: treat as plain env var name
-                return self._from_env(ref)
+                # Try as env var first; if not found, use as literal value
+                env_value = os.environ.get(ref, "")
+                if env_value:
+                    return env_value
+                # Not an env var — use the ref itself as the credential
+                return ref
         except Exception as e:
             logger.error(f"Failed to resolve credential '{ref}': {e}")
             return ""
