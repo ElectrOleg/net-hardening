@@ -16,6 +16,13 @@ depends_on = None
 
 
 def upgrade():
+    conn = op.get_bind()
+    result = conn.execute(sa.text(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_sync_logs')"
+    ))
+    if result.scalar():
+        return  # Already exists
+
     op.create_table(
         'hcs_sync_logs',
         sa.Column('id', UUID(as_uuid=True), primary_key=True,

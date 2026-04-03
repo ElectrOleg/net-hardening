@@ -16,33 +16,43 @@ depends_on = None
 
 
 def upgrade():
+    conn = op.get_bind()
+
     # System settings (key-value)
-    op.create_table(
-        'hcs_system_settings',
-        sa.Column('key', sa.String(100), primary_key=True),
-        sa.Column('value', sa.Text, nullable=False, server_default=''),
-        sa.Column('description', sa.Text),
-        sa.Column('updated_at', sa.DateTime, server_default=sa.func.now()),
-    )
+    result = conn.execute(sa.text(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_system_settings')"
+    ))
+    if not result.scalar():
+        op.create_table(
+            'hcs_system_settings',
+            sa.Column('key', sa.String(100), primary_key=True),
+            sa.Column('value', sa.Text, nullable=False, server_default=''),
+            sa.Column('description', sa.Text),
+            sa.Column('updated_at', sa.DateTime, server_default=sa.func.now()),
+        )
     
     # Scan schedules
-    op.create_table(
-        'hcs_scan_schedules',
-        sa.Column('id', UUID(as_uuid=True), primary_key=True,
-                  server_default=sa.text('gen_random_uuid()')),
-        sa.Column('name', sa.String(100), nullable=False),
-        sa.Column('description', sa.Text),
-        sa.Column('cron_expression', sa.String(100), nullable=False,
-                  server_default='0 2 * * *'),
-        sa.Column('policies_filter', JSONB),
-        sa.Column('devices_filter', JSONB),
-        sa.Column('is_enabled', sa.Boolean, server_default='true'),
-        sa.Column('last_run_at', sa.DateTime),
-        sa.Column('next_run_at', sa.DateTime),
-        sa.Column('last_scan_id', UUID(as_uuid=True)),
-        sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime, server_default=sa.func.now()),
-    )
+    result = conn.execute(sa.text(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_scan_schedules')"
+    ))
+    if not result.scalar():
+        op.create_table(
+            'hcs_scan_schedules',
+            sa.Column('id', UUID(as_uuid=True), primary_key=True,
+                      server_default=sa.text('gen_random_uuid()')),
+            sa.Column('name', sa.String(100), nullable=False),
+            sa.Column('description', sa.Text),
+            sa.Column('cron_expression', sa.String(100), nullable=False,
+                      server_default='0 2 * * *'),
+            sa.Column('policies_filter', JSONB),
+            sa.Column('devices_filter', JSONB),
+            sa.Column('is_enabled', sa.Boolean, server_default='true'),
+            sa.Column('last_run_at', sa.DateTime),
+            sa.Column('next_run_at', sa.DateTime),
+            sa.Column('last_scan_id', UUID(as_uuid=True)),
+            sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
+            sa.Column('updated_at', sa.DateTime, server_default=sa.func.now()),
+        )
 
 
 def downgrade():

@@ -17,24 +17,29 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table(
-        'hcs_vendor_mappings',
-        sa.Column('id', UUID(as_uuid=True), primary_key=True,
-                  server_default=sa.text('gen_random_uuid()')),
-        sa.Column('vendor_code', sa.String(50),
-                  sa.ForeignKey('hcs_vendors.code'), nullable=False),
-        sa.Column('pattern', sa.String(500), nullable=False),
-        sa.Column('match_field', sa.String(50), nullable=False,
-                  server_default='config_content'),
-        sa.Column('priority', sa.Integer, nullable=False,
-                  server_default='100'),
-        sa.Column('description', sa.String(200)),
-        sa.Column('is_active', sa.Boolean, server_default='true'),
-    )
-
-    # ── Ensure ALL vendors exist (base + extended) ─────────────
     conn = op.get_bind()
 
+    # ── Create table if needed ───────────────────────────────────
+    result = conn.execute(sa.text(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_vendor_mappings')"
+    ))
+    if not result.scalar():
+        op.create_table(
+            'hcs_vendor_mappings',
+            sa.Column('id', UUID(as_uuid=True), primary_key=True,
+                      server_default=sa.text('gen_random_uuid()')),
+            sa.Column('vendor_code', sa.String(50),
+                      sa.ForeignKey('hcs_vendors.code'), nullable=False),
+            sa.Column('pattern', sa.String(500), nullable=False),
+            sa.Column('match_field', sa.String(50), nullable=False,
+                      server_default='config_content'),
+            sa.Column('priority', sa.Integer, nullable=False,
+                      server_default='100'),
+            sa.Column('description', sa.String(200)),
+            sa.Column('is_active', sa.Boolean, server_default='true'),
+        )
+
+    # ── Ensure ALL vendors exist (base + extended) ─────────────
     all_vendors = [
         # Base vendors (from seed)
         ("cisco_ios",    "Cisco IOS",          "ciscoconfparse",  "Cisco IOS devices"),
@@ -59,19 +64,21 @@ def upgrade():
             "VALUES (:code, :name, :driver, :desc) ON CONFLICT (code) DO NOTHING"
         ), {"code": code, "name": name, "driver": driver, "desc": desc})
 
-    # ── Seed default vendor mappings ─────────────────────────────
-    from app.models.vendor_mapping import DEFAULT_VENDOR_MAPPINGS
-    
-    mappings_table = sa.table(
-        'hcs_vendor_mappings',
-        sa.column('vendor_code', sa.String),
-        sa.column('pattern', sa.String),
-        sa.column('match_field', sa.String),
-        sa.column('priority', sa.Integer),
-        sa.column('description', sa.String),
-    )
-    
-    op.bulk_insert(mappings_table, DEFAULT_VENDOR_MAPPINGS)
+    # ── Seed default vendor mappings (only if table is empty) ────
+    count = conn.execute(sa.text("SELECT COUNT(*) FROM hcs_vendor_mappings")).scalar()
+    if count == 0:
+        from app.models.vendor_mapping import DEFAULT_VENDOR_MAPPINGS
+        
+        mappings_table = sa.table(
+            'hcs_vendor_mappings',
+            sa.column('vendor_code', sa.String),
+            sa.column('pattern', sa.String),
+            sa.column('match_field', sa.String),
+            sa.column('priority', sa.Integer),
+            sa.column('description', sa.String),
+        )
+        
+        op.bulk_insert(mappings_table, DEFAULT_VENDOR_MAPPINGS)
 
 
 def downgrade():
