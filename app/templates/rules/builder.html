@@ -794,7 +794,16 @@
             </form>
         </div>
         <div class="card-footer flex justify-between">
-            <button class="btn btn-ghost" type="button" onclick="history.back()">Отмена</button>
+            <div class="flex gap-2">
+                <button class="btn btn-ghost" type="button" onclick="history.back()">Отмена</button>
+                <button class="btn btn-danger" type="button" id="deleteRuleBtn" style="display: none;" onclick="deleteRule()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+                    </svg>
+                    Удалить
+                </button>
+            </div>
             <button class="btn btn-primary" type="button" onclick="saveRule()">
                 Сохранить правило
             </button>
@@ -1266,10 +1275,10 @@ end`;
         if (!rule.title) return showNotification('Введите название', 'warning');
 
         try {
-            const url = window.location.search.includes('edit')
-                ? `/api/rules/${new URLSearchParams(window.location.search).get('edit')}`
-                : '/api/rules';
-            const method = window.location.search.includes('edit') ? 'PUT' : 'POST';
+            // Detect edit mode: set from Jinja2 or clone query param
+            const editRuleId = window._editRuleId || null;
+            const url = editRuleId ? `/api/rules/${editRuleId}` : '/api/rules';
+            const method = editRuleId ? 'PUT' : 'POST';
 
             const response = await fetch(url, {
                 method: method,
@@ -1284,6 +1293,24 @@ end`;
                 setTimeout(() => window.location.href = '/rules', 1000);
             } else {
                 showNotification('Ошибка: ' + data.error, 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    async function deleteRule() {
+        if (!window._editRuleId) return;
+        if (!confirm('Удалить это правило?')) return;
+
+        try {
+            const response = await fetch(`/api/rules/${window._editRuleId}`, { method: 'DELETE' });
+            if (response.ok) {
+                showNotification('Правило удалено', 'success');
+                setTimeout(() => window.location.href = '/rules', 800);
+            } else {
+                const data = await response.json();
+                showNotification('Ошибка: ' + (data.error || 'Unknown'), 'danger');
             }
         } catch (e) {
             showNotification('Ошибка: ' + e.message, 'danger');
@@ -1354,8 +1381,12 @@ end`;
 
         // 1. Edit mode: rule passed via Jinja2 template variable
         {% if rule is defined and rule %}
+        window._editRuleId = '{{ rule.id }}';
         const serverRule = {{ rule.to_dict() | tojson | safe }};
         populateRuleForm(serverRule, false);
+        // Show delete button in edit mode
+        const delBtn = document.getElementById('deleteRuleBtn');
+        if (delBtn) delBtn.style.display = '';
         {% elif clone_rule is defined and clone_rule %}
         const cloneRule = {{ clone_rule.to_dict() | tojson | safe }};
         populateRuleForm(cloneRule, true);
