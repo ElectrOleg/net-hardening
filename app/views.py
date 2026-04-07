@@ -1,5 +1,7 @@
 """Web views for HCS UI."""
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, g
+from sqlalchemy import func
+from app.extensions import db
 from app.models import Scan, Result, Rule, Policy, Vendor, DataSource
 
 web_bp = Blueprint("web", __name__)
@@ -90,7 +92,13 @@ def dashboard():
 def scans_list():
     """List of scans."""
     scans = Scan.query.order_by(Scan.started_at.desc()).limit(50).all()
-    policies = Policy.query.filter_by(is_active=True).order_by(Policy.name).all()
+    # Single query: policies with rule count (no N+1)
+    policies = db.session.query(
+        Policy,
+        func.count(Rule.id).label('rule_count')
+    ).outerjoin(Rule, (Rule.policy_id == Policy.id) & (Rule.is_active == True)).filter(
+        Policy.is_active == True
+    ).group_by(Policy.id).order_by(Policy.name).all()
     return render_template("scans/list.html", scans=scans, policies=policies)
 
 

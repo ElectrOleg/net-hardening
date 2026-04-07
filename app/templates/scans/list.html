@@ -119,13 +119,13 @@
                 <label>Политики</label>
                 <p class="text-muted text-sm mb-2">Выберите политики для проверки. Если ни одна не выбрана — проверяются все.</p>
                 <div id="policyCheckboxes" style="max-height: 240px; overflow-y: auto;">
-                    {% for policy in policies %}
+                    {% for policy, rule_count in policies %}
                     <label class="flex items-center gap-2 mb-1" style="cursor: pointer; padding: 0.4rem 0.5rem; border-radius: 6px; transition: background 0.15s;"
                         onmouseover="this.style.background='var(--hcs-bg-secondary)'" onmouseout="this.style.background=''">
                         <input type="checkbox" name="policy" value="{{ policy.id }}">
                         <span>{{ policy.name }}</span>
-                        {% if policy.rules | length > 0 %}
-                        <span class="text-muted text-xs">({{ policy.rules | length }} правил)</span>
+                        {% if rule_count > 0 %}
+                        <span class="text-muted text-xs">({{ rule_count }} правил)</span>
                         {% endif %}
                     </label>
                     {% endfor %}
