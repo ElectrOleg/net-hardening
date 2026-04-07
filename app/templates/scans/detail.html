@@ -1,14 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Scan {{ scan.id | string | truncate(8, True, '') }}{% endblock %}
+{% block title %}Скан {{ scan.started_at.strftime('%d.%m %H:%M') }}{% endblock %}
 
 {% block content %}
 <div class="breadcrumbs">
     <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
     <span class="sep">›</span>
-    <a href="{{ url_for('web.scans_list') }}">Scans</a>
+    <a href="{{ url_for('web.scans_list') }}">Сканирования</a>
     <span class="sep">›</span>
-    <span class="current">{{ scan.id | string | truncate(8, True, '') }}</span>
+    <span class="current">{{ scan.started_at.strftime('%d.%m.%Y %H:%M') }}</span>
 </div>
+
+<!-- Header -->
 <div class="flex justify-between items-center mb-3">
     <div class="flex items-center gap-2">
         <a href="{{ url_for('web.scans_list') }}" class="btn btn-ghost btn-icon">
@@ -18,21 +20,20 @@
         </a>
         <h2>Результаты сканирования</h2>
         {% if scan.status == 'completed' %}
-        <span class="badge badge-success">completed</span>
+        <span class="badge badge-success">завершён</span>
         {% elif scan.status == 'running' %}
-        <span class="badge badge-warning"><span class="status-dot running"></span>running</span>
+        <span class="badge badge-warning"><span class="status-dot running"></span>в работе</span>
+        {% elif scan.status == 'failed' %}
+        <span class="badge badge-danger">ошибка</span>
         {% endif %}
     </div>
     <div class="flex items-center gap-2">
-        <span class="text-muted text-sm">{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</span>
-        {% if scan.failed_count > 0 %}
-        <a href="{{ url_for('web.remediation', scan_id=scan.id) }}" class="btn btn-primary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path
-                    d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
-            </svg>
-            Fix It
-        </a>
+        <span class="text-muted text-sm">{{ scan.started_at.strftime('%d.%m.%Y %H:%M') }}</span>
+        {% if scan.finished_at %}
+        <span class="text-muted text-xs">
+            ({% set dur = (scan.finished_at - scan.started_at).total_seconds() %}
+            {% if dur < 60 %}{{ dur | int }}с{% else %}{{ (dur / 60) | int }}м {{ (dur % 60) | int }}с{% endif %})
+        </span>
         {% endif %}
     </div>
 </div>
@@ -40,138 +41,269 @@
 <!-- Stats -->
 <div class="stats-grid mb-3 fade-in">
     <div class="stat-card">
+        <div class="stat-value">{{ devices | length }}</div>
+        <div class="stat-label">Устройств</div>
+    </div>
+    <div class="stat-card">
         <div class="stat-value success">{{ scan.passed_count }}</div>
-        <div class="stat-label">Passed</div>
+        <div class="stat-label">Пройдено</div>
     </div>
     <div class="stat-card">
         <div class="stat-value danger">{{ scan.failed_count }}</div>
-        <div class="stat-label">Failed</div>
+        <div class="stat-label">Не пройдено</div>
     </div>
     <div class="stat-card">
         <div class="stat-value warning">{{ scan.error_count }}</div>
-        <div class="stat-label">Errors</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ scan.total_devices }}</div>
-        <div class="stat-label">Devices</div>
+        <div class="stat-label">Ошибки</div>
     </div>
     <div class="stat-card">
         <div
             class="stat-value {% if scan.score >= 80 %}success{% elif scan.score >= 50 %}warning{% else %}danger{% endif %}">
             {{ scan.score }}%
         </div>
-        <div class="stat-label">Score</div>
+        <div class="stat-label">Compliance Score</div>
     </div>
 </div>
 
-<!-- Results by Device -->
-<h3 class="mb-2">Результаты по устройствам</h3>
+<!-- Filter Bar -->
+<div class="flex items-center gap-2 mb-2">
+    <input type="text" id="deviceFilter" class="form-control" placeholder="Поиск по hostname..."
+        style="max-width: 300px;" oninput="filterDevices()">
+    <button class="btn btn-ghost btn-sm" onclick="showAll()" id="btnAll">
+        Все <span class="badge badge-neutral">{{ devices | length }}</span>
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="showFailed()" id="btnFailed">
+        С ошибками <span class="badge badge-danger">{{ devices.values() | selectattr('failed', 'gt', 0) | list | length }}</span>
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="showPassed()" id="btnPassed">
+        Все ОК <span class="badge badge-success">{{ devices.values() | selectattr('failed', 'equalto', 0) | selectattr('errors', 'equalto', 0) | list | length }}</span>
+    </button>
+</div>
 
-{% for device_id, results in devices.items() %}
-<div class="card mb-2 slide-in" style="animation-delay: {{ loop.index * 50 }}ms;">
-    <div class="card-header">
-        <div class="flex items-center gap-2">
-            <code>{{ device_id }}</code>
-            {% set failed_count = results | selectattr('status', 'equalto', 'FAIL') | list | length %}
-            {% if failed_count > 0 %}
-            <span class="badge badge-danger">{{ failed_count }} failed</span>
-            {% else %}
-            <span class="badge badge-success">All passed</span>
-            {% endif %}
+<!-- Device Cards -->
+<div id="deviceList">
+{% for device_id, info in devices.items() %}
+<div class="card mb-1 device-card fade-in"
+     data-device="{{ device_id }}"
+     data-status="{% if info.failed > 0 or info.errors > 0 %}fail{% else %}pass{% endif %}"
+     style="animation-delay: {{ loop.index * 30 }}ms; cursor: pointer;"
+     onclick="toggleDevice(this)">
+
+    <!-- Summary Row (always visible) -->
+    <div class="card-body" style="padding: 0.75rem 1rem;">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <!-- Status icon -->
+                {% if info.failed > 0 %}
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--hcs-danger); flex-shrink: 0;"></div>
+                {% elif info.errors > 0 %}
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--hcs-warning); flex-shrink: 0;"></div>
+                {% else %}
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--hcs-success); flex-shrink: 0;"></div>
+                {% endif %}
+
+                <strong style="font-family: var(--hcs-font-mono); font-size: 0.9rem;">{{ device_id }}</strong>
+
+                <!-- Policy badges -->
+                {% for policy_name in info.policies %}
+                <span class="badge badge-neutral" style="font-size: 0.65rem;">{{ policy_name }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="flex items-center gap-3">
+                <!-- Compact stats -->
+                <div class="flex items-center gap-2 text-sm">
+                    {% if info.passed > 0 %}
+                    <span class="text-success" title="Пройдено">✓ {{ info.passed }}</span>
+                    {% endif %}
+                    {% if info.failed > 0 %}
+                    <span class="text-danger font-bold" title="Не пройдено">✗ {{ info.failed }}</span>
+                    {% endif %}
+                    {% if info.errors > 0 %}
+                    <span class="text-warning" title="Ошибки">⚠ {{ info.errors }}</span>
+                    {% endif %}
+                    {% if info.skipped > 0 %}
+                    <span class="text-muted" title="Пропущено">⊘ {{ info.skipped }}</span>
+                    {% endif %}
+                </div>
+
+                <!-- Mini progress bar -->
+                {% set pct_pass = (info.passed / info.total * 100) if info.total > 0 else 0 %}
+                {% set pct_fail = (info.failed / info.total * 100) if info.total > 0 else 0 %}
+                <div style="width: 80px; height: 6px; background: var(--hcs-bg-tertiary); border-radius: 3px; overflow: hidden; flex-shrink: 0;"
+                     title="{{ pct_pass | int }}% пройдено">
+                    <div style="height: 100%; width: {{ pct_pass }}%; background: var(--hcs-success); float: left;"></div>
+                    <div style="height: 100%; width: {{ pct_fail }}%; background: var(--hcs-danger); float: left;"></div>
+                </div>
+
+                <!-- Expand chevron -->
+                <svg class="expand-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="transition: transform 0.2s; flex-shrink: 0;">
+                    <path d="M6 9l6 6 6-6" />
+                </svg>
+            </div>
         </div>
     </div>
-    <div class="table-wrapper">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th style="width: 40px;"></th>
-                    <th>Правило</th>
-                    <th>Сообщение</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for result in results %}
-                <tr>
-                    <td>
-                        {% if result.status == 'PASS' %}
-                        <span class="status-dot pass"></span>
-                        {% elif result.status == 'FAIL' %}
-                        <span class="status-dot fail"></span>
-                        {% elif result.status == 'ERROR' %}
-                        <span class="status-dot error"></span>
-                        {% else %}
-                        <span class="status-dot" style="background: var(--hcs-text-muted);"></span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <strong>{{ result.rule.title }}</strong>
-                    </td>
-                    <td class="text-muted text-sm">{{ result.message or '-' }}</td>
-                    <td class="text-right">
-                        {% if result.status == 'FAIL' %}
-                        <button class="btn btn-ghost btn-icon" onclick="showDetails('{{ result.id }}')"
-                            title="Подробности">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <circle cx="12" cy="12" r="10" />
-                                <path d="M12 16v-4" />
-                                <path d="M12 8h.01" />
-                            </svg>
-                        </button>
-                        <button class="btn btn-ghost btn-icon"
-                            onclick="addException('{{ result.rule_id }}', '{{ device_id }}')" title="Принять риск">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                                <path d="M12 8v4" />
-                                <path d="M12 16h.01" />
-                            </svg>
-                        </button>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% if result.diff_data %}
-                <tr id="details-{{ result.id }}" style="display: none;">
-                    <td></td>
-                    <td colspan="3">
-                        <pre style="margin: 0; font-size: 0.75rem;">{{ result.diff_data }}</pre>
-                        {% if result.rule.remediation %}
-                        <div class="mt-1">
-                            <strong class="text-sm">Remediation:</strong>
-                            <pre style="margin: 0.5rem 0 0 0; font-size: 0.75rem;">{{ result.rule.remediation }}</pre>
-                        </div>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endif %}
-                {% endfor %}
-            </tbody>
-        </table>
+
+    <!-- Expanded Detail (hidden by default) -->
+    <div class="device-detail" style="display: none; border-top: 1px solid var(--hcs-border);">
+        <div class="table-wrapper">
+            <table class="table" style="margin: 0;">
+                <thead>
+                    <tr>
+                        <th style="width: 36px;"></th>
+                        <th>Правило</th>
+                        <th>Тип</th>
+                        <th>Сообщение</th>
+                        <th style="width: 60px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for result in info.results %}
+                    <tr>
+                        <td>
+                            {% if result.status == 'PASS' %}
+                            <span style="color: var(--hcs-success); font-weight: 700;">✓</span>
+                            {% elif result.status == 'FAIL' %}
+                            <span style="color: var(--hcs-danger); font-weight: 700;">✗</span>
+                            {% elif result.status == 'ERROR' %}
+                            <span style="color: var(--hcs-warning); font-weight: 700;">⚠</span>
+                            {% else %}
+                            <span style="color: var(--hcs-text-muted);">⊘</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong class="text-sm">{{ result.rule.title }}</strong>
+                            {% if result.rule.severity %}
+                            <span class="badge {% if result.rule.severity == 'critical' %}badge-danger{% elif result.rule.severity == 'high' %}badge-warning{% else %}badge-neutral{% endif %}"
+                                  style="font-size: 0.6rem; margin-left: 4px;">{{ result.rule.severity }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted text-xs"><code>{{ result.rule.logic_type }}</code></td>
+                        <td class="text-muted text-sm" style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            {{ result.message or '-' }}
+                        </td>
+                        <td class="text-right">
+                            {% if result.diff_data or result.rule.remediation or result.rule.description %}
+                            <button class="btn btn-ghost btn-icon" onclick="event.stopPropagation(); toggleResultDetail('rd-{{ result.id }}')" title="Подробнее">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path d="M12 16v-4" /><path d="M12 8h.01" />
+                                </svg>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <!-- Result detail row (hidden) -->
+                    {% if result.diff_data or result.rule.remediation or result.rule.description %}
+                    <tr id="rd-{{ result.id }}" style="display: none;">
+                        <td></td>
+                        <td colspan="4" style="padding: 0.5rem 0.75rem;">
+                            <div style="background: var(--hcs-bg-secondary); border-radius: 8px; padding: 0.75rem; font-size: 0.8rem;">
+                                {% if result.rule.description %}
+                                <div class="mb-1">
+                                    <strong>Описание:</strong>
+                                    <span class="text-muted">{{ result.rule.description }}</span>
+                                </div>
+                                {% endif %}
+                                {% if result.message and result.status != 'PASS' %}
+                                <div class="mb-1">
+                                    <strong>Результат:</strong>
+                                    <span>{{ result.message }}</span>
+                                </div>
+                                {% endif %}
+                                {% if result.diff_data %}
+                                <div class="mb-1">
+                                    <strong>Детали:</strong>
+                                    <pre style="margin: 0.25rem 0 0 0; font-size: 0.75rem; white-space: pre-wrap; word-break: break-all;">{{ result.diff_data }}</pre>
+                                </div>
+                                {% endif %}
+                                {% if result.raw_value %}
+                                <div class="mb-1">
+                                    <strong>Фактическое значение:</strong>
+                                    <code>{{ result.raw_value }}</code>
+                                </div>
+                                {% endif %}
+                                {% if result.rule.remediation and result.status == 'FAIL' %}
+                                <div style="border-top: 1px solid var(--hcs-border); padding-top: 0.5rem; margin-top: 0.5rem;">
+                                    <strong style="color: var(--hcs-primary);">Рекомендация:</strong>
+                                    <pre style="margin: 0.25rem 0 0 0; font-size: 0.75rem; white-space: pre-wrap;">{{ result.rule.remediation }}</pre>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {% else %}
 <div class="card">
     <div class="empty-state">
         <p>Результатов нет</p>
+        {% if scan.error_message %}
+        <p class="text-danger text-sm">{{ scan.error_message }}</p>
+        {% endif %}
     </div>
 </div>
 {% endfor %}
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    function showDetails(resultId) {
-        const row = document.getElementById('details-' + resultId);
+    function toggleDevice(card) {
+        const detail = card.querySelector('.device-detail');
+        const chevron = card.querySelector('.expand-chevron');
+        if (detail.style.display === 'none') {
+            detail.style.display = 'block';
+            chevron.style.transform = 'rotate(180deg)';
+        } else {
+            detail.style.display = 'none';
+            chevron.style.transform = '';
+        }
+    }
+
+    function toggleResultDetail(id) {
+        const row = document.getElementById(id);
         if (row) {
             row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
         }
     }
 
+    // Filters
+    let currentFilter = 'all';
+
+    function filterDevices() {
+        const query = document.getElementById('deviceFilter').value.toLowerCase();
+        document.querySelectorAll('.device-card').forEach(card => {
+            const device = card.dataset.device.toLowerCase();
+            const statusMatch = currentFilter === 'all' ||
+                (currentFilter === 'fail' && card.dataset.status === 'fail') ||
+                (currentFilter === 'pass' && card.dataset.status === 'pass');
+            card.style.display = (device.includes(query) && statusMatch) ? '' : 'none';
+        });
+    }
+
+    function setFilter(type) {
+        currentFilter = type;
+        document.querySelectorAll('#btnAll, #btnFailed, #btnPassed').forEach(b => b.classList.remove('active'));
+        if (type === 'all') document.getElementById('btnAll').classList.add('active');
+        if (type === 'fail') document.getElementById('btnFailed').classList.add('active');
+        if (type === 'pass') document.getElementById('btnPassed').classList.add('active');
+        filterDevices();
+    }
+
+    function showAll() { setFilter('all'); }
+    function showFailed() { setFilter('fail'); }
+    function showPassed() { setFilter('pass'); }
+
     async function addException(ruleId, deviceId) {
         const reason = prompt('Причина принятия риска:');
         if (!reason) return;
-
         const approvedBy = prompt('Кто одобрил:');
         if (!approvedBy) return;
 
@@ -186,7 +318,6 @@
                     approved_by: approvedBy
                 })
             });
-
             if (response.ok) {
                 showNotification('Исключение добавлено', 'success');
             } else {
@@ -197,5 +328,8 @@
             showNotification('Ошибка: ' + e.message, 'danger');
         }
     }
+
+    // Init
+    setFilter('all');
 </script>
 {% endblock %}

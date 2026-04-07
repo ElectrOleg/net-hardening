@@ -50,7 +50,9 @@ class ScannerService:
         
         Device discovery priority:
         1. Explicit device_ids parameter (from API call)
-        2. Active devices from Inventory (hcs_devices table)
+        2. Active devices from Inventory, pre-filtered by rule vendor_codes
+           and policy scope_filters (only devices that have at least one
+           applicable rule are scanned)
         3. Fallback: discover from Data Sources (GitLab file listing, etc.)
         """
         scan = Scan.query.get(scan_id)
@@ -63,12 +65,22 @@ class ScannerService:
         # Get data sources (needed for config fetching later)
         data_sources = DataSource.query.filter_by(is_active=True).all()
         
+        # Get active rules first (needed for device pre-filtering)
+        rules = self._get_applicable_rules(scan.policies_filter)
+        scan.total_rules = len(rules)
+        
+        if not rules:
+            scan.status = "completed"
+            scan.finished_at = datetime.utcnow()
+            db.session.commit()
+            raise ValueError("No active rules found")
+        
         # Get devices
         if device_ids:
             devices = device_ids
         else:
-            # Primary: get from inventory
-            devices = self._get_devices_from_inventory()
+            # Primary: get from inventory, pre-filtered by applicable rules
+            devices = self._get_devices_from_inventory(rules)
             if not devices:
                 # Fallback: get from data sources (legacy behavior)
                 if data_sources:
@@ -78,27 +90,70 @@ class ScannerService:
             logger.warning(f"No devices found for scan {scan_id}")
         
         scan.total_devices = len(devices)
-        
-        # Get active rules
-        rules = self._get_applicable_rules(scan.policies_filter)
-        scan.total_rules = len(rules)
-        
         db.session.commit()
         
         if not data_sources:
             logger.warning("No active data sources configured — config fetching will fail")
-        
-        if not rules:
-            raise ValueError("No active rules found")
             
         return devices
 
-    def _get_devices_from_inventory(self) -> list[str]:
-        """Get active devices from inventory (hcs_devices table)."""
-        devices = Device.query.filter_by(is_active=True).all()
-        hostnames = [d.hostname for d in devices if d.hostname]
-        logger.info(f"Found {len(hostnames)} active devices in inventory")
-        return hostnames
+    def _get_devices_from_inventory(self, rules: list[Rule] = None) -> list[str]:
+        """Get active devices from inventory, pre-filtered by vendor_codes 
+        from applicable rules and policy scope_filters.
+        
+        Only returns devices that will actually have rules applied to them.
+        """
+        all_devices = Device.query.filter_by(is_active=True).all()
+        
+        if not rules:
+            hostnames = [d.hostname for d in all_devices if d.hostname]
+            logger.info(f"Found {len(hostnames)} active devices in inventory (no rule filter)")
+            return hostnames
+        
+        # Collect vendor_codes from rules
+        rule_vendors = set()
+        for r in rules:
+            if r.vendor_code and r.vendor_code != "any":
+                rule_vendors.add(r.vendor_code)
+        
+        # Collect unique policy scope_filters
+        policy_filters: dict[str, dict] = {}
+        for r in rules:
+            pid = str(r.policy_id)
+            if pid not in policy_filters and r.policy:
+                sf = r.policy.scope_filter
+                policy_filters[pid] = sf if isinstance(sf, dict) else None
+        
+        matched = []
+        for device in all_devices:
+            if not device.hostname:
+                continue
+            
+            # 1. Vendor filter: device must match at least one rule's vendor_code
+            if rule_vendors and device.vendor_code not in rule_vendors:
+                continue
+            
+            # 2. Policy scope_filter: device must match at least one policy
+            if policy_filters:
+                matches_any_policy = False
+                for pid, sf in policy_filters.items():
+                    if not sf:
+                        matches_any_policy = True
+                        break
+                    shim = SimpleNamespace(applicability=sf)
+                    if self._check_applicability(shim, device):
+                        matches_any_policy = True
+                        break
+                if not matches_any_policy:
+                    continue
+            
+            matched.append(device.hostname)
+        
+        logger.info(
+            f"Inventory pre-filter: {len(matched)}/{len(all_devices)} devices match "
+            f"(vendors: {rule_vendors or 'any'}, policies: {len(policy_filters)})"
+        )
+        return matched
 
     def scan_single_device(self, scan_id: str, device_id: str) -> tuple[int, int, int]:
         """

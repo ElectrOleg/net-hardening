@@ -90,23 +90,11 @@ window.fetch = function (url, options) {
 
 // ─── Start Scan ─────────────────────────────────────────────────
 async function startScan() {
-    if (!confirm('Запустить новое сканирование?')) return;
-
-    try {
-        const response = await fetch('/api/scans', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ started_by: 'ui' }),
-        });
-        const data = await response.json();
-
-        if (response.ok) {
-            showNotification('Сканирование запущено', 'success');
-            setTimeout(function () { window.location.reload(); }, 1200);
-        } else {
-            showNotification('Ошибка: ' + data.error, 'danger');
-        }
-    } catch (e) {
-        showNotification('Ошибка: ' + e.message, 'danger');
+    // If we're already on /scans, open the modal
+    if (typeof openScanModal === 'function') {
+        openScanModal();
+        return;
     }
+    // Otherwise redirect to scans page
+    window.location.href = '/scans';
 }

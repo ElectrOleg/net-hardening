@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Scans{% endblock %}
+{% block title %}Сканирования{% endblock %}
 
 {% block content %}
 <div class="breadcrumbs">
     <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
     <span class="sep">›</span>
-    <span class="current">Scans</span>
+    <span class="current">Сканирования</span>
 </div>
 <div class="flex justify-between items-center mb-3">
     <h2>Сканирования</h2>
-    <button class="btn btn-primary" onclick="startScan()">
+    <button class="btn btn-primary" onclick="openScanModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 3 19 12 5 21 5 3" />
         </svg>
@@ -22,13 +22,16 @@
         <table class="table">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Дата запуска</th>
+                    <th>Дата</th>
                     <th>Запустил</th>
                     <th>Статус</th>
                     <th>Устройств</th>
-                    <th>Pass</th>
-                    <th>Fail</th>
+                    <th>Проверок</th>
+                    <th>
+                        <span class="text-success">✓</span> /
+                        <span class="text-danger">✗</span> /
+                        <span class="text-warning">⚠</span>
+                    </th>
                     <th>Score</th>
                     <th></th>
                 </tr>
@@ -36,45 +39,60 @@
             <tbody>
                 {% for scan in scans %}
                 <tr>
-                    <td class="font-mono text-sm text-muted">{{ scan.id | string | truncate(8, True, '') }}</td>
-                    <td>{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        <div>{{ scan.started_at.strftime('%d.%m.%Y %H:%M') }}</div>
+                        {% if scan.finished_at %}
+                        <div class="text-xs text-muted">
+                            {% set duration = (scan.finished_at - scan.started_at).total_seconds() %}
+                            {% if duration < 60 %}{{ duration | int }}с{% else %}{{ (duration / 60) | int }}м {{ (duration % 60) | int }}с{% endif %}
+                        </div>
+                        {% endif %}
+                    </td>
                     <td>{{ scan.started_by or '-' }}</td>
                     <td>
                         {% if scan.status == 'completed' %}
-                        <span class="badge badge-success">completed</span>
+                        <span class="badge badge-success">завершён</span>
                         {% elif scan.status == 'running' %}
-                        <span class="badge badge-warning"><span class="status-dot running"></span>running</span>
+                        <span class="badge badge-warning"><span class="status-dot running"></span>в работе</span>
                         {% elif scan.status == 'failed' %}
-                        <span class="badge badge-danger">failed</span>
+                        <span class="badge badge-danger">ошибка</span>
+                        {% elif scan.status == 'cancelled' %}
+                        <span class="badge badge-neutral">отменён</span>
                         {% else %}
                         <span class="badge badge-neutral">{{ scan.status }}</span>
                         {% endif %}
                     </td>
                     <td>{{ scan.total_devices }}</td>
-                    <td class="text-success font-bold">{{ scan.passed_count }}</td>
-                    <td class="text-danger font-bold">{{ scan.failed_count }}</td>
+                    <td>{{ scan.total_rules or '-' }}</td>
                     <td>
+                        <span class="text-success font-bold">{{ scan.passed_count }}</span> /
+                        <span class="text-danger font-bold">{{ scan.failed_count }}</span> /
+                        <span class="text-warning">{{ scan.error_count }}</span>
+                    </td>
+                    <td>
+                        {% if scan.status == 'completed' %}
                         <strong
                             class="{% if scan.score >= 80 %}text-success{% elif scan.score >= 50 %}text-warning{% else %}text-danger{% endif %}">
                             {{ scan.score }}%
                         </strong>
+                        {% else %}-{% endif %}
                     </td>
                     <td class="text-right">
-                        <a href="{{ url_for('web.scan_detail', scan_id=scan.id) }}" class="btn btn-ghost btn-icon">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
+                        {% if scan.status == 'completed' %}
+                        <a href="{{ url_for('web.scan_detail', scan_id=scan.id) }}" class="btn btn-ghost btn-sm">
+                            Подробнее
                         </a>
+                        {% elif scan.status == 'running' %}
+                        <button class="btn btn-ghost btn-sm text-danger" onclick="cancelScan('{{ scan.id }}')">Отменить</button>
+                        {% endif %}
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="9">
+                    <td colspan="8">
                         <div class="empty-state">
                             <p>Сканирований пока нет</p>
-                            <button class="btn btn-primary" onclick="startScan()">Запустить первое</button>
+                            <button class="btn btn-primary" onclick="openScanModal()">Запустить первое</button>
                         </div>
                     </td>
                 </tr>
@@ -83,4 +101,111 @@
         </table>
     </div>
 </div>
+
+<!-- Scan Launch Modal -->
+<div id="scanModal" class="modal"
+    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 480px; margin: 2rem;">
+        <div class="card-header flex justify-between items-center">
+            <h3>Запуск сканирования</h3>
+            <button class="btn btn-ghost btn-icon" onclick="closeScanModal()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="form-group mb-3">
+                <label>Политики</label>
+                <p class="text-muted text-sm mb-2">Выберите политики для проверки. Если ни одна не выбрана — проверяются все.</p>
+                <div id="policyCheckboxes" style="max-height: 240px; overflow-y: auto;">
+                    {% for policy in policies %}
+                    <label class="flex items-center gap-2 mb-1" style="cursor: pointer; padding: 0.4rem 0.5rem; border-radius: 6px; transition: background 0.15s;"
+                        onmouseover="this.style.background='var(--hcs-bg-secondary)'" onmouseout="this.style.background=''">
+                        <input type="checkbox" name="policy" value="{{ policy.id }}">
+                        <span>{{ policy.name }}</span>
+                        {% if policy.rules | length > 0 %}
+                        <span class="text-muted text-xs">({{ policy.rules | length }} правил)</span>
+                        {% endif %}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-3">
+                <button class="btn btn-secondary" onclick="closeScanModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="launchScan()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                    Запустить
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const scanModal = document.getElementById('scanModal');
+
+    function openScanModal() {
+        // Uncheck all
+        scanModal.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+        scanModal.style.display = 'flex';
+    }
+
+    function closeScanModal() {
+        scanModal.style.display = 'none';
+    }
+
+    async function launchScan() {
+        const selected = [];
+        scanModal.querySelectorAll('input[name=policy]:checked').forEach(cb => {
+            selected.push(cb.value);
+        });
+
+        const body = { started_by: 'ui' };
+        if (selected.length > 0) {
+            body.policies = selected;
+        }
+
+        try {
+            const response = await fetch('/api/scans', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                closeScanModal();
+                showNotification('Сканирование запущено', 'success');
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                showNotification('Ошибка: ' + data.error, 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    async function cancelScan(scanId) {
+        if (!confirm('Отменить сканирование?')) return;
+        try {
+            const response = await fetch(`/api/scans/${scanId}/cancel`, { method: 'POST' });
+            if (response.ok) {
+                showNotification('Сканирование отменено', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    window.onclick = function(event) {
+        if (event.target == scanModal) closeScanModal();
+    };
+</script>
 {% endblock %}

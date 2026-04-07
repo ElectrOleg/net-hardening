@@ -90,7 +90,8 @@ def dashboard():
 def scans_list():
     """List of scans."""
     scans = Scan.query.order_by(Scan.started_at.desc()).limit(50).all()
-    return render_template("scans/list.html", scans=scans)
+    policies = Policy.query.filter_by(is_active=True).order_by(Policy.name).all()
+    return render_template("scans/list.html", scans=scans, policies=policies)
 
 
 @web_bp.route("/scans/<uuid:scan_id>")
@@ -99,12 +100,41 @@ def scan_detail(scan_id):
     scan = Scan.query.get_or_404(scan_id)
     results = Result.query.filter_by(scan_id=scan_id).all()
     
-    # Group by device
+    # Group by device with aggregated stats
     devices = {}
     for r in results:
-        if r.device_id not in devices:
-            devices[r.device_id] = []
-        devices[r.device_id].append(r)
+        did = r.device_id
+        if did not in devices:
+            devices[did] = {
+                "results": [],
+                "passed": 0,
+                "failed": 0,
+                "errors": 0,
+                "skipped": 0,
+                "policies": set(),
+            }
+        devices[did]["results"].append(r)
+        if r.status == "PASS":
+            devices[did]["passed"] += 1
+        elif r.status == "FAIL":
+            devices[did]["failed"] += 1
+        elif r.status == "ERROR":
+            devices[did]["errors"] += 1
+        elif r.status == "SKIPPED":
+            devices[did]["skipped"] += 1
+        if r.rule and r.rule.policy:
+            devices[did]["policies"].add(r.rule.policy.name)
+    
+    # Convert sets to sorted lists for template
+    for did in devices:
+        devices[did]["policies"] = sorted(devices[did]["policies"])
+        devices[did]["total"] = len(devices[did]["results"])
+    
+    # Sort: devices with failures first, then by name
+    devices = dict(sorted(
+        devices.items(),
+        key=lambda x: (-x[1]["failed"], -x[1]["errors"], x[0])
+    ))
     
     return render_template("scans/detail.html", scan=scan, devices=devices)
 
