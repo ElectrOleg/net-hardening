@@ -47,6 +47,11 @@ class ScannerService:
     def initialize_scan(self, scan_id: str, device_ids: Optional[list[str]] = None) -> list[str]:
         """
         Initialize scan record and return list of devices to scan.
+        
+        Device discovery priority:
+        1. Explicit device_ids parameter (from API call)
+        2. Active devices from Inventory (hcs_devices table)
+        3. Fallback: discover from Data Sources (GitLab file listing, etc.)
         """
         scan = Scan.query.get(scan_id)
         if not scan:
@@ -55,13 +60,23 @@ class ScannerService:
         scan.status = "running"
         db.session.commit()
         
-        # Get data sources
+        # Get data sources (needed for config fetching later)
         data_sources = DataSource.query.filter_by(is_active=True).all()
-        if not data_sources:
-            raise ValueError("No active data sources configured")
-            
+        
         # Get devices
-        devices = device_ids or self._get_devices_from_sources(data_sources)
+        if device_ids:
+            devices = device_ids
+        else:
+            # Primary: get from inventory
+            devices = self._get_devices_from_inventory()
+            if not devices:
+                # Fallback: get from data sources (legacy behavior)
+                if data_sources:
+                    devices = self._get_devices_from_sources(data_sources)
+        
+        if not devices:
+            logger.warning(f"No devices found for scan {scan_id}")
+        
         scan.total_devices = len(devices)
         
         # Get active rules
@@ -70,10 +85,20 @@ class ScannerService:
         
         db.session.commit()
         
+        if not data_sources:
+            logger.warning("No active data sources configured — config fetching will fail")
+        
         if not rules:
             raise ValueError("No active rules found")
             
         return devices
+
+    def _get_devices_from_inventory(self) -> list[str]:
+        """Get active devices from inventory (hcs_devices table)."""
+        devices = Device.query.filter_by(is_active=True).all()
+        hostnames = [d.hostname for d in devices if d.hostname]
+        logger.info(f"Found {len(hostnames)} active devices in inventory")
+        return hostnames
 
     def scan_single_device(self, scan_id: str, device_id: str) -> tuple[int, int, int]:
         """
