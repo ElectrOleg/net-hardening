@@ -102,6 +102,13 @@ class ScannerService:
         from applicable rules and policy scope_filters.
         
         Only returns devices that will actually have rules applied to them.
+        
+        Logic:
+        1. Get all vendor_codes from rules → device must match at least one
+        2. For each policy with a scope_filter → device must match it
+           to have that policy's rules applied
+        3. Device is included if it passes vendor filter AND matches at least
+           one policy's scope_filter (or if a policy has no filter)
         """
         all_devices = Device.query.filter_by(is_active=True).all()
         
@@ -122,36 +129,55 @@ class ScannerService:
             pid = str(r.policy_id)
             if pid not in policy_filters and r.policy:
                 sf = r.policy.scope_filter
-                policy_filters[pid] = sf if isinstance(sf, dict) else None
+                # Treat None and {} as "no filter"
+                policy_filters[pid] = sf if (isinstance(sf, dict) and sf) else None
+        
+        # Debug: log what we're filtering by
+        has_any_scope_filter = any(sf is not None for sf in policy_filters.values())
+        logger.info(
+            f"Pre-filter config: vendors={rule_vendors or 'any'}, "
+            f"policies={len(policy_filters)}, "
+            f"has_scope_filters={has_any_scope_filter}, "
+            f"scope_filters={({pid: sf for pid, sf in policy_filters.items() if sf})}"
+        )
         
         matched = []
+        skipped_vendor = 0
+        skipped_scope = 0
+        
         for device in all_devices:
             if not device.hostname:
                 continue
             
             # 1. Vendor filter: device must match at least one rule's vendor_code
             if rule_vendors and device.vendor_code not in rule_vendors:
+                skipped_vendor += 1
                 continue
             
-            # 2. Policy scope_filter: device must match at least one policy
-            if policy_filters:
-                matches_any_policy = False
+            # 2. Policy scope_filter check
+            # Device must match at least one policy to be included.
+            # A policy with no scope_filter matches all devices.
+            # A policy with scope_filter only matches devices satisfying ALL conditions.
+            if has_any_scope_filter:
+                device_matches_any = False
                 for pid, sf in policy_filters.items():
-                    if not sf:
-                        matches_any_policy = True
+                    if sf is None:
+                        # No scope_filter = this policy applies to all
+                        device_matches_any = True
                         break
                     shim = SimpleNamespace(applicability=sf)
                     if self._check_applicability(shim, device):
-                        matches_any_policy = True
+                        device_matches_any = True
                         break
-                if not matches_any_policy:
+                if not device_matches_any:
+                    skipped_scope += 1
                     continue
             
             matched.append(device.hostname)
         
         logger.info(
             f"Inventory pre-filter: {len(matched)}/{len(all_devices)} devices match "
-            f"(vendors: {rule_vendors or 'any'}, policies: {len(policy_filters)})"
+            f"(skipped: {skipped_vendor} vendor, {skipped_scope} scope_filter)"
         )
         return matched
 
