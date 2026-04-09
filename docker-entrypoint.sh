@@ -86,6 +86,16 @@ case "${1}" in
             --loglevel="${CELERY_LOGLEVEL:-info}"
         ;;
 
+    worker-maintenance)
+        wait_for_db
+        echo "Starting Celery maintenance worker..."
+        exec celery -A app.tasks worker \
+            -Q maintenance,default \
+            -c "${CELERY_CONCURRENCY:-2}" \
+            --hostname="maintenance@%h" \
+            --loglevel="${CELERY_LOGLEVEL:-info}"
+        ;;
+
     worker-all)
         wait_for_db
         echo "Starting Celery worker (all queues)..."

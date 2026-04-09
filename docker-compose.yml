@@ -109,17 +109,16 @@ services:
         condition: service_healthy
 
   # ── Maintenance Worker ─────────────────────────────────────────
+  # Handles only maintenance + default queues (cleanup, scheduled scans trigger).
+  # Does NOT process scan/sync tasks — those stay on specialized workers.
   maintenance:
     image: ${HCS_IMAGE:-hcs:latest}
     container_name: hcs-maintenance
     restart: unless-stopped
-    command: ["worker-all"]
+    command: ["worker-maintenance"]
     env_file: .env
     environment:
       - CELERY_CONCURRENCY=1
-      - REQUESTS_CA_BUNDLE=${REQUESTS_CA_BUNDLE:-}
-    volumes:
-      - ${HOST_CA_BUNDLE:-/etc/pki/tls/certs/ca-bundle.crt}:/etc/ssl/certs/ca-certificates.crt:ro
     depends_on:
       postgres:
         condition: service_healthy
