@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Устройства{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+    <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
+    <span class="sep">›</span>
+    <span class="current">Устройства</span>
+</div>
+
+<div class="flex justify-between items-center mb-3">
+    <div class="flex items-center gap-2">
+        <h2>Устройства</h2>
+        <span class="badge badge-neutral">{{ devices | length }}</span>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="flex items-center gap-2 mb-2">
+    <input type="text" id="deviceSearch" class="form-control" placeholder="Поиск по hostname, IP..."
+        style="max-width: 300px;" oninput="filterTable()">
+    <select id="vendorFilter" class="form-select" style="max-width: 180px;" onchange="filterTable()">
+        <option value="">Все вендоры</option>
+        {% for v in vendors %}
+        <option value="{{ v.code }}">{{ v.name }}</option>
+        {% endfor %}
+    </select>
+    <select id="statusFilter" class="form-select" style="max-width: 160px;" onchange="filterTable()">
+        <option value="">Все статусы</option>
+        <option value="pass">✓ Все ОК</option>
+        <option value="fail">✗ С ошибками</option>
+        <option value="none">— Не сканировался</option>
+    </select>
+    {% if latest_scan %}
+    <span class="text-muted text-xs" style="margin-left: auto;">
+        Данные от: {{ latest_scan.started_at.strftime('%d.%m.%Y %H:%M') }}
+    </span>
+    {% endif %}
+</div>
+
+<div class="card fade-in">
+    <div class="table-wrapper">
+        <table class="table" id="devicesTable">
+            <thead>
+                <tr>
+                    <th style="width: 36px;"></th>
+                    <th>Hostname</th>
+                    <th>IP</th>
+                    <th>Vendor</th>
+                    <th>Группа</th>
+                    <th>Compliance</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for device in devices %}
+                {% set comp = device_compliance.get(device.hostname) %}
+                <tr data-hostname="{{ device.hostname | lower }}"
+                    data-ip="{{ (device.ip_address or '') | lower }}"
+                    data-vendor="{{ device.vendor_code or '' }}"
+                    data-status="{% if comp %}{% if comp.failed > 0 or comp.errors > 0 %}fail{% else %}pass{% endif %}{% else %}none{% endif %}">
+                    <td>
+                        {% if comp %}
+                            {% if comp.failed > 0 %}
+                            <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--danger);"></div>
+                            {% elif comp.errors > 0 %}
+                            <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--warning);"></div>
+                            {% else %}
+                            <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--success);"></div>
+                            {% endif %}
+                        {% else %}
+                            <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--text-muted); opacity: 0.3;"></div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('web.device_history', device_id=device.hostname) }}"
+                           style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">
+                            {{ device.hostname }}
+                        </a>
+                    </td>
+                    <td class="text-muted text-sm">{{ device.ip_address or '—' }}</td>
+                    <td>
+                        {% if device.vendor %}
+                        <span class="badge badge-neutral" style="font-size: 0.65rem;">{{ device.vendor.name }}</span>
+                        {% else %}
+                        <span class="text-muted text-xs">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-muted text-sm">{{ device.group.name if device.group else '—' }}</td>
+                    <td>
+                        {% if comp %}
+                        {% set total = comp.passed + comp.failed + comp.errors %}
+                        {% set score = ((comp.passed / total) * 100) | int if total > 0 else 0 %}
+                        <div class="flex items-center gap-2">
+                            <div style="width: 60px; height: 6px; background: var(--bg-tertiary, rgba(255,255,255,0.06)); border-radius: 3px; overflow: hidden;">
+                                <div style="height: 100%; width: {{ score }}%; background: {% if score >= 80 %}var(--success){% elif score >= 50 %}var(--warning){% else %}var(--danger){% endif %};"></div>
+                            </div>
+                            <span class="text-xs {% if score >= 80 %}text-success{% elif score >= 50 %}text-warning{% else %}text-danger{% endif %}" style="font-weight: 600;">
+                                {{ score }}%
+                            </span>
+                            <span class="text-muted text-xs">
+                                ✓{{ comp.passed }} ✗{{ comp.failed }}{% if comp.errors > 0 %} ⚠{{ comp.errors }}{% endif %}
+                            </span>
+                        </div>
+                        {% else %}
+                        <span class="text-muted text-xs">не сканировался</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-right">
+                        <a href="{{ url_for('web.device_history', device_id=device.hostname) }}"
+                           class="btn btn-ghost btn-sm" title="История">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7">
+                        <div class="empty-state">
+                            <p>Устройств нет</p>
+                            <p class="text-muted text-sm">Настройте источник инвентаря в Settings</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function filterTable() {
+        const query = document.getElementById('deviceSearch').value.toLowerCase();
+        const vendor = document.getElementById('vendorFilter').value;
+        const status = document.getElementById('statusFilter').value;
+
+        document.querySelectorAll('#devicesTable tbody tr').forEach(row => {
+            if (!row.dataset.hostname) return; // skip empty-state row
+            const matchText = row.dataset.hostname.includes(query) || row.dataset.ip.includes(query);
+            const matchVendor = !vendor || row.dataset.vendor === vendor;
+            const matchStatus = !status || row.dataset.status === status;
+            row.style.display = (matchText && matchVendor && matchStatus) ? '' : 'none';
+        });
+    }
+</script>
+{% endblock %}

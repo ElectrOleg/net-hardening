@@ -212,6 +212,49 @@ def device_history(device_id):
     )
 
 
+@web_bp.route("/devices")
+def devices_list():
+    """Device inventory with compliance status."""
+    from app.models import Device, DeviceGroup
+    
+    devices = (
+        Device.query
+        .filter_by(is_active=True)
+        .order_by(Device.hostname)
+        .all()
+    )
+    
+    # Get last completed scan for compliance data
+    latest_scan = Scan.query.filter_by(status="completed").order_by(Scan.finished_at.desc()).first()
+    
+    # Build device compliance map from latest scan
+    device_compliance = {}
+    if latest_scan:
+        results = Result.query.filter_by(scan_id=latest_scan.id).all()
+        for r in results:
+            did = r.device_id
+            if did not in device_compliance:
+                device_compliance[did] = {"passed": 0, "failed": 0, "errors": 0}
+            if r.status == "PASS":
+                device_compliance[did]["passed"] += 1
+            elif r.status == "FAIL":
+                device_compliance[did]["failed"] += 1
+            elif r.status == "ERROR":
+                device_compliance[did]["errors"] += 1
+    
+    vendors = Vendor.query.all()
+    groups = DeviceGroup.query.filter_by(is_active=True).all()
+    
+    return render_template(
+        "devices/list.html",
+        devices=devices,
+        device_compliance=device_compliance,
+        latest_scan=latest_scan,
+        vendors=vendors,
+        groups=groups,
+    )
+
+
 @web_bp.route("/rules")
 def rules_list():
     """List of rules."""

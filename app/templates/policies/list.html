@@ -40,7 +40,18 @@
                     <strong>{{ policy.rules.count() }}</strong> правил
                 </span>
                 {% if policy.scope_filter %}
-                <span class="text-xs text-muted" title="{{ policy.scope_filter }}">⚙ scope‑filter</span>
+                    {% if policy.scope_filter.vendor_code is defined %}
+                        {% set vc = policy.scope_filter.vendor_code %}
+                        {% if vc is string %}
+                        <span class="badge badge-neutral" style="font-size: 0.6rem;">{{ vc }}</span>
+                        {% else %}
+                            {% for v in vc %}<span class="badge badge-neutral" style="font-size: 0.6rem;">{{ v }}</span> {% endfor %}
+                        {% endif %}
+                    {% endif %}
+                    {% set other_keys = policy.scope_filter.keys() | list | reject('equalto', 'vendor_code') | list %}
+                    {% if other_keys %}
+                    <span class="text-xs text-muted" title="{{ policy.scope_filter }}">+{{ other_keys | length }} фильтр</span>
+                    {% endif %}
                 {% endif %}
                 <button class="btn btn-ghost btn-icon" onclick="openEditModal('{{ policy.id }}')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -98,17 +109,27 @@
             </div>
 
             <!-- Scope Filter -->
-            <details class="form-group mb-3">
+            <details class="form-group mb-3" id="scopeDetails">
                 <summary style="cursor:pointer;font-weight:600;font-size:.95rem;color:var(--primary);user-select:none;">
                     Scope Filter
-                    <small style="font-weight:400;color:var(--text-secondary);margin-left:.5rem;">location, extra_data и
-                        т.д.</small>
+                    <small style="font-weight:400;color:var(--text-secondary);margin-left:.5rem;">вендоры, location, extra_data</small>
                 </summary>
-                <div id="policyScopeContainer" style="margin-top:.5rem;"></div>
-                <button type="button" class="btn btn-secondary"
-                    style="font-size:.85rem;padding:.35rem .75rem;margin-top:.5rem;" onclick="addPolicyScopeRow()">
-                    + Добавить условие
-                </button>
+
+                <!-- Vendor multi-select -->
+                <div style="margin-top: .75rem;">
+                    <label style="font-size:.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:.35rem;display:block;">Вендоры (OR)</label>
+                    <div id="vendorCheckboxes" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                </div>
+
+                <!-- Generic conditions -->
+                <div style="margin-top: .75rem;">
+                    <label style="font-size:.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:.35rem;display:block;">Условия (AND)</label>
+                    <div id="policyScopeContainer"></div>
+                    <button type="button" class="btn btn-secondary"
+                        style="font-size:.85rem;padding:.35rem .75rem;margin-top:.5rem;" onclick="addPolicyScopeRow()">
+                        + Добавить условие
+                    </button>
+                </div>
             </details>
 
             <div class="flex justify-end gap-2">
@@ -132,11 +153,46 @@
     policiesData['{{ policy.id }}'] = {{ policy.to_dict() | tojson | safe }};
     {% endfor %}
 
-    // Datalist for scope field suggestions
+    // ── Vendor checkboxes (fetched from API) ──────────────────────────
+    let allVendors = [];
+
+    async function loadVendors() {
+        try {
+            const resp = await fetch('/api/vendors');
+            allVendors = await resp.json();
+        } catch (e) { allVendors = []; }
+    }
+
+    function renderVendorCheckboxes(selected = []) {
+        const container = document.getElementById('vendorCheckboxes');
+        container.innerHTML = '';
+        allVendors.forEach(v => {
+            const checked = selected.includes(v.code);
+            const label = document.createElement('label');
+            label.style.cssText = 'display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;' +
+                'border:1px solid var(--border);cursor:pointer;font-size:.8rem;transition:all .15s;' +
+                'user-select:none;' + (checked ? 'background:var(--accent-muted,rgba(99,102,241,.15));border-color:var(--accent,#6366f1);' : '');
+            label.innerHTML = `<input type="checkbox" value="${v.code}" ${checked ? 'checked' : ''} style="accent-color:var(--accent,#6366f1);">
+                <span>${v.name}</span>`;
+            label.querySelector('input').addEventListener('change', function() {
+                label.style.background = this.checked ? 'var(--accent-muted,rgba(99,102,241,.15))' : '';
+                label.style.borderColor = this.checked ? 'var(--accent,#6366f1)' : 'var(--border)';
+            });
+            container.appendChild(label);
+        });
+    }
+
+    function getSelectedVendors() {
+        const checked = [];
+        document.querySelectorAll('#vendorCheckboxes input:checked').forEach(cb => checked.push(cb.value));
+        return checked;
+    }
+
+    // ── Datalist for generic scope fields ──────────────────────────────
     if (!document.getElementById('scopeFieldSuggestions')) {
         const dl = document.createElement('datalist');
         dl.id = 'scopeFieldSuggestions';
-        ['location', 'os_version', 'hardware', 'vendor_code', 'extra_data.department', 'extra_data.environment', 'extra_data.rack', 'extra_data.serial'].forEach(v => {
+        ['location', 'os_version', 'hardware', 'extra_data.department', 'extra_data.environment', 'extra_data.rack', 'extra_data.serial', 'extra_data.dns_name'].forEach(v => {
             const o = document.createElement('option'); o.value = v; dl.appendChild(o);
         });
         document.body.appendChild(dl);
@@ -164,6 +220,16 @@
 
     function getPolicyScopeFilter() {
         const result = {};
+
+        // Vendor codes (array for OR)
+        const vendors = getSelectedVendors();
+        if (vendors.length === 1) {
+            result.vendor_code = vendors[0];
+        } else if (vendors.length > 1) {
+            result.vendor_code = vendors;
+        }
+
+        // Generic conditions
         document.querySelectorAll('#policyScopeContainer .scope-field').forEach(el => {
             const row = el.parentElement;
             const field = el.value.trim();
@@ -178,20 +244,23 @@
         return Object.keys(result).length > 0 ? result : null;
     }
 
-    function openCreateModal() {
+    async function openCreateModal() {
         if (!modal) return;
+        if (allVendors.length === 0) await loadVendors();
         document.getElementById('modalTitle').innerText = 'Создать политику';
         document.getElementById('policyId').value = '';
         document.getElementById('policyName').value = '';
         document.getElementById('policyDesc').value = '';
         document.getElementById('policySeverity').value = 'medium';
         document.getElementById('policyScopeContainer').innerHTML = '';
+        renderVendorCheckboxes([]);
         modal.style.display = 'flex';
         isEditing = false;
     }
 
-    function openEditModal(id) {
+    async function openEditModal(id) {
         if (!modal) return;
+        if (allVendors.length === 0) await loadVendors();
         const policy = policiesData[id];
         if (!policy) return;
 
@@ -201,15 +270,29 @@
         document.getElementById('policyDesc').value = policy.description || '';
         document.getElementById('policySeverity').value = policy.severity;
 
-        // Load scope_filter
+        // Parse scope_filter: extract vendor_code separately
         document.getElementById('policyScopeContainer').innerHTML = '';
+        let selectedVendors = [];
+
         if (policy.scope_filter && typeof policy.scope_filter === 'object') {
             for (const [key, value] of Object.entries(policy.scope_filter)) {
+                if (key === 'vendor_code') {
+                    // vendor_code can be string or array
+                    selectedVendors = Array.isArray(value) ? value : [value];
+                    continue;
+                }
                 let field = key, matchType = 'exact';
                 if (key.endsWith('_regex')) { field = key.slice(0, -6); matchType = 'regex'; }
                 if (key.endsWith('_contains')) { field = key.slice(0, -9); matchType = 'contains'; }
                 addPolicyScopeRow(field, matchType, String(value));
             }
+        }
+
+        renderVendorCheckboxes(selectedVendors);
+
+        // Auto-open scope details if there are selections
+        if (selectedVendors.length > 0 || document.querySelectorAll('#policyScopeContainer .scope-field').length > 0) {
+            document.getElementById('scopeDetails').open = true;
         }
 
         modal.style.display = 'flex';
@@ -259,5 +342,8 @@
             showNotification('Ошибка: ' + e.message, 'danger');
         }
     }
+
+    // Pre-load vendors on page init
+    loadVendors();
 </script>
 {% endblock %}
