@@ -104,31 +104,56 @@ class GitLabProvider(ConfigSourceProvider):
                 metadata={"cached": True, "path": file_path}
             )
         
-        try:
-            logger.debug(f"Fetching config: project={self.project_id} path={file_path} ref={self.branch}")
-            file = self.project.files.get(file_path=file_path, ref=self.branch)
-            content = file.decode().decode("utf-8")
-            
-            # Cache the result
-            self._file_cache[file_path] = content
-            
-            return FetchResult(
-                success=True,
-                config=content,
-                metadata={
-                    "path": file_path,
-                    "ref": self.branch,
-                    "commit_id": file.commit_id,
-                    "last_commit_id": file.last_commit_id
-                }
-            )
-        except Exception as e:
-            logger.warning(f"Failed to fetch '{file_path}' for device {device_id}: {e}")
-            return FetchResult(
-                success=False,
-                config=None,
-                error=f"File not found: {file_path} ({e})"
-            )
+        # Retry on transient SSL/connection errors (common with self-signed certs
+        # under concurrent fork workers). Don't retry on 404-type errors.
+        import time
+        max_retries = 3
+        last_error = None
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.debug(f"Fetching config: project={self.project_id} path={file_path} ref={self.branch}")
+                file = self.project.files.get(file_path=file_path, ref=self.branch)
+                content = file.decode().decode("utf-8")
+                
+                # Cache the result
+                self._file_cache[file_path] = content
+                
+                return FetchResult(
+                    success=True,
+                    config=content,
+                    metadata={
+                        "path": file_path,
+                        "ref": self.branch,
+                        "commit_id": file.commit_id,
+                        "last_commit_id": file.last_commit_id
+                    }
+                )
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+                # Retry only on SSL / connection / timeout errors
+                is_transient = any(k in error_str for k in (
+                    "ssl", "connection", "timeout", "max retries", "reset by peer"
+                ))
+                if is_transient and attempt < max_retries:
+                    logger.warning(
+                        f"Transient error fetching '{file_path}' (attempt {attempt}/{max_retries}): {e}"
+                    )
+                    # Reset GitLab client to get a fresh SSL session
+                    self._project = None
+                    self._gl = None
+                    time.sleep(1)
+                    continue
+                # Not transient or last attempt — give up
+                break
+        
+        logger.warning(f"Failed to fetch '{file_path}' for device {device_id}: {last_error}")
+        return FetchResult(
+            success=False,
+            config=None,
+            error=f"File not found: {file_path} ({last_error})"
+        )
     
     def list_devices(self) -> list[str]:
         """List devices by scanning repository files."""

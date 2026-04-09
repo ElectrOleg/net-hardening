@@ -146,7 +146,7 @@
     </div>
 
     <!-- Expanded Detail (hidden by default) -->
-    <div class="device-detail" style="display: none; border-top: 1px solid var(--hcs-border);">
+    <div class="device-detail" style="display: none; border-top: 1px solid var(--hcs-border);" onclick="event.stopPropagation()">
         <div class="table-wrapper">
             <table class="table" style="margin: 0;">
                 <thead>
@@ -180,7 +180,7 @@
                             {% endif %}
                         </td>
                         <td class="text-muted text-xs"><code>{{ result.rule.logic_type }}</code></td>
-                        <td class="text-muted text-sm" style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <td class="text-muted text-sm" style="max-width: 400px; word-break: break-word;">
                             {{ result.message or '-' }}
                         </td>
                         <td class="text-right">
@@ -256,6 +256,11 @@
 {% block extra_js %}
 <script>
     function toggleDevice(card) {
+        // Don't toggle if user is selecting text
+        const selection = window.getSelection();
+        if (selection && selection.toString().length > 0) {
+            return;
+        }
         const detail = card.querySelector('.device-detail');
         const chevron = card.querySelector('.expand-chevron');
         if (detail.style.display === 'none') {
