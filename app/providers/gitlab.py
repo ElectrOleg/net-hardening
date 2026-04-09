@@ -84,11 +84,27 @@ class GitLabProvider(ConfigSourceProvider):
         """Lazy initialization of GitLab client."""
         if self._gl is None:
             import gitlab
+            from requests.adapters import HTTPAdapter
+            from urllib3.util.retry import Retry
+            
             self._gl = gitlab.Gitlab(
                 self.url,
                 private_token=self.token,
                 ssl_verify=self.ssl_verify,
             )
+            
+            # Add retry adapter to handle intermittent SSL failures in
+            # forked Celery workers (OpenSSL race condition on handshake).
+            retry_strategy = Retry(
+                total=3,
+                connect=3,
+                backoff_factor=1,          # 1s, 2s, 4s
+                allowed_methods=["GET"],   # Safe to retry GET requests
+            )
+            adapter = HTTPAdapter(max_retries=retry_strategy)
+            self._gl.session.mount("https://", adapter)
+            self._gl.session.mount("http://", adapter)
+            
         return self._gl
     
     @property
