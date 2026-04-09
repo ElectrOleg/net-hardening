@@ -422,13 +422,17 @@ class ScannerService:
         # Build a lookup of data sources by id
         ds_by_id = {str(ds.id): ds for ds in data_sources}
         
-        # Cache for fetched configs: data_source_id -> (config, vendor)
-        config_cache: dict[str | None, tuple[str | None, str | None]] = {}
+        # Cache for fetched configs: data_source_id -> (config, vendor, error_detail)
+        config_cache: dict[str | None, tuple[str | None, str | None, str | None]] = {}
         
         device_vendor = None  # Will be set once from first successful fetch
         
-        def _fetch_config_for_source(ds_id: str | None) -> tuple[str | None, str | None]:
-            """Fetch config for a specific source id, or any source if None."""
+        def _fetch_config_for_source(ds_id: str | None) -> tuple[str | None, str | None, str | None]:
+            """Fetch config for a specific source id, or any source if None.
+            
+            Returns:
+                (config, vendor, error_detail) — error_detail is None on success.
+            """
             nonlocal device_vendor
             
             # Build context dict for path_template substitution
@@ -443,25 +447,30 @@ class ScannerService:
                 # Specific data source
                 ds = ds_by_id.get(ds_id)
                 if not ds:
-                    logger.warning(f"DataSource {ds_id} not found for device {device_id}")
-                    return None, None
+                    msg = f"DataSource id={ds_id} not found (deleted or deactivated?)"
+                    logger.warning(f"{msg} — device={device_id}")
+                    return None, None, msg
                 provider = self._create_provider(ds)
-                if provider:
-                    result = provider.fetch_config(device_id, context=device_context)
-                    provider.close()
-                    if result.success:
-                        v = result.metadata.get("vendor") if result.metadata else None
-                        if v and not device_vendor:
-                            device_vendor = v
-                        return result.config, v
-                    else:
-                        logger.warning(
-                            f"Fetch failed for device={device_id} source={ds.name} "
-                            f"(id={ds_id}): {result.error}"
-                        )
-                return None, None
+                if not provider:
+                    msg = f"Failed to create provider for source '{ds.name}' (type={ds.type})"
+                    logger.warning(f"{msg} — device={device_id}")
+                    return None, None, msg
+                result = provider.fetch_config(device_id, context=device_context)
+                provider.close()
+                if result.success:
+                    v = result.metadata.get("vendor") if result.metadata else None
+                    if v and not device_vendor:
+                        device_vendor = v
+                    return result.config, v, None
+                else:
+                    logger.warning(
+                        f"Fetch failed for device={device_id} source={ds.name} "
+                        f"(id={ds_id}): {result.error}"
+                    )
+                    return None, None, result.error
             else:
                 # Any available source (legacy behavior)
+                fetch_errors = []
                 for ds in data_sources:
                     provider = self._create_provider(ds)
                     if provider:
@@ -471,14 +480,16 @@ class ScannerService:
                             if v and not device_vendor:
                                 device_vendor = v
                             provider.close()
-                            return result.config, v
+                            return result.config, v, None
                         else:
+                            fetch_errors.append(f"{ds.name}: {result.error}")
                             logger.warning(
                                 f"Fetch failed for device={device_id} source={ds.name} "
                                 f"(type={ds.type}): {result.error}"
                             )
                         provider.close()
-                return None, None
+                error_summary = "; ".join(fetch_errors) if fetch_errors else "no active data sources"
+                return None, None, error_summary
         
         # --- Process each rule group ---
         for ds_key, group_rules in rule_groups.items():
@@ -486,11 +497,14 @@ class ScannerService:
             if ds_key not in config_cache:
                 config_cache[ds_key] = _fetch_config_for_source(ds_key)
             
-            config, _vendor = config_cache[ds_key]
+            config, _vendor, _fetch_error = config_cache[ds_key]
             
             if config is None:
                 # Config unavailable for this source — mark all rules as ERROR
                 ds_name = ds_by_id[ds_key].name if ds_key and ds_key in ds_by_id else "any"
+                error_msg = f"Could not fetch configuration from source: {ds_name}"
+                if _fetch_error:
+                    error_msg += f" ({_fetch_error})"
                 for rule in group_rules:
                     result = Result(
                         scan_id=scan.id,
@@ -498,7 +512,7 @@ class ScannerService:
                         device_uuid=device_uuid,
                         rule_id=rule.id,
                         status="ERROR",
-                        message=f"Could not fetch configuration from source: {ds_name}"
+                        message=error_msg
                     )
                     db.session.add(result)
                     errors += 1
