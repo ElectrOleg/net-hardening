@@ -322,8 +322,11 @@ class ScannerService:
             device_value = self._resolve_device_field(device_obj, extra, cond_key)
             
             if device_value is None:
-                # Field doesn't exist on device → skip this condition (permissive)
-                continue
+                # Field doesn't exist on device → condition fails (strict)
+                logger.debug(
+                    f"Applicability reject: field '{cond_key}' not found on device {device_obj.hostname}"
+                )
+                return False
             
             device_value_str = str(device_value)
             cond_value_str = str(cond_value)

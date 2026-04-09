@@ -116,15 +116,21 @@ class BlockMatchChecker(RuleChecker):
         children_combined = "\n".join(children_text)
         
         for rule in child_rules:
-            pattern = rule["pattern"]
+            pattern = rule.get("pattern")
+            if not pattern:
+                continue  # Skip rules with no pattern
             mode = rule.get("mode", "must_exist")
             is_regex = rule.get("is_regex", True)  # Default to regex for flexibility
             
             # Search in children
-            if is_regex:
-                found = bool(re.search(pattern, children_combined, re.MULTILINE))
-            else:
-                found = any(pattern in child for child in children_text)
+            try:
+                if is_regex:
+                    found = bool(re.search(pattern, children_combined, re.MULTILINE))
+                else:
+                    found = any(pattern in child for child in children_text)
+            except (re.error, TypeError) as e:
+                failures.append(f"Invalid pattern '{pattern}': {e}")
+                continue
             
             if mode == "must_exist" and not found:
                 failures.append(f"Missing: {pattern}")
