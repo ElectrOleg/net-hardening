@@ -38,12 +38,46 @@ class GitLabProvider(ConfigSourceProvider):
         ssl_val = config.get("ssl_verify", True)
         if isinstance(ssl_val, str) and ssl_val.lower() in ("false", "0", "no"):
             self.ssl_verify = False
-        else:
+        elif isinstance(ssl_val, str) and ssl_val not in ("true", "1", "yes", "True"):
+            # Explicit path to CA bundle
             self.ssl_verify = ssl_val
+        else:
+            # ssl_verify=True: resolve actual CA bundle path so we use the
+            # system store (which includes mounted self-signed CAs) instead of
+            # certifi's public-only bundle that python-requests defaults to.
+            self.ssl_verify = self._resolve_ca_bundle()
         
         self._gl = None
         self._project = None
         self._file_cache: dict[str, str] = {}
+    
+    @staticmethod
+    def _resolve_ca_bundle():
+        """Find the system CA bundle for SSL verification.
+        
+        Priority:
+        1. REQUESTS_CA_BUNDLE env var (if non-empty and file exists)
+        2. Well-known system CA paths (RHEL, Debian/Ubuntu, Alpine)
+        3. Fallback to True (uses certifi, public CAs only)
+        """
+        import os
+        
+        # 1. Env var
+        env_ca = os.environ.get("REQUESTS_CA_BUNDLE", "")
+        if env_ca and os.path.isfile(env_ca):
+            return env_ca
+        
+        # 2. Common system paths
+        for ca_path in (
+            "/etc/ssl/certs/ca-certificates.crt",    # Debian/Ubuntu/Alpine
+            "/etc/pki/tls/certs/ca-bundle.crt",       # RHEL/CentOS
+            "/etc/ssl/ca-bundle.pem",                  # openSUSE
+        ):
+            if os.path.isfile(ca_path):
+                return ca_path
+        
+        # 3. Fallback
+        return True
     
     @property
     def gl(self):
@@ -104,56 +138,31 @@ class GitLabProvider(ConfigSourceProvider):
                 metadata={"cached": True, "path": file_path}
             )
         
-        # Retry on transient SSL/connection errors (common with self-signed certs
-        # under concurrent fork workers). Don't retry on 404-type errors.
-        import time
-        max_retries = 3
-        last_error = None
-        
-        for attempt in range(1, max_retries + 1):
-            try:
-                logger.debug(f"Fetching config: project={self.project_id} path={file_path} ref={self.branch}")
-                file = self.project.files.get(file_path=file_path, ref=self.branch)
-                content = file.decode().decode("utf-8")
-                
-                # Cache the result
-                self._file_cache[file_path] = content
-                
-                return FetchResult(
-                    success=True,
-                    config=content,
-                    metadata={
-                        "path": file_path,
-                        "ref": self.branch,
-                        "commit_id": file.commit_id,
-                        "last_commit_id": file.last_commit_id
-                    }
-                )
-            except Exception as e:
-                last_error = e
-                error_str = str(e).lower()
-                # Retry only on SSL / connection / timeout errors
-                is_transient = any(k in error_str for k in (
-                    "ssl", "connection", "timeout", "max retries", "reset by peer"
-                ))
-                if is_transient and attempt < max_retries:
-                    logger.warning(
-                        f"Transient error fetching '{file_path}' (attempt {attempt}/{max_retries}): {e}"
-                    )
-                    # Reset GitLab client to get a fresh SSL session
-                    self._project = None
-                    self._gl = None
-                    time.sleep(1)
-                    continue
-                # Not transient or last attempt — give up
-                break
-        
-        logger.warning(f"Failed to fetch '{file_path}' for device {device_id}: {last_error}")
-        return FetchResult(
-            success=False,
-            config=None,
-            error=f"File not found: {file_path} ({last_error})"
-        )
+        try:
+            logger.debug(f"Fetching config: project={self.project_id} path={file_path} ref={self.branch}")
+            file = self.project.files.get(file_path=file_path, ref=self.branch)
+            content = file.decode().decode("utf-8")
+            
+            # Cache the result
+            self._file_cache[file_path] = content
+            
+            return FetchResult(
+                success=True,
+                config=content,
+                metadata={
+                    "path": file_path,
+                    "ref": self.branch,
+                    "commit_id": file.commit_id,
+                    "last_commit_id": file.last_commit_id
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Failed to fetch '{file_path}' for device {device_id}: {e}")
+            return FetchResult(
+                success=False,
+                config=None,
+                error=f"File not found: {file_path} ({e})"
+            )
     
     def list_devices(self) -> list[str]:
         """List devices by scanning repository files."""
