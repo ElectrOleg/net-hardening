@@ -105,6 +105,7 @@ class GitLabProvider(ConfigSourceProvider):
             )
         
         try:
+            logger.debug(f"Fetching config: project={self.project_id} path={file_path} ref={self.branch}")
             file = self.project.files.get(file_path=file_path, ref=self.branch)
             content = file.decode().decode("utf-8")
             
@@ -122,11 +123,11 @@ class GitLabProvider(ConfigSourceProvider):
                 }
             )
         except Exception as e:
-            logger.error(f"Failed to fetch config for {device_id}: {e}")
+            logger.warning(f"Failed to fetch '{file_path}' for device {device_id}: {e}")
             return FetchResult(
                 success=False,
                 config=None,
-                error=str(e)
+                error=f"File not found: {file_path} ({e})"
             )
     
     def list_devices(self) -> list[str]:

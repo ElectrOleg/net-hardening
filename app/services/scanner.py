@@ -454,6 +454,11 @@ class ScannerService:
                         if v and not device_vendor:
                             device_vendor = v
                         return result.config, v
+                    else:
+                        logger.warning(
+                            f"Fetch failed for device={device_id} source={ds.name} "
+                            f"(id={ds_id}): {result.error}"
+                        )
                 return None, None
             else:
                 # Any available source (legacy behavior)
@@ -467,6 +472,11 @@ class ScannerService:
                                 device_vendor = v
                             provider.close()
                             return result.config, v
+                        else:
+                            logger.warning(
+                                f"Fetch failed for device={device_id} source={ds.name} "
+                                f"(type={ds.type}): {result.error}"
+                            )
                         provider.close()
                 return None, None
         
