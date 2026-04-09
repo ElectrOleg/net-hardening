@@ -47,7 +47,7 @@ class BlockMatchChecker(RuleChecker):
             parse = CiscoConfParse(config.splitlines())
             
             # Find all parent blocks
-            parent_objs = parse.find_parent_objects(parent_pattern)
+            parent_objs = parse.find_objects(parent_pattern)
             
             if not parent_objs:
                 return CheckResult.success(
