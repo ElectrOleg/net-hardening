@@ -132,6 +132,17 @@ class ScannerService:
                 # Treat None and {} as "no filter"
                 policy_filters[pid] = sf if (isinstance(sf, dict) and sf) else None
         
+        # Expand vendor set with vendors from policy scope_filters.
+        # If a policy explicitly targets vendor_code: ["cisco_ios", "custom"],
+        # those vendors must pass the pre-filter to reach scope_filter check.
+        for sf in policy_filters.values():
+            if sf and "vendor_code" in sf:
+                vc = sf["vendor_code"]
+                if isinstance(vc, list):
+                    rule_vendors.update(vc)
+                elif isinstance(vc, str) and vc != "any":
+                    rule_vendors.add(vc)
+        
         # Debug: log what we're filtering by
         has_any_scope_filter = any(sf is not None for sf in policy_filters.values())
         logger.info(
@@ -150,6 +161,7 @@ class ScannerService:
                 continue
             
             # 1. Vendor filter: device must match at least one rule's vendor_code
+            #    OR any policy scope_filter vendor_code
             if rule_vendors and device.vendor_code not in rule_vendors:
                 skipped_vendor += 1
                 continue
