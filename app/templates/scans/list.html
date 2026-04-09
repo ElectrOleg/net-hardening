@@ -207,5 +207,37 @@
     window.onclick = function(event) {
         if (event.target == scanModal) closeScanModal();
     };
+
+    // ── Auto-refresh while any scan is running ──────────────────────
+    (function() {
+        // Find all running scan IDs from the table
+        const runningScans = [];
+        document.querySelectorAll('tr').forEach(row => {
+            const cancelBtn = row.querySelector('button[onclick*="cancelScan"]');
+            if (cancelBtn) {
+                const match = cancelBtn.getAttribute('onclick').match(/cancelScan\('([^']+)'\)/);
+                if (match) runningScans.push(match[1]);
+            }
+        });
+        if (runningScans.length === 0) return;
+
+        let pollTimer;
+        async function pollStatus() {
+            try {
+                for (const scanId of runningScans) {
+                    const resp = await fetch(`/api/scans/${scanId}/status`);
+                    if (!resp.ok) continue;
+                    const data = await resp.json();
+                    if (data.status !== 'running' && data.status !== 'pending') {
+                        clearInterval(pollTimer);
+                        showNotification('Сканирование завершено', 'success');
+                        setTimeout(() => window.location.reload(), 800);
+                        return;
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        }
+        pollTimer = setInterval(pollStatus, 3000);
+    })();
 </script>
 {% endblock %}

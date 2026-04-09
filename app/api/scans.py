@@ -23,6 +23,20 @@ def get_scan(scan_id):
     return jsonify(scan.to_dict())
 
 
+@api_bp.route("/scans/<uuid:scan_id>/status", methods=["GET"])
+def get_scan_status(scan_id):
+    """Lightweight status endpoint for polling (no joins, no results)."""
+    scan = Scan.query.get_or_404(scan_id)
+    return jsonify({
+        "status": scan.status,
+        "passed_count": scan.passed_count,
+        "failed_count": scan.failed_count,
+        "error_count": scan.error_count,
+        "total_devices": scan.total_devices,
+        "score": scan.score,
+    })
+
+
 @api_bp.route("/scans", methods=["POST"])
 @require_auth
 def start_scan():

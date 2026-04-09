@@ -102,7 +102,10 @@
                 <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--hcs-success); flex-shrink: 0;"></div>
                 {% endif %}
 
-                <strong style="font-family: var(--hcs-font-mono); font-size: 0.9rem;">{{ device_id }}</strong>
+                <a href="{{ url_for('web.device_history', device_id=device_id) }}"
+                   onclick="event.stopPropagation()"
+                   style="font-family: var(--hcs-font-mono); font-size: 0.9rem; font-weight: 700; color: var(--text-primary); text-decoration: none;"
+                   title="История compliance">{{ device_id }}</a>
 
                 <!-- Policy badges -->
                 {% for policy_name in info.policies %}
@@ -336,5 +339,31 @@
 
     // Init
     setFilter('all');
+
+    // ── Auto-refresh while scan is running ──────────────────────────
+    (function() {
+        const scanStatus = '{{ scan.status }}';
+        const scanId = '{{ scan.id }}';
+        if (scanStatus !== 'running' && scanStatus !== 'pending') return;
+
+        let pollTimer;
+        async function pollStatus() {
+            try {
+                const resp = await fetch(`/api/scans/${scanId}/status`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+                    clearInterval(pollTimer);
+                    showNotification(
+                        data.status === 'completed' ? 'Сканирование завершено' : 'Сканирование ' + data.status,
+                        data.status === 'completed' ? 'success' : 'warning'
+                    );
+                    setTimeout(() => window.location.reload(), 1000);
+                }
+            } catch (e) { /* ignore network errors during polling */ }
+        }
+
+        pollTimer = setInterval(pollStatus, 3000);
+    })();
 </script>
 {% endblock %}

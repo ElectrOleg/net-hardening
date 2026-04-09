@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}История — {{ device_id }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+    <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('web.scans_list') }}">Сканирования</a>
+    <span class="sep">›</span>
+    <span class="current">{{ device_id }}</span>
+</div>
+
+<div class="flex justify-between items-center mb-3">
+    <div class="flex items-center gap-2">
+        <h2 style="font-family: var(--hcs-font-mono, monospace);">{{ device_id }}</h2>
+        <span class="badge badge-neutral">Compliance History</span>
+    </div>
+</div>
+
+{% if scan_summaries %}
+
+<!-- Score Trend -->
+<div class="card mb-2 fade-in">
+    <div class="card-header">
+        <h4>Тренд Compliance Score</h4>
+        <span class="text-muted text-sm">последние {{ scan_summaries | length }} сканирований</span>
+    </div>
+    <div class="card-body" style="padding: 1.5rem;">
+        <div style="display: flex; align-items: flex-end; gap: 4px; height: 80px;">
+            {% for s in scan_summaries | reverse %}
+            {% set bar_h = (s.score * 0.75) | int %}
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <span class="text-xs {% if s.score >= 80 %}text-success{% elif s.score >= 50 %}text-warning{% else %}text-danger{% endif %}"
+                    style="font-weight: 600; font-size: 0.65rem;">{{ s.score | int }}%</span>
+                <div style="width: 100%; max-width: 48px; height: {{ bar_h }}px; min-height: 4px;
+                     border-radius: 4px 4px 2px 2px;
+                     background: {% if s.score >= 80 %}var(--success){% elif s.score >= 50 %}var(--warning){% else %}var(--danger){% endif %};
+                     opacity: 0.85; transition: all 0.3s;"
+                     title="{{ s.scan.started_at.strftime('%d.%m.%Y %H:%M') }}: {{ s.score }}% (✓{{ s.passed }} ✗{{ s.failed }} ⚠{{ s.errors }})">
+                </div>
+                <span class="text-muted" style="font-size: 0.55rem; white-space: nowrap;">{{ s.scan.started_at.strftime('%d.%m') }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Scan History Table -->
+<div class="card mb-2 fade-in" style="animation-delay: 60ms;">
+    <div class="card-header">
+        <h4>Результаты по сканам</h4>
+    </div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Score</th>
+                    <th><span class="text-success">✓</span></th>
+                    <th><span class="text-danger">✗</span></th>
+                    <th><span class="text-warning">⚠</span></th>
+                    <th>Всего</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in scan_summaries %}
+                <tr>
+                    <td>{{ s.scan.started_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                    <td>
+                        <strong class="{% if s.score >= 80 %}text-success{% elif s.score >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                            {{ s.score }}%
+                        </strong>
+                    </td>
+                    <td class="text-success font-bold">{{ s.passed }}</td>
+                    <td class="text-danger font-bold">{{ s.failed }}</td>
+                    <td class="text-warning">{{ s.errors }}</td>
+                    <td class="text-muted">{{ s.total }}</td>
+                    <td class="text-right">
+                        <a href="{{ url_for('web.scan_detail', scan_id=s.scan.id) }}" class="btn btn-ghost btn-sm">
+                            Подробнее
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Rule Timeline Matrix -->
+{% if scans | length > 1 %}
+<div class="card fade-in" style="animation-delay: 120ms;">
+    <div class="card-header">
+        <h4>Изменения по правилам</h4>
+        <span class="text-muted text-sm">столбцы — сканирования (новые → старые)</span>
+    </div>
+    <div class="table-wrapper">
+        <table class="table" style="font-size: 0.8rem;">
+            <thead>
+                <tr>
+                    <th style="min-width: 200px;">Правило</th>
+                    {% for scan in scans %}
+                    <th style="text-align: center; white-space: nowrap; font-size: 0.65rem; padding: 0.4rem;">
+                        {{ scan.started_at.strftime('%d.%m') }}<br>
+                        <span class="text-muted">{{ scan.started_at.strftime('%H:%M') }}</span>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for rid, info in rule_timeline.items() %}
+                <tr>
+                    <td>
+                        <strong class="text-sm">{{ info.title }}</strong>
+                        {% if info.severity %}
+                        <span class="badge {% if info.severity == 'critical' %}badge-danger{% elif info.severity == 'high' %}badge-warning{% else %}badge-neutral{% endif %}"
+                              style="font-size: 0.55rem; margin-left: 4px;">{{ info.severity }}</span>
+                        {% endif %}
+                    </td>
+                    {% for scan in scans %}
+                    {% set st = info.results.get(scan.id | string) %}
+                    <td style="text-align: center; padding: 0.4rem;">
+                        {% if st == 'PASS' %}
+                        <span style="color: var(--success); font-weight: 700;" title="PASS">✓</span>
+                        {% elif st == 'FAIL' %}
+                        <span style="color: var(--danger); font-weight: 700;" title="FAIL">✗</span>
+                        {% elif st == 'ERROR' %}
+                        <span style="color: var(--warning); font-weight: 700;" title="ERROR">⚠</span>
+                        {% elif st == 'SKIPPED' %}
+                        <span style="color: var(--text-muted);" title="SKIPPED">⊘</span>
+                        {% else %}
+                        <span style="color: var(--text-muted); opacity: 0.3;">—</span>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+<div class="card">
+    <div class="empty-state">
+        <p>Нет данных для устройства <strong>{{ device_id }}</strong></p>
+        <p class="text-muted text-sm">Запустите сканирование, чтобы увидеть результаты</p>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

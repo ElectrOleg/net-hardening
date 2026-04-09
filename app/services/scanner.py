@@ -299,6 +299,10 @@ class ScannerService:
         - "extra_data.key"       → exact match against Device.extra_data["key"]
         - "extra_data.key_regex" → regex match against Device.extra_data["key"]
         
+        Condition values:
+        - string  → single match
+        - list    → OR match (device matches if ANY value in list matches)
+        
         All conditions are AND-joined. If device_obj is None, conditions
         referencing device fields are skipped (permissive).
         """
@@ -328,23 +332,31 @@ class ScannerService:
                 )
                 return False
             
-            device_value_str = str(device_value)
-            cond_value_str = str(cond_value)
+            device_value_str = str(device_value).lower()
+            
+            # Normalize cond_value to a list for uniform handling
+            cond_values = cond_value if isinstance(cond_value, list) else [cond_value]
             
             # Determine match type from key suffix
             if cond_key.endswith("_regex"):
-                try:
-                    if not re_module.search(cond_value_str, device_value_str):
-                        return False
-                except re_module.error:
-                    logger.warning(f"Invalid regex in rule applicability: {cond_value_str}")
+                # Regex: match if ANY pattern matches
+                matched = False
+                for cv in cond_values:
+                    try:
+                        if re_module.search(str(cv), str(device_value)):
+                            matched = True
+                            break
+                    except re_module.error:
+                        logger.warning(f"Invalid regex in rule applicability: {cv}")
+                if not matched:
                     return False
             elif cond_key.endswith("_contains"):
-                if cond_value_str.lower() not in device_value_str.lower():
+                # Contains: match if ANY substring found
+                if not any(str(cv).lower() in device_value_str for cv in cond_values):
                     return False
             else:
-                # Exact match (case-insensitive for strings)
-                if device_value_str.lower() != cond_value_str.lower():
+                # Exact match (case-insensitive): match if ANY value equals
+                if not any(str(cv).lower() == device_value_str for cv in cond_values):
                     return False
         
         return True

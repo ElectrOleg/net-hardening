@@ -147,6 +147,71 @@ def scan_detail(scan_id):
     return render_template("scans/detail.html", scan=scan, devices=devices)
 
 
+@web_bp.route("/scans/device/<device_id>/history")
+def device_history(device_id):
+    """Compliance history for a single device across scans."""
+    from collections import OrderedDict
+    
+    # All completed scans that include this device, newest first
+    scan_ids_with_device = (
+        db.session.query(Result.scan_id)
+        .filter(Result.device_id == device_id)
+        .distinct()
+        .subquery()
+    )
+    scans = (
+        Scan.query
+        .filter(Scan.id.in_(scan_ids_with_device))
+        .filter(Scan.status == "completed")
+        .order_by(Scan.started_at.desc())
+        .limit(20)
+        .all()
+    )
+    
+    # Build per-scan summary + per-rule timeline
+    scan_summaries = []
+    rule_timeline = OrderedDict()  # rule_id -> {title, severity, scans: [{scan_id, status}]}
+    
+    for scan in scans:
+        results = Result.query.filter_by(
+            scan_id=scan.id,
+            device_id=device_id
+        ).all()
+        
+        passed = sum(1 for r in results if r.status == "PASS")
+        failed = sum(1 for r in results if r.status == "FAIL")
+        errors = sum(1 for r in results if r.status == "ERROR")
+        total = passed + failed + errors
+        score = round((passed / total) * 100, 1) if total > 0 else 100.0
+        
+        scan_summaries.append({
+            "scan": scan,
+            "passed": passed,
+            "failed": failed,
+            "errors": errors,
+            "total": total,
+            "score": score,
+        })
+        
+        for r in results:
+            rid = str(r.rule_id)
+            if rid not in rule_timeline:
+                rule_timeline[rid] = {
+                    "title": r.rule.title if r.rule else rid,
+                    "severity": r.rule.severity if r.rule else None,
+                    "results": {},
+                }
+            rule_timeline[rid]["results"][str(scan.id)] = r.status
+    
+    return render_template(
+        "scans/device_history.html",
+        device_id=device_id,
+        scans=scans,
+        scan_summaries=scan_summaries,
+        rule_timeline=rule_timeline,
+    )
+
+
 @web_bp.route("/rules")
 def rules_list():
     """List of rules."""

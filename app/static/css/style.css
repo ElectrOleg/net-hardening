@@ -497,6 +497,7 @@ html.sidebar-collapsed .main-area {
   border: none;
   border-radius: var(--r-md);
   color: var(--text-inverse);
+  font-family: inherit;
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
