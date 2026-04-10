@@ -9,6 +9,8 @@ from app.engine.simple_match import SimpleMatchChecker
 from app.engine.block_match import BlockMatchChecker
 from app.engine.structure_check import StructureChecker
 from app.engine.xml_check import XMLChecker
+from app.engine.block_validate import BlockValidateChecker
+from app.engine.set_match import SetMatchChecker
 
 import re
 import json
@@ -106,6 +108,8 @@ class CompositeChecker(RuleChecker):
         "block_match": BlockMatchChecker,
         "structure_check": StructureChecker,
         "xml_check": XMLChecker,
+        "block_validate": BlockValidateChecker,
+        "set_match": SetMatchChecker,
     }
     
     def __init__(self):

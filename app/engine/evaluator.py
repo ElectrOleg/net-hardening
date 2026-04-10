@@ -9,6 +9,8 @@ from app.engine.textfsm_check import TextFSMChecker
 from app.engine.xml_check import XMLChecker
 from app.engine.advanced_block import AdvancedBlockChecker
 from app.engine.composite_check import CompositeChecker
+from app.engine.block_validate import BlockValidateChecker
+from app.engine.set_match import SetMatchChecker
 
 
 class RuleEvaluator:
@@ -34,6 +36,10 @@ class RuleEvaluator:
         "nested_block_check": AdvancedBlockChecker,  # Alias
         "composite_check": CompositeChecker,
         "multi_section_check": CompositeChecker,  # Alias
+        "block_validate": BlockValidateChecker,
+        "block_syntax_check": BlockValidateChecker,  # Alias
+        "set_match": SetMatchChecker,
+        "set_check": SetMatchChecker,  # Alias
     }
     
     def __init__(self):

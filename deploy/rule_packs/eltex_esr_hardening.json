@@ -1,0 +1,451 @@
+{
+  "_comment": "HCS Rule Pack: Eltex ESR Router Hardening Checks (полное покрытие 20/20 из legacy EltexEsrChecks)",
+  "rules": [
+    {
+      "title": "Required object-group DenyNet",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*object-group\\s+network\\s+DenyNet\\s*$",
+        "child_rules": [
+          {"pattern": "ip prefix 192.168.0.0/16", "mode": "must_exist"},
+          {"pattern": "ip prefix 172.29.0.0/16", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "high",
+      "description": "Object-group network DenyNet должен содержать все запрещённые сети.",
+      "remediation": "object-group network DenyNet\n ip prefix 192.168.0.0/16\n ip prefix 172.29.0.0/16\nexit"
+    },
+    {
+      "title": "Required object-group NTP_list",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*object-group\\s+network\\s+NTP_list\\s*$",
+        "child_rules": [
+          {"pattern": "ip prefix 172.31.12.20/32", "mode": "must_exist"},
+          {"pattern": "ip prefix 172.31.13.20/32", "mode": "must_exist"},
+          {"pattern": "ip prefix 10.164.91.32/32", "mode": "must_exist"},
+          {"pattern": "ip prefix 10.164.91.36/32", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "medium",
+      "description": "Object-group network NTP_list должен содержать все разрешённые NTP-серверы.",
+      "remediation": "object-group network NTP_list\n ip prefix 172.31.12.20/32\n ip prefix 172.31.13.20/32\n ip prefix 10.164.91.32/32\n ip prefix 10.164.91.36/32\nexit"
+    },
+    {
+      "title": "Required object-group SNMP_IN",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*object-group\\s+network\\s+SNMP_IN\\s*$",
+        "child_rules": [
+          {"pattern": "ip address-range 172.31.12.0-172.31.15.255", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "high",
+      "description": "Object-group network SNMP_IN должен содержать допустимые сети для SNMP.",
+      "remediation": "object-group network SNMP_IN\n ip address-range 172.31.12.0-172.31.15.255\nexit"
+    },
+    {
+      "title": "Required object-group ssh_in",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*object-group\\s+network\\s+ssh_in\\s*$",
+        "child_rules": [
+          {"pattern": "ip prefix 172.31.12.0/22", "mode": "must_exist"},
+          {"pattern": "ip prefix 195.19.94.0/23", "mode": "must_exist"},
+          {"pattern": "ip prefix 192.168.202.3/32", "mode": "must_exist"},
+          {"pattern": "ip prefix 10.164.98.74/32", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "critical",
+      "description": "Object-group network ssh_in должен содержать все разрешённые SSH-источники.",
+      "remediation": "object-group network ssh_in\n ip prefix 172.31.12.0/22\n ip prefix 195.19.94.0/23\n ... (полный список)\nexit"
+    },
+    {
+      "title": "Required object-group trust_hosts",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*object-group\\s+network\\s+trust_hosts\\s*$",
+        "child_rules": [
+          {"pattern": "ip prefix 195.19.94.0/23", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "high",
+      "description": "Object-group network trust_hosts должен содержать доверенные хосты.",
+      "remediation": "object-group network trust_hosts\n ip prefix 195.19.94.0/23\nexit"
+    },
+    {
+      "title": "Syslog base configuration",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^syslog max-files 5", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^syslog file-size 1024", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^syslog sequence-numbers", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^syslog reload debugging", "match_mode": "must_exist", "is_regex": true}}
+        ],
+        "operator": "all"
+      },
+      "severity": "medium",
+      "description": "Базовые параметры syslog: max-files, file-size, sequence-numbers, reload debugging.",
+      "remediation": "syslog max-files 5\nsyslog file-size 1024\nsyslog sequence-numbers\nsyslog reload debugging"
+    },
+    {
+      "title": "Syslog file severity info",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*syslog\\s+file\\s+tmpsys:syslog/default\\s*$",
+        "child_rules": [
+          {"pattern": "severity info", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "medium",
+      "description": "Syslog file должен иметь severity info для записи всех информационных сообщений.",
+      "remediation": "syslog file tmpsys:syslog/default\n severity info\nexit"
+    },
+    {
+      "title": "Syslog console severity none",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*syslog\\s+console\\s*$",
+        "child_rules": [
+          {"pattern": "severity none", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "medium",
+      "description": "Syslog console должен быть отключен (severity none) для безопасности.",
+      "remediation": "syslog console\n severity none\nexit"
+    },
+    {
+      "title": "Syslog monitor severity none",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*syslog\\s+monitor\\s*$",
+        "child_rules": [
+          {"pattern": "severity none", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "medium",
+      "description": "Syslog monitor должен быть отключен (severity none).",
+      "remediation": "syslog monitor\n severity none\nexit"
+    },
+    {
+      "title": "Logging configuration compliance",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^logging syslog configuration", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^logging login on-failure", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^logging firewall configuration", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^logging aaa configuration", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^logging acl configuration", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^logging userinfo", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^router bgp log-neighbor-changes", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^ip firewall logging interval 30", "match_mode": "must_exist", "is_regex": true}}
+        ],
+        "operator": "all"
+      },
+      "severity": "high",
+      "description": "Все обязательные настройки логирования: syslog, login, firewall, AAA, ACL, userinfo, BGP, firewall interval.",
+      "remediation": "logging syslog configuration\nlogging login on-failure\nlogging firewall configuration\nlogging aaa configuration\nlogging acl configuration\nlogging userinfo\nrouter bgp log-neighbor-changes\nip firewall logging interval 30"
+    },
+    {
+      "title": "Syslog to 4 required hosts",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^\\s*syslog\\s+host\\s+vs1063", "match_mode": "must_exist", "is_regex": true, "case_insensitive": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^\\s*syslog\\s+host\\s+vs1068", "match_mode": "must_exist", "is_regex": true, "case_insensitive": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^\\s*syslog\\s+host\\s+vs2504", "match_mode": "must_exist", "is_regex": true, "case_insensitive": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^\\s*syslog\\s+host\\s+soc", "match_mode": "must_exist", "is_regex": true, "case_insensitive": true}}
+        ],
+        "operator": "all"
+      },
+      "severity": "high",
+      "description": "Логи должны отправляться на все 4 обязательных syslog-хоста: vs1063, vs1068, vs2504, soc.",
+      "remediation": "syslog host vs1063\nsyslog host vs1068\nsyslog host vs2504\nsyslog host soc"
+    },
+    {
+      "title": "Tech-support disabled",
+      "vendor_code": "eltex_esr",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^\\s*tech-support\\s+login\\s+enable\\s*$",
+        "match_mode": "must_not_exist",
+        "is_regex": true,
+        "case_insensitive": true
+      },
+      "severity": "high",
+      "description": "Команда tech-support login enable не должна присутствовать — сервисный доступ запрещён.",
+      "remediation": "no tech-support login enable"
+    },
+    {
+      "title": "Line console TACACS & exec-timeout",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*line\\s+console\\s*$",
+        "child_rules": [
+          {"pattern": "exec-timeout 15", "mode": "must_exist"},
+          {"pattern": "login authentication tacacs", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "critical",
+      "description": "Line console должен использовать TACACS аутентификацию и exec-timeout 15 минут.",
+      "remediation": "line console\n exec-timeout 15\n login authentication tacacs\nexit"
+    },
+    {
+      "title": "Line SSH TACACS & exec-timeout",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*line\\s+ssh\\s*$",
+        "child_rules": [
+          {"pattern": "exec-timeout 15", "mode": "must_exist"},
+          {"pattern": "login authentication tacacs", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "critical",
+      "description": "Line SSH должен использовать TACACS аутентификацию и exec-timeout 15 минут.",
+      "remediation": "line ssh\n exec-timeout 15\n login authentication tacacs\nexit"
+    },
+    {
+      "title": "BFD parameters",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^ip bfd log-adjacency-changes", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^ip bfd min-rx-interval 1000", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^ip bfd min-tx-interval 1000", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^ip bfd multiplier 20", "match_mode": "must_exist", "is_regex": true}}
+        ],
+        "operator": "all"
+      },
+      "severity": "medium",
+      "description": "BFD параметры: log-adjacency-changes, min-rx/tx 1000, multiplier 20.",
+      "remediation": "ip bfd log-adjacency-changes\nip bfd min-rx-interval 1000\nip bfd min-tx-interval 1000\nip bfd multiplier 20"
+    },
+    {
+      "title": "Bridge 50 security-zone LAN",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*bridge\\s+50\\s*$",
+        "child_rules": [
+          {"pattern": "vlan 50", "mode": "must_exist"},
+          {"pattern": "history statistics", "mode": "must_exist"},
+          {"pattern": "security-zone lan", "mode": "must_exist"},
+          {"pattern": "enable", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "high",
+      "description": "Bridge 50 должен содержать vlan 50, history statistics, security-zone lan, enable.",
+      "remediation": "bridge 50\n vlan 50\n history statistics\n security-zone lan\n enable\nexit"
+    },
+    {
+      "title": "Unused port Gi1/0/1 disabled",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*interface\\s+gigabitethernet\\s+1/0/1\\s*$",
+        "child_rules": [
+          {"pattern": "shutdown", "mode": "must_exist"},
+          {"pattern": "* disabled *", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "high",
+      "description": "Неиспользуемый порт Gi1/0/1 должен быть shutdown с описанием '* disabled *'.",
+      "remediation": "interface gigabitethernet 1/0/1\n shutdown\n description \"* disabled *\"\nexit"
+    },
+    {
+      "title": "Unused port Gi1/0/2 disabled",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*interface\\s+gigabitethernet\\s+1/0/2\\s*$",
+        "child_rules": [
+          {"pattern": "shutdown", "mode": "must_exist"},
+          {"pattern": "* disabled *", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "high",
+      "description": "Неиспользуемый порт Gi1/0/2 должен быть shutdown с описанием '* disabled *'.",
+      "remediation": "interface gigabitethernet 1/0/2\n shutdown\n description \"* disabled *\"\nexit"
+    },
+    {
+      "title": "Gi1/0/3 WAN security settings",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*interface\\s+gigabitethernet\\s+1/0/3\\s*$",
+        "child_rules": [
+          {"pattern": "ip vrf forwarding wan", "mode": "must_exist"},
+          {"pattern": "security-zone wan", "mode": "must_exist"},
+          {"pattern": "no ip unreachables", "mode": "must_exist"},
+          {"pattern": "no ip redirects", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "critical",
+      "description": "WAN интерфейс Gi1/0/3 должен иметь VRF wan, security-zone wan, no ip unreachables/redirects.",
+      "remediation": "interface gigabitethernet 1/0/3\n ip vrf forwarding wan\n security-zone wan\n no ip unreachables\n no ip redirects\nexit"
+    },
+    {
+      "title": "Session control enabled",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^ip firewall sessions counters", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^ip firewall sessions generic-timeout 30", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^ip firewall sessions icmp-timeout 20", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^ip firewall sessions icmpv6-timeout 2", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^ip firewall sessions tcp-estabilished-timeout 300", "match_mode": "must_exist", "is_regex": true}}
+        ],
+        "operator": "all"
+      },
+      "severity": "high",
+      "description": "Параметры firewall sessions: counters, timeouts для generic/icmp/icmpv6/tcp.",
+      "remediation": "ip firewall sessions counters\nip firewall sessions generic-timeout 30\nip firewall sessions icmp-timeout 20\nip firewall sessions icmpv6-timeout 2\nip firewall sessions tcp-estabilished-timeout 300"
+    },
+    {
+      "title": "Required blackhole routes",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^ip route 0.0.0.0/0 blackhole", "match_mode": "must_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^ip route vrf wan 0.0.0.0/0 blackhole", "match_mode": "must_exist", "is_regex": true}}
+        ],
+        "operator": "all"
+      },
+      "severity": "high",
+      "description": "Blackhole маршруты по умолчанию должны быть установлены для global и VRF wan.",
+      "remediation": "ip route 0.0.0.0/0 blackhole\nip route vrf wan 0.0.0.0/0 blackhole"
+    },
+    {
+      "title": "No graceful-restart",
+      "vendor_code": "eltex_esr",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^\\s*graceful-restart\\s*$",
+        "match_mode": "must_not_exist",
+        "is_regex": true,
+        "case_insensitive": true
+      },
+      "severity": "medium",
+      "description": "Команда graceful-restart не должна присутствовать.",
+      "remediation": "no graceful-restart"
+    },
+    {
+      "title": "No forbidden services",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^\\s*ip\\s+telnet\\s+server\\s*$", "match_mode": "must_not_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^\\s*ip\\s+dhcp-server\\s*$", "match_mode": "must_not_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^\\s*ip\\s+dhcp-server\\s+vrf\\s+wan\\s*$", "match_mode": "must_not_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^\\s*ip\\s+dhcp-relay\\s*$", "match_mode": "must_not_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^\\s*ntp\\s+broadcast-client\\s+enable\\s*$", "match_mode": "must_not_exist", "is_regex": true}},
+          {"section": "_default", "checker": "simple_match", "payload": {"pattern": "^\\s*domain\\s+lookup\\s+enable\\s*$", "match_mode": "must_not_exist", "is_regex": true}}
+        ],
+        "operator": "all"
+      },
+      "severity": "critical",
+      "description": "Запрещённые сервисы не должны быть включены: telnet, dhcp-server, dhcp-relay, ntp broadcast-client, domain lookup.",
+      "remediation": "no ip telnet server\nno ip dhcp-server\nno ip dhcp-server vrf wan\nno ip dhcp-relay\nno ntp broadcast-client enable\nno domain lookup enable"
+    },
+    {
+      "title": "Object-group network syntax validation",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_validate",
+      "logic_payload": {
+        "block_start": "^\\s*object-group\\s+network\\s+\\S+\\s*$",
+        "block_end": "^\\s*exit\\s*$",
+        "skip_lines": ["^\\s*$"],
+        "allowed_patterns": [
+          "^\\s*ip\\s+prefix\\s+\\d{1,3}(\\.\\d{1,3}){3}(/\\d{1,2})?\\s*$",
+          "^\\s*ip\\s+address-range\\s+\\d{1,3}(\\.\\d{1,3}){3}-\\d{1,3}(\\.\\d{1,3}){3}\\s*$",
+          "^\\s*description\\s+.+$"
+        ],
+        "case_insensitive": true,
+        "fail_on_no_blocks": false
+      },
+      "severity": "medium",
+      "description": "Все строки в object-group network должны быть 'ip prefix', 'ip address-range' или 'description'. Посторонние записи запрещены.",
+      "remediation": "Удалите несанкционированные строки из object-group network блоков."
+    },
+    {
+      "title": "Only allowed service object-groups",
+      "vendor_code": "eltex_esr",
+      "logic_type": "set_match",
+      "logic_payload": {
+        "collect_pattern": "^\\s*object-group\\s+service\\s+(\\S+)\\s*$",
+        "capture_group": 1,
+        "expected_set": ["ISAKMP_PORT", "SSH"],
+        "mode": "exact",
+        "case_insensitive": false
+      },
+      "severity": "high",
+      "description": "Разрешены только object-group service ISAKMP_PORT и SSH. Лишние или недостающие группы — нарушение.",
+      "remediation": "Убедитесь что существуют только: object-group service ISAKMP_PORT и object-group service SSH."
+    },
+    {
+      "title": "Admin privilege 1 only",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*username\\s+admin\\b",
+        "child_rules": [
+          {"pattern": "privilege 1", "mode": "must_exist"},
+          {"pattern": "privilege\\s+(?!1\\b)\\d+", "mode": "must_not_exist", "is_regex": true}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "critical",
+      "description": "Пользователь admin должен иметь privilege 1 (минимальный). Privilege 15 или любой другой запрещён.",
+      "remediation": "username admin\n privilege 1\nexit"
+    },
+    {
+      "title": "Techsupport privilege 1 only",
+      "vendor_code": "eltex_esr",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^\\s*username\\s+techsupport\\b",
+        "child_rules": [
+          {"pattern": "privilege 1", "mode": "must_exist"},
+          {"pattern": "privilege\\s+(?!1\\b)\\d+", "mode": "must_not_exist", "is_regex": true}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "critical",
+      "description": "Пользователь techsupport должен иметь privilege 1 (минимальный). Privilege 15 или любой другой запрещён.",
+      "remediation": "username techsupport\n privilege 1\nexit"
+    }
+  ]
+}

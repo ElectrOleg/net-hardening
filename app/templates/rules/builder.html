@@ -545,6 +545,26 @@
                             <div class="type-card-title">XML / XPath</div>
                             <div class="type-card-desc">Запрос к XML-конфигу</div>
                         </div>
+                        <div class="type-card" data-type="block_validate" onclick="selectType(this)">
+                            <svg class="type-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <path d="M9 11l3 3L22 4" />
+                                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                            </svg>
+                            <div class="type-card-title">Block Validate</div>
+                            <div class="type-card-desc">Allowlist строк в блоке</div>
+                        </div>
+                        <div class="type-card" data-type="set_match" onclick="selectType(this)">
+                            <svg class="type-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <circle cx="12" cy="12" r="10" />
+                                <circle cx="12" cy="12" r="4" />
+                                <line x1="4.93" y1="4.93" x2="9.17" y2="9.17" />
+                                <line x1="14.83" y1="14.83" x2="19.07" y2="19.07" />
+                            </svg>
+                            <div class="type-card-title">Set Match</div>
+                            <div class="type-card-desc">Точное/подмножеств. совпадение набора</div>
+                        </div>
                     </div>
                     <select class="form-select" id="logic_type" style="display:none;">
                         <option value="simple_match">Simple Match</option>
@@ -553,6 +573,8 @@
                         <option value="version_check">Version Check</option>
                         <option value="textfsm_check">TextFSM Check</option>
                         <option value="xml_check">XML Check</option>
+                        <option value="block_validate">Block Validate</option>
+                        <option value="set_match">Set Match</option>
                     </select>
                 </div>
 
@@ -734,6 +756,87 @@
                         </div>
                     </div>
 
+                    <!-- 7. Block Validate -->
+                    <div id="form_block_validate" class="logic-form" style="display: none;">
+                        <div class="form-group mb-3">
+                            <label class="step-label"><span class="step-num">1</span> Начало блока</label>
+                            <div class="modern-input-group">
+                                <span class="input-group-text">Regex</span>
+                                <input type="text" class="form-input" id="bv_block_start"
+                                    placeholder="^\s*object-group\s+network\s+\S+">
+                            </div>
+                            <div class="field-hint">Regex заголовка блока: <code>^object-group network</code></div>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="step-label"><span class="step-num">2</span> Конец блока <span class="text-muted" style="font-weight:normal;text-transform:none;">(opt.)</span></label>
+                            <input type="text" class="form-input" id="bv_block_end" placeholder="^\s*exit\s*$" value="^\s*exit\s*$">
+                        </div>
+                        <div class="nested-group-container">
+                            <label class="step-label mb-2"><span class="step-num">3</span> Разрешённые паттерны</label>
+                            <div class="field-hint mb-2">Каждая строка в блоке должна совпасть хотя бы с одним из паттернов.</div>
+                            <textarea class="form-textarea font-mono text-xs" id="bv_allowed" rows="5"
+                                placeholder="^\s*ip\s+prefix\s+.+$&#10;^\s*ip\s+address-range\s+.+$&#10;^\s*description\s+.+$"></textarea>
+                        </div>
+                        <div class="form-group mt-2 mb-2">
+                            <label class="visual-label">Пропускаемые строки <span class="text-muted" style="font-weight:normal;text-transform:none;">(opt.)</span></label>
+                            <input type="text" class="form-input" id="bv_skip" placeholder="^\s*$" value="^\s*$">
+                            <div class="field-hint">Regex строк, которые НЕ нужно проверять (пустые, комментарии)</div>
+                        </div>
+                        <div class="flex gap-2" style="padding-top: 0.5rem;">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="bv_case">
+                                <span class="toggle-slider"></span>
+                                <span class="text-sm">Case Insensitive</span>
+                            </label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="bv_fail_empty">
+                                <span class="toggle-slider"></span>
+                                <span class="text-sm">Fail if no blocks</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 8. Set Match -->
+                    <div id="form_set_match" class="logic-form" style="display: none;">
+                        <div class="form-group mb-3">
+                            <label class="step-label"><span class="step-num">1</span> Паттерн сбора</label>
+                            <div class="modern-input-group">
+                                <span class="input-group-text">Regex</span>
+                                <input type="text" class="form-input" id="setm_pattern"
+                                    placeholder="^\s*object-group\s+service\s+(\S+)">
+                            </div>
+                            <div class="field-hint">Regex с группой захвата <code>(\S+)</code> — значения будут собраны из всего конфига</div>
+                        </div>
+                        <div class="grid grid-2 gap-2 mb-2">
+                            <div class="form-group">
+                                <label class="step-label"><span class="step-num">2</span> Группа захвата</label>
+                                <input type="number" class="form-input" id="setm_group" value="1" min="0" max="10">
+                            </div>
+                            <div class="form-group">
+                                <label class="step-label"><span class="step-num">3</span> Режим</label>
+                                <select class="form-select" id="setm_mode">
+                                    <option value="exact">Exact — ровно этот набор</option>
+                                    <option value="superset">Superset — все должны быть (лишние OK)</option>
+                                    <option value="subset">Subset — найденные ⊆ ожидаемых</option>
+                                    <option value="disjoint">Disjoint — запрещённые (ничего не должно совпасть)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="nested-group-container">
+                            <label class="step-label mb-2"><span class="step-num">4</span> Ожидаемый набор</label>
+                            <textarea class="form-textarea font-mono text-xs" id="setm_expected" rows="4"
+                                placeholder="ISAKMP_PORT&#10;SSH"></textarea>
+                            <div class="field-hint">По одному значению на строку</div>
+                        </div>
+                        <div class="flex gap-2" style="padding-top: 0.5rem;">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="setm_case">
+                                <span class="toggle-slider"></span>
+                                <span class="text-sm">Case Insensitive</span>
+                            </label>
+                        </div>
+                    </div>
+
                     <!-- 6. XML/XPath Check -->
                     <div id="form_xml_check" class="logic-form" style="display: none;">
                         <div class="form-group mb-3">
@@ -860,7 +963,9 @@
         structure_check: { path: "network.interfaces", operator: "eq", value: "up" },
         version_check: { pattern: "version (\\d+)", operator: "ge", value: "15.0" },
         textfsm_check: { template: "", column: "STATUS", operator: "all_eq", value: "up" },
-        xml_check: { xpath: "//system/services/ssh", operator: "exists" }
+        xml_check: { xpath: "//system/services/ssh", operator: "exists" },
+        block_validate: { block_start: "^\\s*object-group\\s+network\\s+\\S+", block_end: "^\\s*exit\\s*$", skip_lines: ["^\\s*$"], allowed_patterns: ["^\\s*ip\\s+prefix\\s+.+$", "^\\s*description\\s+.+$"], case_insensitive: false, fail_on_no_blocks: false },
+        set_match: { collect_pattern: "^\\s*object-group\\s+service\\s+(\\S+)", capture_group: 1, expected_set: ["ITEM_A", "ITEM_B"], mode: "exact", case_insensitive: false }
     };
 
     let isManualMode = false;
@@ -940,7 +1045,7 @@
         updateBuilderMode();
 
         // Listeners for auto-updating JSON from Visual Fields
-        const inputs = document.querySelectorAll('#visualBuilder input, #visualBuilder select');
+        const inputs = document.querySelectorAll('#visualBuilder input, #visualBuilder select, #visualBuilder textarea');
         inputs.forEach(input => {
             input.addEventListener('input', syncVisualToJson);
         });
@@ -1044,6 +1149,24 @@
                 const ns = document.getElementById('xml_ns').value.trim();
                 if (ns) payload.namespaces = ns;
                 if (['exists', 'not_exists'].includes(payload.operator)) delete payload.value;
+            } else if (type === 'block_validate') {
+                const skipVal = document.getElementById('bv_skip').value.trim();
+                payload = {
+                    block_start: document.getElementById('bv_block_start').value,
+                    block_end: document.getElementById('bv_block_end').value || null,
+                    skip_lines: skipVal ? [skipVal] : [],
+                    allowed_patterns: document.getElementById('bv_allowed').value.split('\n').filter(l => l.trim()),
+                    case_insensitive: document.getElementById('bv_case').checked,
+                    fail_on_no_blocks: document.getElementById('bv_fail_empty').checked
+                };
+            } else if (type === 'set_match') {
+                payload = {
+                    collect_pattern: document.getElementById('setm_pattern').value,
+                    capture_group: parseInt(document.getElementById('setm_group').value) || 1,
+                    expected_set: document.getElementById('setm_expected').value.split('\n').filter(l => l.trim()),
+                    mode: document.getElementById('setm_mode').value,
+                    case_insensitive: document.getElementById('setm_case').checked
+                };
             } else {
                 return;
             }
@@ -1102,6 +1225,19 @@
                 document.getElementById('xml_operator').value = payload.operator || 'eq';
                 document.getElementById('xml_value').value = payload.value || '';
                 toggleXmlValue();
+            } else if (type === 'block_validate') {
+                document.getElementById('bv_block_start').value = payload.block_start || '';
+                document.getElementById('bv_block_end').value = payload.block_end || '^\\s*exit\\s*$';
+                document.getElementById('bv_skip').value = (payload.skip_lines || []).join(', ');
+                document.getElementById('bv_allowed').value = (payload.allowed_patterns || []).join('\n');
+                document.getElementById('bv_case').checked = !!payload.case_insensitive;
+                document.getElementById('bv_fail_empty').checked = !!payload.fail_on_no_blocks;
+            } else if (type === 'set_match') {
+                document.getElementById('setm_pattern').value = payload.collect_pattern || '';
+                document.getElementById('setm_group').value = payload.capture_group || 1;
+                document.getElementById('setm_expected').value = (payload.expected_set || []).join('\n');
+                document.getElementById('setm_mode').value = payload.mode || 'exact';
+                document.getElementById('setm_case').checked = !!payload.case_insensitive;
             }
 
         } catch (e) {
@@ -1355,7 +1491,8 @@ end`;
             // For types without visual builder (composite_check, etc.),
             // auto-switch to JSON Mode so user sees the payload
             const visualTypes = ['simple_match', 'block_match', 'structure_check',
-                                 'version_check', 'textfsm_check', 'xml_check'];
+                                 'version_check', 'textfsm_check', 'xml_check',
+                                 'block_validate', 'set_match'];
             if (!visualTypes.includes(rule.logic_type)) {
                 document.getElementById('manualModeToggle').checked = true;
                 toggleManualMode();
