@@ -257,14 +257,48 @@ def devices_list():
 
 @web_bp.route("/rules")
 def rules_list():
-    """List of rules."""
+    """List of rules grouped by vendor."""
+    from collections import OrderedDict
+    
     show_inactive = request.args.get("show_inactive", "false").lower() == "true"
-    if show_inactive:
-        rules = Rule.query.all()
-    else:
-        rules = Rule.query.filter_by(is_active=True).all()
+    filter_policy = request.args.get("policy")
+    filter_vendor = request.args.get("vendor")
+    filter_severity = request.args.get("severity")
+    
+    query = Rule.query
+    if not show_inactive:
+        query = query.filter_by(is_active=True)
+    if filter_policy:
+        query = query.filter_by(policy_id=filter_policy)
+    if filter_vendor:
+        query = query.filter_by(vendor_code=filter_vendor)
+    if filter_severity:
+        query = query.filter_by(severity=filter_severity)
+    
+    rules = query.order_by(Rule.vendor_code, Rule.title).all()
+    
+    # Group by vendor
+    vendor_groups = OrderedDict()
+    for rule in rules:
+        vcode = rule.vendor_code or "unknown"
+        vname = rule.vendor.name if rule.vendor else vcode
+        if vcode not in vendor_groups:
+            vendor_groups[vcode] = {"name": vname, "rules": []}
+        vendor_groups[vcode]["rules"].append(rule)
+    
     policies = Policy.query.filter_by(is_active=True).all()
-    return render_template("rules/list.html", rules=rules, show_inactive=show_inactive, policies=policies)
+    vendors = Vendor.query.all()
+    return render_template(
+        "rules/list.html",
+        vendor_groups=vendor_groups,
+        rules=rules,
+        show_inactive=show_inactive,
+        policies=policies,
+        vendors=vendors,
+        filter_policy=filter_policy,
+        filter_vendor=filter_vendor,
+        filter_severity=filter_severity,
+    )
 
 
 @web_bp.route("/rules/new")

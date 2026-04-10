@@ -10,11 +10,7 @@
 <div class="flex justify-between items-center mb-3">
     <div class="flex items-center" style="gap: 1rem;">
         <h2>Правила проверок</h2>
-        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; cursor: pointer;">
-            <input type="checkbox" {% if show_inactive %}checked{% endif %}
-                onchange="window.location.href='{{ url_for('web.rules_list') }}' + (this.checked ? '?show_inactive=true' : '')">
-            Показать неактивные
-        </label>
+        <span class="badge badge-neutral">{{ rules | length }}</span>
     </div>
     <div class="flex items-center" style="gap: 0.5rem;">
         <button class="btn btn-ghost" onclick="showImportModal()" title="Импорт правил из JSON">
@@ -43,70 +39,128 @@
     </div>
 </div>
 
-<div class="card fade-in">
-    <div class="table-wrapper">
+<!-- Filters -->
+<div class="flex items-center gap-2 mb-2" style="flex-wrap: wrap;">
+    <input type="text" id="ruleSearch" class="form-control" placeholder="Поиск по названию..."
+        style="max-width: 260px;" oninput="filterRules()">
+    <select id="filterPolicy" class="form-select" style="max-width: 180px;" onchange="applyServerFilter()">
+        <option value="">Все политики</option>
+        {% for p in policies %}
+        <option value="{{ p.id }}" {% if filter_policy == p.id|string %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+    </select>
+    <select id="filterVendor" class="form-select" style="max-width: 160px;" onchange="applyServerFilter()">
+        <option value="">Все вендоры</option>
+        {% for v in vendors %}
+        <option value="{{ v.code }}" {% if filter_vendor == v.code %}selected{% endif %}>{{ v.name }}</option>
+        {% endfor %}
+    </select>
+    <select id="filterSeverity" class="form-select" style="max-width: 140px;" onchange="applyServerFilter()">
+        <option value="">Severity</option>
+        <option value="critical" {% if filter_severity == 'critical' %}selected{% endif %}>Critical</option>
+        <option value="high" {% if filter_severity == 'high' %}selected{% endif %}>High</option>
+        <option value="medium" {% if filter_severity == 'medium' %}selected{% endif %}>Medium</option>
+        <option value="low" {% if filter_severity == 'low' %}selected{% endif %}>Low</option>
+        <option value="info" {% if filter_severity == 'info' %}selected{% endif %}>Info</option>
+    </select>
+    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; cursor: pointer; margin-left: 0.5rem;">
+        <input type="checkbox" {% if show_inactive %}checked{% endif %}
+            onchange="toggleInactive(this.checked)">
+        Неактивные
+    </label>
+</div>
+
+<!-- Rules grouped by vendor -->
+{% if vendor_groups %}
+{% for vcode, group in vendor_groups.items() %}
+<div class="card mb-2 fade-in" style="animation-delay: {{ loop.index * 40 }}ms;">
+    <div class="card-header" style="cursor: pointer; user-select: none;" onclick="toggleVendorGroup('vg-{{ vcode }}')">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <svg class="expand-chevron" id="chevron-{{ vcode }}" width="16" height="16" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2"
+                    style="transition: transform 0.2s; transform: rotate(180deg);">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+                <h4 style="margin: 0;">{{ group.name }}</h4>
+                <span class="badge badge-neutral">{{ group.rules | length }}</span>
+            </div>
+        </div>
+    </div>
+    <div id="vg-{{ vcode }}" class="table-wrapper">
         <table class="table">
             <thead>
                 <tr>
-                    <th>Название</th>
+                    <th style="width: 40%;">Название</th>
                     <th>Политика</th>
-                    <th>Вендор</th>
+                    <th>Severity</th>
                     <th>Тип</th>
                     <th>Статус</th>
-                    <th></th>
+                    <th style="width: 140px;"></th>
                 </tr>
             </thead>
             <tbody>
-                {% for rule in rules %}
-                <tr>
+                {% for rule in group.rules %}
+                <tr class="rule-row" data-title="{{ rule.title | lower }}" id="row-{{ rule.id }}"
+                    {% if not rule.is_active %}style="opacity: 0.5;"{% endif %}>
                     <td>
                         <strong>{{ rule.title }}</strong>
                         {% if rule.description %}
-                        <div class="text-muted text-sm">{{ rule.description | truncate(80) }}</div>
+                        <div class="text-muted text-sm">{{ rule.description | truncate(100) }}</div>
                         {% endif %}
                     </td>
                     <td>
-                        <span class="badge badge-neutral">{{ rule.policy.name }}</span>
+                        <span class="badge badge-neutral" style="font-size: 0.65rem;">{{ rule.policy.name }}</span>
                     </td>
-                    <td class="text-sm">{{ rule.vendor_code }}</td>
+                    <td>
+                        {% if rule.severity == 'critical' %}
+                        <span class="badge badge-danger" style="font-size: 0.65rem;">critical</span>
+                        {% elif rule.severity == 'high' %}
+                        <span class="badge badge-warning" style="font-size: 0.65rem;">high</span>
+                        {% elif rule.severity == 'medium' %}
+                        <span class="badge" style="font-size: 0.65rem; background: rgba(234, 179, 8, 0.15); color: #eab308;">medium</span>
+                        {% elif rule.severity == 'low' %}
+                        <span class="badge badge-neutral" style="font-size: 0.65rem;">low</span>
+                        {% else %}
+                        <span class="badge badge-neutral" style="font-size: 0.65rem;">{{ rule.severity }}</span>
+                        {% endif %}
+                    </td>
                     <td>
                         <code class="text-xs">{{ rule.logic_type }}</code>
                     </td>
                     <td>
-                        {% if rule.is_active %}
-                        <span class="badge badge-success">Active</span>
-                        {% else %}
-                        <span class="badge badge-neutral">Inactive</span>
-                        {% endif %}
+                        <button class="btn btn-ghost btn-sm toggle-btn"
+                            onclick="toggleRule('{{ rule.id }}')"
+                            title="{% if rule.is_active %}Деактивировать{% else %}Активировать{% endif %}"
+                            style="font-size: 0.7rem; padding: 2px 8px;">
+                            {% if rule.is_active %}
+                            <span style="color: var(--success);">● Active</span>
+                            {% else %}
+                            <span style="color: var(--text-muted);">○ Inactive</span>
+                            {% endif %}
+                        </button>
                     </td>
                     <td class="text-right">
-                        <button class="btn btn-ghost btn-icon" onclick="cloneRule('{{ rule.id }}')" title="Дублировать">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                            </svg>
-                        </button>
-                        <button class="btn btn-ghost btn-icon" onclick="editRule('{{ rule.id }}')"
-                            title="Редактировать">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                        </button>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="6">
-                        <div class="empty-state">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M9 11l3 3L22 4" />
-                                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-                            </svg>
-                            <div>Правил пока нет</div>
-                            <a href="{{ url_for('web.rule_builder') }}" class="btn btn-primary mt-2">Создать первое</a>
+                        <div class="flex items-center justify-end" style="gap: 2px;">
+                            <button class="btn btn-ghost btn-icon" onclick="cloneRule('{{ rule.id }}')" title="Дублировать">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                            <button class="btn btn-ghost btn-icon" onclick="editRule('{{ rule.id }}')" title="Редактировать">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                            </button>
+                            <button class="btn btn-ghost btn-icon" onclick="deleteRule('{{ rule.id }}', '{{ rule.title | e }}')"
+                                title="Удалить" style="color: var(--danger);">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                                </svg>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -115,6 +169,19 @@
         </table>
     </div>
 </div>
+{% endfor %}
+{% else %}
+<div class="card">
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+        </svg>
+        <div>Правил пока нет</div>
+        <a href="{{ url_for('web.rule_builder') }}" class="btn btn-primary mt-2">Создать первое</a>
+    </div>
+</div>
+{% endif %}
 
 <!-- Import Modal -->
 <div id="importModal" class="modal-overlay" style="display: none;">
@@ -180,6 +247,102 @@
 
     function cloneRule(ruleId) {
         window.location.href = "{{ url_for('web.rule_builder') }}?clone=" + ruleId;
+    }
+
+    // ── Vendor group toggle ──────────────────────────────────────
+    function toggleVendorGroup(id) {
+        const el = document.getElementById(id);
+        const vcode = id.replace('vg-', '');
+        const chevron = document.getElementById('chevron-' + vcode);
+        if (el.style.display === 'none') {
+            el.style.display = '';
+            chevron.style.transform = 'rotate(180deg)';
+        } else {
+            el.style.display = 'none';
+            chevron.style.transform = 'rotate(0deg)';
+        }
+    }
+
+    // ── Client-side search ───────────────────────────────────────
+    function filterRules() {
+        const query = document.getElementById('ruleSearch').value.toLowerCase();
+        document.querySelectorAll('.rule-row').forEach(row => {
+            row.style.display = row.dataset.title.includes(query) ? '' : 'none';
+        });
+    }
+
+    // ── Server-side filters ──────────────────────────────────────
+    function applyServerFilter() {
+        const params = new URLSearchParams();
+        const policy = document.getElementById('filterPolicy').value;
+        const vendor = document.getElementById('filterVendor').value;
+        const severity = document.getElementById('filterSeverity').value;
+        if (policy) params.set('policy', policy);
+        if (vendor) params.set('vendor', vendor);
+        if (severity) params.set('severity', severity);
+        {% if show_inactive %}params.set('show_inactive', 'true');{% endif %}
+        window.location.href = '{{ url_for("web.rules_list") }}?' + params.toString();
+    }
+
+    function toggleInactive(checked) {
+        const params = new URLSearchParams(window.location.search);
+        if (checked) params.set('show_inactive', 'true');
+        else params.delete('show_inactive');
+        window.location.href = '{{ url_for("web.rules_list") }}?' + params.toString();
+    }
+
+    // ── Toggle active/inactive ───────────────────────────────────
+    async function toggleRule(ruleId) {
+        try {
+            const resp = await fetch(`/api/rules/${ruleId}/toggle`, { method: 'PATCH' });
+            if (resp.ok) {
+                const data = await resp.json();
+                const row = document.getElementById('row-' + ruleId);
+                const btn = row.querySelector('.toggle-btn');
+                if (data.is_active) {
+                    row.style.opacity = '1';
+                    btn.innerHTML = '<span style="color: var(--success);">● Active</span>';
+                    btn.title = 'Деактивировать';
+                } else {
+                    row.style.opacity = '0.5';
+                    btn.innerHTML = '<span style="color: var(--text-muted);">○ Inactive</span>';
+                    btn.title = 'Активировать';
+                }
+                showNotification(data.is_active ? 'Правило активировано' : 'Правило деактивировано', 'success');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
+    }
+
+    // ── Hard delete ──────────────────────────────────────────────
+    async function deleteRule(ruleId, title) {
+        if (!confirm(`Удалить правило "${title}"?\n\nЭто действие необратимо. Все результаты сканирования по этому правилу будут удалены.`)) return;
+
+        try {
+            let resp = await fetch(`/api/rules/${ruleId}`, { method: 'DELETE' });
+
+            // If rule has results, force delete
+            if (resp.status === 409) {
+                const data = await resp.json();
+                if (!confirm(`${data.error}\n\nПродолжить удаление?`)) return;
+                resp = await fetch(`/api/rules/${ruleId}?force=true`, { method: 'DELETE' });
+            }
+
+            if (resp.ok) {
+                const row = document.getElementById('row-' + ruleId);
+                row.style.transition = 'opacity 0.3s, transform 0.3s';
+                row.style.opacity = '0';
+                row.style.transform = 'translateX(20px)';
+                setTimeout(() => row.remove(), 300);
+                showNotification('Правило удалено', 'success');
+            } else {
+                const data = await resp.json();
+                showNotification('Ошибка: ' + (data.error || 'Unknown'), 'danger');
+            }
+        } catch (e) {
+            showNotification('Ошибка: ' + e.message, 'danger');
+        }
     }
 
     // ── Export ────────────────────────────────────────────────

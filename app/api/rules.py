@@ -122,8 +122,33 @@ def update_rule(rule_id):
 @api_bp.route("/rules/<uuid:rule_id>", methods=["DELETE"])
 @require_auth
 def delete_rule(rule_id):
-    """Delete rule (soft delete)."""
+    """Hard delete a rule. Requires ?force=true if rule has scan results."""
+    from app.models import Result, RuleException
     rule = Rule.query.get_or_404(rule_id)
-    rule.is_active = False
+    result_count = Result.query.filter_by(rule_id=rule_id).count()
+    
+    if result_count > 0 and request.args.get("force") != "true":
+        return jsonify({
+            "error": f"Правило имеет {result_count} результатов сканирования. Добавьте ?force=true для подтверждения удаления.",
+            "result_count": result_count
+        }), 409
+    
+    # Clean up related records
+    if result_count > 0:
+        Result.query.filter_by(rule_id=rule_id).delete()
+    RuleException.query.filter_by(rule_id=rule_id).delete()
+    
+    db.session.delete(rule)
     db.session.commit()
     return "", 204
+
+
+@api_bp.route("/rules/<uuid:rule_id>/toggle", methods=["PATCH"])
+@require_auth
+def toggle_rule(rule_id):
+    """Toggle rule active/inactive status."""
+    rule = Rule.query.get_or_404(rule_id)
+    rule.is_active = not rule.is_active
+    db.session.commit()
+    return jsonify({"id": str(rule.id), "is_active": rule.is_active})
+

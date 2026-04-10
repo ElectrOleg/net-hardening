@@ -117,13 +117,7 @@ class ScannerService:
             logger.info(f"Found {len(hostnames)} active devices in inventory (no rule filter)")
             return hostnames
         
-        # Collect vendor_codes from rules
-        rule_vendors = set()
-        for r in rules:
-            if r.vendor_code and r.vendor_code != "any":
-                rule_vendors.add(r.vendor_code)
-        
-        # Collect unique policy scope_filters
+        # Collect unique policy scope_filters (the ONLY device selection mechanism)
         policy_filters: dict[str, dict] = {}
         for r in rules:
             pid = str(r.policy_id)
@@ -132,48 +126,27 @@ class ScannerService:
                 # Treat None and {} as "no filter"
                 policy_filters[pid] = sf if (isinstance(sf, dict) and sf) else None
         
-        # Expand vendor set with vendors from policy scope_filters.
-        # If a policy explicitly targets vendor_code: ["cisco_ios", "iosxe"],
-        # those vendors must pass the pre-filter to reach scope_filter check.
-        for sf in policy_filters.values():
-            if sf and "vendor_code" in sf:
-                vc = sf["vendor_code"]
-                if isinstance(vc, list):
-                    rule_vendors.update(vc)
-                elif isinstance(vc, str) and vc != "any":
-                    rule_vendors.add(vc)
-        
-        # Debug: log what we're filtering by
         has_any_scope_filter = any(sf is not None for sf in policy_filters.values())
         logger.info(
-            f"Pre-filter config: vendors={rule_vendors or 'any'}, "
-            f"policies={len(policy_filters)}, "
+            f"Pre-filter config: policies={len(policy_filters)}, "
             f"has_scope_filters={has_any_scope_filter}, "
             f"scope_filters={({pid: sf for pid, sf in policy_filters.items() if sf})}"
         )
         
         matched = []
-        skipped_vendor = 0
         skipped_scope = 0
         
         for device in all_devices:
             if not device.hostname:
                 continue
             
-            # 1. Vendor filter: device must match at least one rule's vendor_code
-            if rule_vendors and device.vendor_code not in rule_vendors:
-                skipped_vendor += 1
-                continue
-            
-            # 2. Policy scope_filter check
+            # Policy scope_filter check:
             # Device must match at least one policy to be included.
             # A policy with no scope_filter matches all devices.
-            # A policy with scope_filter only matches devices satisfying ALL conditions.
             if has_any_scope_filter:
                 device_matches_any = False
                 for pid, sf in policy_filters.items():
                     if sf is None:
-                        # No scope_filter = this policy applies to all
                         device_matches_any = True
                         break
                     shim = SimpleNamespace(applicability=sf)
@@ -188,7 +161,7 @@ class ScannerService:
         
         logger.info(
             f"Inventory pre-filter: {len(matched)}/{len(all_devices)} devices match "
-            f"(skipped: {skipped_vendor} vendor, {skipped_scope} scope_filter)"
+            f"(skipped: {skipped_scope} scope_filter)"
         )
         return matched
 
@@ -546,21 +519,10 @@ class ScannerService:
                 device_vendor = self._detect_vendor(config, device_obj)
             
             # Evaluate each rule against its source's config
+            # Note: rule.vendor_code is a parser hint only, NOT a device filter.
+            # Device selection is handled exclusively by policy scope_filter.
             for rule in group_rules:
-                # 1. Vendor Check — skip if rule's vendor doesn't match device.
-                #    BUT: if the policy's scope_filter already targets vendor_code,
-                #    the policy-level check has validated the device. Don't double-reject.
-                if rule.vendor_code and rule.vendor_code != "any":
-                    policy_has_vendor_scope = (
-                        rule.policy and rule.policy.scope_filter
-                        and isinstance(rule.policy.scope_filter, dict)
-                        and "vendor_code" in rule.policy.scope_filter
-                    )
-                    if not policy_has_vendor_scope:
-                        if device_vendor and rule.vendor_code != device_vendor:
-                            continue
-
-                # 2. Applicability Check
+                # 1. Applicability Check
                 if not self._check_applicability(rule, device_obj):
                     continue
 
