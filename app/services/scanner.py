@@ -133,7 +133,7 @@ class ScannerService:
                 policy_filters[pid] = sf if (isinstance(sf, dict) and sf) else None
         
         # Expand vendor set with vendors from policy scope_filters.
-        # If a policy explicitly targets vendor_code: ["cisco_ios", "custom"],
+        # If a policy explicitly targets vendor_code: ["cisco_ios", "iosxe"],
         # those vendors must pass the pre-filter to reach scope_filter check.
         for sf in policy_filters.values():
             if sf and "vendor_code" in sf:
@@ -161,7 +161,6 @@ class ScannerService:
                 continue
             
             # 1. Vendor filter: device must match at least one rule's vendor_code
-            #    OR any policy scope_filter vendor_code
             if rule_vendors and device.vendor_code not in rule_vendors:
                 skipped_vendor += 1
                 continue
@@ -548,10 +547,18 @@ class ScannerService:
             
             # Evaluate each rule against its source's config
             for rule in group_rules:
-                # 1. Vendor Check
+                # 1. Vendor Check — skip if rule's vendor doesn't match device.
+                #    BUT: if the policy's scope_filter already targets vendor_code,
+                #    the policy-level check has validated the device. Don't double-reject.
                 if rule.vendor_code and rule.vendor_code != "any":
-                    if device_vendor and rule.vendor_code != device_vendor:
-                        continue
+                    policy_has_vendor_scope = (
+                        rule.policy and rule.policy.scope_filter
+                        and isinstance(rule.policy.scope_filter, dict)
+                        and "vendor_code" in rule.policy.scope_filter
+                    )
+                    if not policy_has_vendor_scope:
+                        if device_vendor and rule.vendor_code != device_vendor:
+                            continue
 
                 # 2. Applicability Check
                 if not self._check_applicability(rule, device_obj):

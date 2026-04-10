@@ -37,7 +37,7 @@
             </p>
             <div class="flex justify-between items-center">
                 <span class="text-sm">
-                    <strong>{{ policy.rules.count() }}</strong> правил
+                    <strong>{{ policy.rules.filter_by(is_active=True).count() }}</strong> правил
                 </span>
                 {% if policy.scope_filter %}
                     {% if policy.scope_filter.vendor_code is defined %}
