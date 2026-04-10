@@ -1,0 +1,202 @@
+{
+  "_comment": "HCS Rule Pack: Cisco Switch NXOS Hardening Checks (импорт из legacy CiscoSwitchNXOSChecks)",
+  "rules": [
+    {
+      "title": "Service timestamps (NXOS)",
+      "vendor_code": "cisco_nxos",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^logging timestamp milliseconds\\s*$",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "Временные метки в логах NXOS необходимы для корректного аудита и расследования инцидентов.",
+      "remediation": "logging timestamp milliseconds"
+    },
+    {
+      "title": "Brut-force defense (NXOS)",
+      "vendor_code": "cisco_nxos",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^\\s*ssh login-gracetime 30\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^\\s*ssh login-attempts 2\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "high",
+      "description": "Защита от брутфорса SSH на NXOS: ограничение времени и попыток аутентификации.",
+      "remediation": "ssh login-gracetime 30\nssh login-attempts 2"
+    },
+    {
+      "title": "Device Login log (NXOS)",
+      "vendor_code": "cisco_nxos",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^ssh login-attempts 2\\s*$",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "Ограничение попыток SSH-логина и логирование для аудита доступа.",
+      "remediation": "ssh login-attempts 2"
+    },
+    {
+      "title": "SSH session timeout (NXOS)",
+      "vendor_code": "cisco_nxos",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^ssh login-gracetime 30\\s*$",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "Тайм-аут SSH сессии ограничивает время незавершённых подключений на NXOS.",
+      "remediation": "ssh login-gracetime 30"
+    },
+    {
+      "title": "SNMP group access (NXOS)",
+      "vendor_code": "cisco_nxos",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^snmp-server user admin.*BLOCK-ALL\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true,
+              "case_insensitive": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^snmp-server user nms-user.*SNMP-IN\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true,
+              "case_insensitive": true
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "high",
+      "description": "SNMP пользователи должны быть ограничены ACL: admin через BLOCK-ALL, nms-user через SNMP-IN.",
+      "remediation": "snmp-server user admin network-admin auth sha <PASS> priv aes-128 <PASS> BLOCK-ALL\nsnmp-server user nms-user network-operator auth sha <PASS> priv aes-128 <PASS> SNMP-IN"
+    },
+    {
+      "title": "Banner login (NXOS)",
+      "vendor_code": "cisco_nxos",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^banner motd @",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "low",
+      "description": "Баннер MOTD — юридическое требование для предупреждения о несанкционированном доступе.",
+      "remediation": "banner motd @\nAuthorized access only. All activity is monitored.\n@"
+    },
+    {
+      "title": "VTY line access (NXOS)",
+      "vendor_code": "cisco_nxos",
+      "logic_type": "block_match",
+      "logic_payload": {
+        "parent_block_start": "^line vty",
+        "child_rules": [
+          {"pattern": "access-class SSH-IN in", "mode": "must_exist"}
+        ],
+        "logic": "ALL"
+      },
+      "severity": "critical",
+      "description": "VTY линии должны быть ограничены ACL SSH-IN для предотвращения несанкционированного доступа.",
+      "remediation": "line vty\n access-class SSH-IN in"
+    },
+    {
+      "title": "NTP access (NXOS)",
+      "vendor_code": "cisco_nxos",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^ntp access-group peer NTP-IN\\s*$",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "NTP должен быть ограничен ACL для предотвращения NTP amplification атак.",
+      "remediation": "ntp access-group peer NTP-IN"
+    },
+    {
+      "title": "Syslog logging (NXOS)",
+      "vendor_code": "cisco_nxos",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^logging server",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "high",
+      "description": "Логи должны отправляться на внешний syslog-сервер для централизованного аудита.",
+      "remediation": "logging server <SYSLOG_SERVER_IP>"
+    },
+    {
+      "title": "AAA enable (NXOS)",
+      "vendor_code": "cisco_nxos",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa authentication",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa authorization",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa accounting",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "critical",
+      "description": "AAA (Authentication, Authorization, Accounting) — обязательный компонент безопасности на NXOS.",
+      "remediation": "aaa authentication login default group tacacs+ local\naaa authorization commands default group tacacs+ local\naaa accounting default group tacacs+"
+    }
+  ]
+}
