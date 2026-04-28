@@ -93,7 +93,21 @@ def scan_completion_handler(results, scan_id: str):
 def run_scan(self, scan_id: str, device_ids: list[str] = None):
     """
     Orchestrator: Discovers devices and launches parallel tasks.
+    Protected by distributed lock to prevent duplicate execution.
     """
+    from app.utils.distributed_lock import get_lock, LockNotAcquired
+    
+    lock = get_lock()
+    try:
+        with lock.acquire(f"scan:{scan_id}", ttl=3600):
+            _run_scan_inner(self, scan_id, device_ids)
+    except LockNotAcquired:
+        logger.warning(f"Scan {scan_id} already running (lock held), skipping duplicate")
+        return
+
+
+def _run_scan_inner(self, scan_id: str, device_ids: list[str] = None):
+    """Inner scan orchestration logic."""
     logger.info(f"Starting scan orchestrator: {scan_id}")
     
     try:

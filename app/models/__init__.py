@@ -14,6 +14,7 @@ from app.models.sync_log import SyncLog
 from app.models.system_setting import SystemSetting
 from app.models.scan_schedule import ScanSchedule
 from app.models.user import User
+from app.models.config_snapshot import ConfigSnapshot
 
 __all__ = [
     "Vendor",
@@ -31,5 +32,6 @@ __all__ = [
     "SystemSetting",
     "ScanSchedule",
     "User",
+    "ConfigSnapshot",
 ]
 

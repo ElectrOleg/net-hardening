@@ -43,12 +43,31 @@ def start_scan():
     """Start a new scan (async via Celery)."""
     data = request.get_json() or {}
     
+    policies_filter = data.get("policies")
+    devices_filter = data.get("devices")
+    use_stored_config = data.get("use_stored_config", False)
+    
+    # Dedup guard: refuse if a scan with the same filters is already running
+    existing_query = Scan.query.filter(Scan.status.in_(["pending", "running"]))
+    if policies_filter:
+        existing_query = existing_query.filter(Scan.policies_filter == policies_filter)
+    if devices_filter:
+        existing_query = existing_query.filter(Scan.devices_filter == devices_filter)
+    
+    existing = existing_query.first()
+    if existing:
+        return jsonify({
+            "error": "A scan with the same parameters is already running",
+            "existing_scan_id": str(existing.id),
+            "status": existing.status,
+        }), 409
+    
     # Create scan record
     scan = Scan(
         started_by=data.get("started_by", "api"),
         status="pending",
-        devices_filter=data.get("devices"),
-        policies_filter=data.get("policies")
+        devices_filter=devices_filter,
+        policies_filter=policies_filter,
     )
     
     db.session.add(scan)

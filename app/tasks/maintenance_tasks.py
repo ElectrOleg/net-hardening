@@ -82,10 +82,51 @@ def cleanup_old_data():
             f"(inactive for >{inactive_days} days)"
         )
     
+    # --- Config snapshot retention ---
+    config_days = SystemSetting.get_int("retention.config_snapshot_days", 90)
+    config_cutoff = now - timedelta(days=config_days)
+    deleted_snapshots = 0
+    
+    try:
+        from app.models.config_snapshot import ConfigSnapshot
+        from sqlalchemy import func as sqla_func
+        
+        # Find the latest snapshot per device (to preserve)
+        latest_per_device = db.session.query(
+            ConfigSnapshot.device_id,
+            sqla_func.max(ConfigSnapshot.collected_at).label("max_date")
+        ).group_by(ConfigSnapshot.device_id).subquery()
+        
+        # Delete old snapshots that are NOT the latest for their device
+        old_snapshots = ConfigSnapshot.query.filter(
+            ConfigSnapshot.collected_at < config_cutoff
+        ).all()
+        
+        for snap in old_snapshots:
+            # Check if this is the only/latest snapshot for the device
+            latest = ConfigSnapshot.query.filter_by(
+                device_id=snap.device_id
+            ).order_by(ConfigSnapshot.collected_at.desc()).first()
+            
+            if latest and latest.id != snap.id:
+                db.session.delete(snap)
+                deleted_snapshots += 1
+        
+        if deleted_snapshots > 0:
+            db.session.commit()
+            logger.info(
+                f"Retention cleanup: deleted {deleted_snapshots} config snapshots "
+                f"(older than {config_days} days)"
+            )
+    except Exception as e:
+        logger.warning(f"Config snapshot cleanup failed: {e}")
+        db.session.rollback()
+    
     return {
         "scans_deleted": deleted_scans,
         "results_deleted": deleted_results,
         "devices_purged": purged,
+        "config_snapshots_deleted": deleted_snapshots,
     }
 
 
@@ -95,7 +136,22 @@ def auto_run_scheduled_scans():
     
     Runs every minute via Celery Beat. For each enabled ScanSchedule
     where next_run_at <= now, starts a scan and updates the schedule.
+    
+    Protected by distributed lock to prevent duplicate execution
+    when multiple Beat instances are running.
     """
+    from app.utils.distributed_lock import get_lock, LockNotAcquired
+    
+    lock = get_lock()
+    try:
+        with lock.acquire("beat:scheduled_scans", ttl=120):
+            return _auto_run_scheduled_scans_inner()
+    except LockNotAcquired:
+        return {"skipped": True, "reason": "another beat instance is processing schedules"}
+
+
+def _auto_run_scheduled_scans_inner():
+    """Inner logic for scheduled scan execution."""
     from app.extensions import db
     from app.models.scan_schedule import ScanSchedule
     from app.models.system_setting import SystemSetting

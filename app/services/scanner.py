@@ -495,6 +495,19 @@ class ScannerService:
             
             config, _vendor, _fetch_error = config_cache[ds_key]
             
+            # --- Save config snapshot (if we have a config and device UUID) ---
+            if config is not None and device_uuid:
+                try:
+                    self._save_config_snapshot(
+                        device_uuid=device_uuid,
+                        source_id=ds_key,
+                        scan_id=scan.id,
+                        config_text=config,
+                        vendor_code=_vendor,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to save config snapshot for {device_id}: {e}")
+            
             if config is None:
                 # Config unavailable for this source — mark all rules as ERROR
                 ds_name = ds_by_id[ds_key].name if ds_key and ds_key in ds_by_id else "any"
@@ -625,4 +638,85 @@ class ScannerService:
         except ValueError as e:
             logger.warning(f"Failed to create provider for {ds.type}: {e}")
             return None
+    
+    def _save_config_snapshot(
+        self,
+        device_uuid,
+        source_id: str | None,
+        scan_id,
+        config_text: str,
+        vendor_code: str | None,
+    ):
+        """Save a config snapshot with SHA-256 deduplication.
+        
+        If the config hash matches the last snapshot for this device,
+        only metadata is stored (config_text=NULL, is_changed=False).
+        """
+        from app.models.config_snapshot import ConfigSnapshot
+        import uuid as uuid_mod
+        
+        config_hash = ConfigSnapshot.compute_hash(config_text)
+        
+        # Find the last snapshot for this device
+        last_snap = ConfigSnapshot.query.filter_by(
+            device_id=device_uuid
+        ).order_by(ConfigSnapshot.collected_at.desc()).first()
+        
+        is_changed = (not last_snap) or (last_snap.config_hash != config_hash)
+        
+        # Parse source_id to UUID if it's a valid string
+        source_uuid = None
+        if source_id:
+            try:
+                source_uuid = uuid_mod.UUID(source_id)
+            except (ValueError, AttributeError):
+                pass
+        
+        snapshot = ConfigSnapshot(
+            device_id=device_uuid,
+            source_id=source_uuid,
+            scan_id=scan_id,
+            config_text=config_text if is_changed else None,
+            config_hash=config_hash,
+            config_size=len(config_text.encode("utf-8")),
+            vendor_code=vendor_code,
+            is_changed=is_changed,
+            prev_snapshot_id=last_snap.id if last_snap else None,
+        )
+        
+        # Compute diff summary for changed configs
+        if is_changed and last_snap:
+            prev_text = last_snap.get_config_text()
+            if prev_text:
+                snapshot.diff_summary = self._compute_diff_summary(prev_text, config_text)
+        
+        db.session.add(snapshot)
+        # Don't commit here — let the caller's transaction handle it
+        
+        logger.debug(
+            f"Config snapshot saved: device={device_uuid} "
+            f"changed={is_changed} hash={config_hash[:12]}..."
+        )
+    
+    @staticmethod
+    def _compute_diff_summary(old_text: str, new_text: str) -> str:
+        """Compute a human-readable diff summary between two configs."""
+        import difflib
+        
+        old_lines = old_text.splitlines()
+        new_lines = new_text.splitlines()
+        
+        diff = list(difflib.unified_diff(old_lines, new_lines, lineterm=""))
+        
+        added = sum(1 for l in diff if l.startswith("+") and not l.startswith("+++"))
+        removed = sum(1 for l in diff if l.startswith("-") and not l.startswith("---"))
+        
+        parts = []
+        if added:
+            parts.append(f"+{added} lines")
+        if removed:
+            parts.append(f"-{removed} lines")
+        
+        return ", ".join(parts) if parts else "modified"
+
 
