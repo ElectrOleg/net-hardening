@@ -5,12 +5,7 @@
 // ─── Sidebar Toggle ─────────────────────────────────────────────
 (function initSidebar() {
     const layout = document.querySelector('.app-layout');
-    if (!layout) return;
-
-    // The <head> inline script already set html.sidebar-collapsed
-    // before the body rendered, preventing any visual flash.
-    // Now transfer that state to .app-layout for CSS rules to work.
-    if (document.documentElement.classList.contains('sidebar-collapsed')) {
+    if (layout && document.documentElement.classList.contains('sidebar-collapsed')) {
         layout.classList.add('no-transition', 'collapsed');
         // Re-enable transitions after the collapsed state is painted.
         setTimeout(function () {
@@ -19,14 +14,15 @@
     }
 
     window.toggleSidebar = function () {
+        const layoutEl = document.querySelector('.app-layout');
         if (window.innerWidth <= 768) {
             const sidebar = document.querySelector('.sidebar');
             if (sidebar) {
                 sidebar.classList.toggle('mobile-open');
             }
-        } else {
-            layout.classList.toggle('collapsed');
-            const isCollapsed = layout.classList.contains('collapsed');
+        } else if (layoutEl) {
+            layoutEl.classList.toggle('collapsed');
+            const isCollapsed = layoutEl.classList.contains('collapsed');
             localStorage.setItem('hcs-sidebar-collapsed', isCollapsed);
             // Keep html class in sync so head script works on next page load.
             document.documentElement.classList.toggle('sidebar-collapsed', isCollapsed);
