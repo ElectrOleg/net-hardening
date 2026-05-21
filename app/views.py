@@ -58,33 +58,242 @@ def logout():
 @web_bp.route("/")
 def dashboard():
     """Main dashboard."""
-    latest_scan = Scan.query.filter_by(status="completed").order_by(Scan.finished_at.desc()).first()
+    from datetime import datetime, timedelta
+    from app.models import Device, ConfigSnapshot
+
+    # Time period filter
+    period = request.args.get("period", "30d")
+    now = datetime.utcnow()
     
-    if latest_scan:
-        score = latest_scan.score
-        stats = {
-            "passed": latest_scan.passed_count,
-            "failed": latest_scan.failed_count,
-            "errors": latest_scan.error_count,
-            "devices": latest_scan.total_devices
-        }
-        recent_failures = Result.query.filter_by(
-            scan_id=latest_scan.id, 
-            status="FAIL"
-        ).limit(10).all()
-    else:
-        score = 100
-        stats = {"passed": 0, "failed": 0, "errors": 0, "devices": 0}
-        recent_failures = []
+    if period == "7d":
+        start_date = now - timedelta(days=7)
+    elif period == "all":
+        start_date = None
+    else:  # default 30d
+        period = "30d"
+        start_date = now - timedelta(days=30)
+
+    # 1. Get IDs of active devices
+    active_devices = Device.query.filter_by(is_active=True).all()
+    active_device_ids = [d.id for d in active_devices]
+    total_active_devices = len(active_device_ids)
+
+    latest_results = []
+    top_failing_rules = []
     
+    if active_device_ids:
+        # Subquery to find the latest completed scan started_at for each active device
+        latest_scans_sub = db.session.query(
+            Result.device_uuid,
+            func.max(Scan.started_at).label("max_started_at")
+        ).join(Scan, Result.scan_id == Scan.id)\
+         .filter(Scan.status == "completed")\
+         .filter(Result.device_uuid.in_(active_device_ids))\
+         .group_by(Result.device_uuid).subquery()
+         
+        # Join back to Scan to get the scan ID
+        latest_scans = db.session.query(
+            Result.device_uuid,
+            Scan.id.label("scan_id")
+        ).join(Scan, Result.scan_id == Scan.id)\
+         .join(
+             latest_scans_sub,
+             (Result.device_uuid == latest_scans_sub.c.device_uuid) &
+             (Scan.started_at == latest_scans_sub.c.max_started_at)
+         ).distinct().subquery()
+         
+        # Fetch the results of those latest scans for each active device
+        latest_results = db.session.query(
+            Result.status,
+            Result.device_uuid,
+            Result.rule_id,
+            Rule.severity,
+            Device.vendor_code,
+            Device.hostname
+        ).join(Rule, Result.rule_id == Rule.id)\
+         .join(Device, Result.device_uuid == Device.id)\
+         .join(
+             latest_scans,
+             (Result.device_uuid == latest_scans.c.device_uuid) &
+             (Result.scan_id == latest_scans.c.scan_id)
+         ).all()
+         
+        # Fetch top 5 failing rules from these latest scans
+        top_failing_rules = db.session.query(
+            Rule.id,
+            Rule.title,
+            Rule.severity,
+            func.count(Result.id).label("fail_count")
+        ).join(Result, Result.rule_id == Rule.id)\
+         .join(Scan, Result.scan_id == Scan.id)\
+         .join(Device, Result.device_uuid == Device.id)\
+         .join(
+             latest_scans,
+             (Result.device_uuid == latest_scans.c.device_uuid) &
+             (Result.scan_id == latest_scans.c.scan_id)
+         ).filter(Result.status == "FAIL")\
+          .group_by(Rule.id, Rule.title, Rule.severity)\
+          .order_by(func.count(Result.id).desc())\
+          .limit(5).all()
+
+    # Aggregate stats from latest scans of active devices
+    passed = 0
+    failed = 0
+    errors = 0
+    
+    severity_stats = {
+        "critical": {"passed": 0, "failed": 0, "errors": 0},
+        "high": {"passed": 0, "failed": 0, "errors": 0},
+        "medium": {"passed": 0, "failed": 0, "errors": 0},
+        "low": {"passed": 0, "failed": 0, "errors": 0},
+        "info": {"passed": 0, "failed": 0, "errors": 0},
+    }
+    
+    vendor_stats = {}
+    vendors = Vendor.query.all()
+    vendor_names = {v.code: v.name for v in vendors}
+    
+    for r in latest_results:
+        status = r.status
+        severity = (r.severity or "medium").lower()
+        vendor = r.vendor_code or "unknown"
+        
+        if status == "PASS":
+            passed += 1
+        elif status == "FAIL":
+            failed += 1
+        elif status == "ERROR":
+            errors += 1
+            
+        if severity in severity_stats:
+            if status == "PASS":
+                severity_stats[severity]["passed"] += 1
+            elif status == "FAIL":
+                severity_stats[severity]["failed"] += 1
+            elif status == "ERROR":
+                severity_stats[severity]["errors"] += 1
+                
+        if vendor not in vendor_stats:
+            vendor_stats[vendor] = {"passed": 0, "failed": 0, "errors": 0}
+            
+        if status == "PASS":
+            vendor_stats[vendor]["passed"] += 1
+        elif status == "FAIL":
+            vendor_stats[vendor]["failed"] += 1
+        elif status == "ERROR":
+            vendor_stats[vendor]["errors"] += 1
+
+    total_checks = passed + failed + errors
+    infra_score = round((passed / total_checks) * 100, 1) if total_checks > 0 else 100.0
+    
+    # Format stats dict for template compatibility
+    stats = {
+        "passed": passed,
+        "failed": failed,
+        "errors": errors,
+        "devices": total_active_devices
+    }
+
+    # Format severity breakdown list
+    severity_breakdown = []
+    for sev_name, counts in severity_stats.items():
+        total_sev = counts["passed"] + counts["failed"] + counts["errors"]
+        score_sev = round((counts["passed"] / total_sev) * 100, 1) if total_sev > 0 else 100.0
+        if total_sev > 0:
+            severity_breakdown.append({
+                "name": sev_name.capitalize(),
+                "code": sev_name,
+                "passed": counts["passed"],
+                "failed": counts["failed"],
+                "errors": counts["errors"],
+                "total": total_sev,
+                "score": score_sev
+            })
+    severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    severity_breakdown.sort(key=lambda x: severity_order.get(x["code"], 99))
+    
+    # Format vendor breakdown list
+    vendor_breakdown = []
+    for v_code, counts in vendor_stats.items():
+        total_v = counts["passed"] + counts["failed"] + counts["errors"]
+        score_v = round((counts["passed"] / total_v) * 100, 1) if total_v > 0 else 100.0
+        vendor_breakdown.append({
+            "name": vendor_names.get(v_code, v_code.upper()),
+            "code": v_code,
+            "passed": counts["passed"],
+            "failed": counts["failed"],
+            "errors": counts["errors"],
+            "total": total_v,
+            "score": score_v
+        })
+    vendor_breakdown.sort(key=lambda x: x["score"])
+
+    # Period-based stats
+    scans_run_query = Scan.query.filter_by(status="completed")
+    if start_date:
+        scans_run_query = scans_run_query.filter(Scan.finished_at >= start_date)
+    scans_run_count = scans_run_query.count()
+    
+    config_changes_query = ConfigSnapshot.query.filter_by(is_changed=True)
+    if start_date:
+        config_changes_query = config_changes_query.filter(ConfigSnapshot.collected_at >= start_date)
+    config_changes_count = config_changes_query.count()
+    
+    unique_devices_sub = db.session.query(Result.device_uuid)\
+        .join(Scan, Result.scan_id == Scan.id)\
+        .filter(Scan.status == "completed")
+    if start_date:
+        unique_devices_sub = unique_devices_sub.filter(Scan.finished_at >= start_date)
+    unique_devices_count = unique_devices_sub.distinct().count()
+
+    period_stats = {
+        "scans_run": scans_run_count,
+        "config_changes": config_changes_count,
+        "unique_devices": unique_devices_count
+    }
+
+    # Trend graph data (last 15 scans within period/generally)
+    trend_scans_query = Scan.query.filter_by(status="completed")
+    if start_date:
+        trend_scans_query = trend_scans_query.filter(Scan.finished_at >= start_date)
+    trend_scans = trend_scans_query.order_by(Scan.finished_at.desc()).limit(15).all()
+    trend_scans.reverse()
+    
+    trend_data = []
+    for s in trend_scans:
+        trend_data.append({
+            "date": (s.finished_at or s.started_at).strftime("%d.%m %H:%M"),
+            "score": s.score,
+            "passed": s.passed_count,
+            "failed": s.failed_count,
+            "errors": s.error_count
+        })
+
+    # Recent completed/running scans
     recent_scans = Scan.query.order_by(Scan.started_at.desc()).limit(5).all()
+    
+    # Recent failures across active devices
+    if active_device_ids:
+        recent_failures = Result.query.join(Device, Result.device_uuid == Device.id)\
+            .filter(Result.status == "FAIL")\
+            .filter(Device.is_active == True)\
+            .order_by(Result.checked_at.desc())\
+            .limit(10).all()
+    else:
+        recent_failures = []
     
     return render_template(
         "dashboard.html",
-        score=score,
+        score=infra_score,
         stats=stats,
         recent_failures=recent_failures,
-        recent_scans=recent_scans
+        recent_scans=recent_scans,
+        period=period,
+        period_stats=period_stats,
+        severity_breakdown=severity_breakdown,
+        vendor_breakdown=vendor_breakdown,
+        top_failing_rules=top_failing_rules,
+        trend_data=trend_data
     )
 
 

@@ -1,20 +1,233 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}Панель управления{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Dashboard-specific Premium Styles */
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+    
+    .period-tabs {
+        display: flex;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--border);
+        border-radius: var(--r-md);
+        padding: 2px;
+    }
+    
+    .period-tab {
+        padding: 0.4rem 1rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        border-radius: calc(var(--r-md) - 2px);
+        text-decoration: none;
+        transition: all var(--t-fast);
+    }
+    
+    .period-tab:hover {
+        color: var(--text-primary);
+    }
+    
+    .period-tab.active {
+        background: var(--accent);
+        color: var(--text-inverse);
+        box-shadow: 0 4px 12px var(--accent-glow);
+    }
+
+    .period-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        height: 100%;
+    }
+    
+    .period-stat-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        transition: all var(--t-normal);
+        backdrop-filter: blur(10px);
+    }
+    
+    .period-stat-card:hover {
+        border-color: var(--border-hover);
+        transform: translateY(-2px);
+    }
+    
+    .period-stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+    
+    .period-stat-label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    /* SVG Trend Chart */
+    .trend-chart-container {
+        position: relative;
+        height: 240px;
+        width: 100%;
+        margin-top: 1rem;
+    }
+    
+    .chart-tooltip {
+        position: absolute;
+        display: none;
+        background: rgba(15, 19, 34, 0.95);
+        border: 1px solid var(--accent);
+        border-radius: var(--r-md);
+        padding: 8px 12px;
+        font-size: 0.75rem;
+        color: var(--text-primary);
+        pointer-events: none;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), var(--shadow-glow);
+        z-index: 100;
+        backdrop-filter: blur(5px);
+        min-width: 120px;
+    }
+
+    /* Breakdown lists & grids */
+    .severity-list, .vendor-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .breakdown-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+    
+    .breakdown-info {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    
+    .breakdown-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .breakdown-progress-bg {
+        height: 8px;
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .breakdown-progress-bar {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 1s ease-out;
+    }
+
+    /* Top failing rules list */
+    .failing-rules-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .failing-rule-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--border);
+        border-radius: var(--r-md);
+        transition: all var(--t-fast);
+    }
+    
+    .failing-rule-item:hover {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: var(--border-hover);
+    }
+    
+    .failing-rule-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        max-width: 75%;
+    }
+    
+    .failing-rule-title {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .failing-rule-count {
+        text-align: right;
+    }
+    
+    .failing-rule-badge {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--danger);
+    }
+
+    /* Status dot */
+    .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+    }
+    .status-dot.critical { background-color: var(--danger); }
+    .status-dot.high { background-color: #f97316; }
+    .status-dot.medium { background-color: var(--warning); }
+    .status-dot.low { background-color: #3b82f6; }
+    .status-dot.info { background-color: #6b7280; }
+</style>
+{% endblock %}
 
 {% block content %}
-<!-- Breadcrumbs -->
-<div class="breadcrumbs">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="3" width="7" height="7" />
-        <rect x="14" y="3" width="7" height="7" />
-        <rect x="14" y="14" width="7" height="7" />
-        <rect x="3" y="14" width="7" height="7" />
-    </svg>
-    <span class="current">Dashboard</span>
+<!-- Breadcrumbs & Period Filter -->
+<div class="dashboard-header">
+    <div class="breadcrumbs" style="margin-bottom: 0;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+        </svg>
+        <span class="current">Сводная панель</span>
+    </div>
+    
+    <div class="period-tabs">
+        <a href="?period=7d" class="period-tab {% if period == '7d' %}active{% endif %}">7 дней</a>
+        <a href="?period=30d" class="period-tab {% if period == '30d' %}active{% endif %}">30 дней</a>
+        <a href="?period=all" class="period-tab {% if period == 'all' %}active{% endif %}">Все время</a>
+    </div>
 </div>
 
 <div class="grid grid-2 gap-3 mb-3">
-    <!-- Score Ring -->
+    <!-- Infrastructure Score Card -->
     <div class="score-ring-card fade-in">
         <svg style="position:absolute;width:0;height:0;">
             <defs>
@@ -32,120 +245,208 @@
             </svg>
             <div class="score-ring-value">
                 <div class="score-ring-number" id="scoreNumber">{{ score }}%</div>
-                <div class="score-ring-label">Score</div>
+                <div class="score-ring-label">Комплаенс</div>
             </div>
         </div>
         <div class="score-ring-info">
-            <div class="score-ring-title">Security Score</div>
+            <div class="score-ring-title">Текущее состояние сети</div>
             <div class="score-ring-subtitle">
-                Based on the latest compliance scan
-                {% if recent_scans %}
-                <br>
-                <span class="text-xs text-muted">
-                    {{ recent_scans[0].started_at.strftime('%d.%m.%Y %H:%M') if recent_scans[0].started_at else '—' }}
-                </span>
-                {% endif %}
+                Агрегированный индекс безопасности на основе последних сканирований активных устройств.
             </div>
             <div style="margin-top:1rem;display:flex;gap:1.5rem;">
                 <div>
                     <div style="font-size:1.5rem;font-weight:700;color:var(--success);">{{ stats.passed }}</div>
-                    <div class="text-xs text-muted">Passed</div>
+                    <div class="text-xs text-muted">Пройдено</div>
                 </div>
                 <div>
                     <div style="font-size:1.5rem;font-weight:700;color:var(--danger);">{{ stats.failed }}</div>
-                    <div class="text-xs text-muted">Failed</div>
+                    <div class="text-xs text-muted">Нарушено</div>
                 </div>
                 <div>
                     <div style="font-size:1.5rem;font-weight:700;color:var(--warning);">{{ stats.errors }}</div>
-                    <div class="text-xs text-muted">Errors</div>
+                    <div class="text-xs text-muted">Ошибки</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Stats Grid -->
-    <div class="stats-grid fade-in stagger-1" style="align-content: center;">
-        <div class="stat-card">
-            <div class="stat-value success">{{ stats.passed }}</div>
-            <div class="stat-label">Passed</div>
+    <!-- Period Metrics Grid -->
+    <div class="period-stats-grid fade-in stagger-1">
+        <div class="period-stat-card">
+            <div class="period-stat-value" style="color: var(--accent);">{{ stats.devices }}</div>
+            <div class="period-stat-label">Активных устройств в БД</div>
         </div>
-        <div class="stat-card">
-            <div class="stat-value danger">{{ stats.failed }}</div>
-            <div class="stat-label">Failed</div>
+        <div class="period-stat-card">
+            <div class="period-stat-value" style="color: #10b981;">{{ period_stats.unique_devices }}</div>
+            <div class="period-stat-label">Устройств сканировано в периоде</div>
         </div>
-        <div class="stat-card">
-            <div class="stat-value warning">{{ stats.errors }}</div>
-            <div class="stat-label">Errors</div>
+        <div class="period-stat-card">
+            <div class="period-stat-value" style="color: #f59e0b;">{{ period_stats.config_changes }}</div>
+            <div class="period-stat-label">Изменений конфигов в периоде</div>
         </div>
-        <div class="stat-card">
-            <div class="stat-value info">{{ stats.devices }}</div>
-            <div class="stat-label">Devices</div>
+        <div class="period-stat-card" style="grid-column: span 3;">
+            <div class="period-stat-value" style="font-size: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-secondary);">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span>Выполнено сканирований за период: {{ period_stats.scans_run }}</span>
+            </div>
+            <div class="period-stat-label" style="margin-top: 2px;">Запуски по расписанию и вручную</div>
+        </div>
+    </div>
+</div>
+
+<!-- Compliance Trend Line Graph -->
+<div class="card mb-3 fade-in">
+    <div class="card-header">
+        <h4>Динамика комплаенса сети</h4>
+        <span class="text-xs text-muted">Показатели последних 15 сканирований</span>
+    </div>
+    <div class="trend-chart-container">
+        <svg id="trendChart" style="width:100%; height:100%; overflow:visible;">
+            <!-- Defined gradients -->
+            <defs>
+                <linearGradient id="chartLineGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="var(--accent)" />
+                    <stop offset="100%" stop-color="#8b5cf6" />
+                </linearGradient>
+                <linearGradient id="chartAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.25" />
+                    <stop offset="100%" stop-color="var(--accent)" stop-opacity="0" />
+                </linearGradient>
+            </defs>
+        </svg>
+        <div id="chartTooltip" class="chart-tooltip"></div>
+    </div>
+</div>
+
+<div class="grid grid-2 gap-3 mb-3">
+    <!-- Criticality / Severity Breakdown -->
+    <div class="card fade-in">
+        <div class="card-header">
+            <h4>Распределение по критичности</h4>
+        </div>
+        <div class="card-body">
+            <div class="severity-list">
+                {% for item in severity_breakdown %}
+                <div class="breakdown-row">
+                    <div class="breakdown-info">
+                        <div class="breakdown-label">
+                            <span class="status-dot {{ item.code }}"></span>
+                            <span>{{ item.name }}</span>
+                        </div>
+                        <div class="text-sm font-semibold">
+                            {{ item.score }}% <span class="text-xs text-muted">({{ item.passed }}/{{ item.total }})</span>
+                        </div>
+                    </div>
+                    <div class="breakdown-progress-bg">
+                        <div class="breakdown-progress-bar" 
+                             style="width: 0%; background-color: {% if item.code == 'critical' or item.code == 'high' %}var(--danger){% elif item.code == 'medium' %}var(--warning){% elif item.code == 'low' %}#3b82f6{% else %}#6b7280{% endif %};" 
+                             data-width="{{ item.score }}%">
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="empty-state">Нет данных о критичности проверок</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Breakdown -->
+    <div class="card fade-in">
+        <div class="card-header">
+            <h4>Статистика по вендорам</h4>
+        </div>
+        <div class="card-body">
+            <div class="vendor-list">
+                {% for item in vendor_breakdown %}
+                <div class="breakdown-row">
+                    <div class="breakdown-info">
+                        <div class="breakdown-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-secondary);">
+                                <rect x="2" y="2" width="20" height="8" rx="2" />
+                                <rect x="2" y="14" width="20" height="8" rx="2" />
+                                <circle cx="6" cy="6" r="1" fill="currentColor" />
+                                <circle cx="6" cy="18" r="1" fill="currentColor" />
+                            </svg>
+                            <span>{{ item.name }}</span>
+                        </div>
+                        <div class="text-sm font-semibold">
+                            {{ item.score }}% <span class="text-xs text-muted">({{ item.passed }}/{{ item.total }})</span>
+                        </div>
+                    </div>
+                    <div class="breakdown-progress-bg">
+                        <div class="breakdown-progress-bar" 
+                             style="width: 0%; background-color: {% if item.score >= 80 %}var(--success){% elif item.score >= 50 %}var(--warning){% else %}var(--danger){% endif %};" 
+                             data-width="{{ item.score }}%">
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="empty-state">Устройства отсутствуют или не сканировались</div>
+                {% endfor %}
+            </div>
         </div>
     </div>
 </div>
 
 <div class="grid grid-2 gap-3">
-    <!-- Recent Failures -->
-    <div class="card fade-in stagger-2">
+    <!-- Top Failing Rules -->
+    <div class="card fade-in">
         <div class="card-header">
-            <h4>Последние нарушения</h4>
-            <a href="{{ url_for('web.scans_list') }}" class="btn btn-ghost btn-sm">
-                Все скан →
-            </a>
+            <h4>Критические нарушения</h4>
+            <span class="text-xs text-muted">Топ 5 часто нарушаемых правил</span>
         </div>
-        <div class="table-wrapper">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Устройство</th>
-                        <th>Правило</th>
-                        <th>Время</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for result in recent_failures %}
-                    <tr>
-                        <td><code>{{ result.device_id }}</code></td>
-                        <td>{{ result.rule.title }}</td>
-                        <td class="text-muted text-sm">{{ result.checked_at.strftime('%d.%m %H:%M') }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="3">
-                            <div class="empty-state">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M9 12l2 2 4-4" />
-                                    <circle cx="12" cy="12" r="10" />
-                                </svg>
-                                <div>Нет недавних нарушений</div>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="card-body">
+            <div class="failing-rules-list">
+                {% for rule in top_failing_rules %}
+                <div class="failing-rule-item">
+                    <div class="failing-rule-info">
+                        <span class="failing-rule-title" title="{{ rule.title }}">{{ rule.title }}</span>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <span class="badge badge-neutral" style="font-size: 0.7rem; padding: 2px 6px;">{{ rule.severity.upper() }}</span>
+                        </div>
+                    </div>
+                    <div class="failing-rule-count">
+                        <div class="failing-rule-badge">{{ rule.fail_count }}</div>
+                        <div class="text-xs text-muted">устройств</div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 32px; height: 32px;">
+                        <path d="M9 12l2 2 4-4" />
+                        <circle cx="12" cy="12" r="10" />
+                    </svg>
+                    <div>Нет нарушений на устройствах</div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
     </div>
 
     <!-- Recent Scans -->
-    <div class="card fade-in stagger-3">
+    <div class="card fade-in">
         <div class="card-header">
-            <h4>История сканирований</h4>
+            <h4>Последние запуски</h4>
+            <a href="{{ url_for('web.scans_list') }}" class="btn btn-ghost btn-sm">Все запуски →</a>
         </div>
         <div class="table-wrapper">
             <table class="table">
                 <thead>
                     <tr>
-                        <th>Дата</th>
+                        <th>Дата запуска</th>
                         <th>Статус</th>
-                        <th>Score</th>
+                        <th>Индекс</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for scan in recent_scans %}
                     <tr>
-                        <td class="text-sm">{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td class="text-sm">{{ (scan.finished_at or scan.started_at).strftime('%Y-%m-%d %H:%M') }}</td>
                         <td>
                             {% if scan.status == 'completed' %}
                             <span class="badge badge-success">completed</span>
@@ -160,16 +461,14 @@
                             {% endif %}
                         </td>
                         <td>
-                            <strong
-                                class="{% if scan.score >= 80 %}text-success{% elif scan.score >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                            <strong class="{% if scan.score >= 80 %}text-success{% elif scan.score >= 50 %}text-warning{% else %}text-danger{% endif %}">
                                 {{ scan.score }}%
                             </strong>
                         </td>
                         <td class="text-right">
                             <a href="{{ url_for('web.scan_detail', scan_id=scan.id) }}"
-                                class="btn btn-ghost btn-icon btn-sm" title="Details">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
+                                class="btn btn-ghost btn-icon btn-sm" title="Детали">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                                     <circle cx="12" cy="12" r="3" />
                                 </svg>
@@ -180,12 +479,8 @@
                     <tr>
                         <td colspan="4">
                             <div class="empty-state">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <circle cx="11" cy="11" r="8" />
-                                    <path d="M21 21l-4.35-4.35" />
-                                </svg>
-                                <div>Сканирований пока нет</div>
-                                <button class="btn btn-primary mt-2" onclick="startScan()">Запустить первое</button>
+                                <div>Запуски отсутствуют</div>
+                                <button class="btn btn-primary mt-2" onclick="startScan()">Запустить сканирование</button>
                             </div>
                         </td>
                     </tr>
@@ -199,7 +494,7 @@
 
 {% block extra_js %}
 <script>
-    // Animate score ring
+    // 1. Animate Global Score Ring
     (function () {
         const ring = document.getElementById('scoreRing');
         if (!ring) return;
@@ -213,6 +508,189 @@
                 ring.style.strokeDashoffset = offset;
             });
         });
+    })();
+
+    // 2. Animate progress bars for breakdown row
+    (function () {
+        setTimeout(function() {
+            const bars = document.querySelectorAll('.breakdown-progress-bar');
+            bars.forEach(bar => {
+                const width = bar.getAttribute('data-width');
+                bar.style.width = width;
+            });
+        }, 150);
+    })();
+
+    // 3. Draw and Animate Interactive SVG Trend Chart
+    (function () {
+        const data = {{ trend_data | tojson }};
+        const svg = document.getElementById('trendChart');
+        const tooltip = document.getElementById('chartTooltip');
+        if (!svg || !data || data.length === 0) return;
+        
+        function drawChart() {
+            // Clear existing SVG children except <defs>
+            const defs = svg.querySelector('defs');
+            svg.innerHTML = '';
+            svg.appendChild(defs);
+            
+            const rect = svg.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+            
+            const paddingLeft = 40;
+            const paddingRight = 20;
+            const paddingTop = 20;
+            const paddingBottom = 30;
+            
+            const chartWidth = width - paddingLeft - paddingRight;
+            const chartHeight = height - paddingTop - paddingBottom;
+            
+            // Draw grid lines and labels
+            const gridLines = [0, 25, 50, 75, 100];
+            gridLines.forEach(val => {
+                const y = paddingTop + chartHeight - (val / 100) * chartHeight;
+                
+                // Grid line
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', paddingLeft);
+                line.setAttribute('y1', y);
+                line.setAttribute('x2', width - paddingRight);
+                line.setAttribute('y2', y);
+                line.setAttribute('stroke', 'rgba(255, 255, 255, 0.04)');
+                line.setAttribute('stroke-dasharray', '4 4');
+                svg.appendChild(line);
+                
+                // Label
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', paddingLeft - 10);
+                text.setAttribute('y', y + 4);
+                text.setAttribute('fill', 'var(--text-muted)');
+                text.setAttribute('font-size', '10px');
+                text.setAttribute('text-anchor', 'end');
+                text.textContent = val + '%';
+                svg.appendChild(text);
+            });
+            
+            // Map points to SVG coordinates
+            const points = data.map((d, index) => {
+                const x = paddingLeft + (index / (data.length - 1 || 1)) * chartWidth;
+                const y = paddingTop + chartHeight - (d.score / 100) * chartHeight;
+                return { x, y, data: d };
+            });
+            
+            // Area Path (shade under the curve)
+            if (points.length > 1) {
+                let areaPathData = `M ${points[0].x} ${paddingTop + chartHeight} `;
+                points.forEach(p => {
+                    areaPathData += `L ${p.x} ${p.y} `;
+                });
+                areaPathData += `L ${points[points.length - 1].x} ${paddingTop + chartHeight} Z`;
+                
+                const areaPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                areaPath.setAttribute('d', areaPathData);
+                areaPath.setAttribute('fill', 'url(#chartAreaGradient)');
+                svg.appendChild(areaPath);
+            }
+            
+            // Line Path
+            let linePathData = '';
+            points.forEach((p, index) => {
+                if (index === 0) {
+                    linePathData += `M ${p.x} ${p.y} `;
+                } else {
+                    linePathData += `L ${p.x} ${p.y} `;
+                }
+            });
+            
+            if (linePathData) {
+                const linePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                linePath.setAttribute('d', linePathData);
+                linePath.setAttribute('fill', 'none');
+                linePath.setAttribute('stroke', 'url(#chartLineGradient)');
+                linePath.setAttribute('stroke-width', '3');
+                linePath.setAttribute('filter', 'drop-shadow(0 4px 8px rgba(99, 102, 241, 0.3))');
+                
+                // Animate line path drawing
+                const length = points.length * 100; // arbitrary, pathLength is better but this is simpler
+                linePath.style.strokeDasharray = length;
+                linePath.style.strokeDashoffset = length;
+                linePath.style.transition = 'stroke-dashoffset 1.5s ease-out';
+                svg.appendChild(linePath);
+                
+                setTimeout(() => {
+                    linePath.style.strokeDashoffset = '0';
+                }, 50);
+            }
+            
+            // Interactive Dots
+            points.forEach(p => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', p.x);
+                circle.setAttribute('cy', p.y);
+                circle.setAttribute('r', '4');
+                circle.setAttribute('fill', 'var(--bg-card-solid)');
+                circle.setAttribute('stroke', 'var(--accent)');
+                circle.setAttribute('stroke-width', '2');
+                circle.style.cursor = 'pointer';
+                circle.style.transition = 'r 0.1s ease, fill 0.1s ease';
+                
+                // Show tooltip and highlight dot on hover
+                circle.addEventListener('mouseenter', function (e) {
+                    circle.setAttribute('r', '7');
+                    circle.setAttribute('fill', 'var(--accent)');
+                    
+                    tooltip.style.display = 'block';
+                    tooltip.innerHTML = `
+                        <div style="font-weight:600;margin-bottom:4px;color:var(--text-primary);">${p.data.date}</div>
+                        <div style="display:flex;justify-content:space-between;gap:1.5rem;margin-bottom:2px;">
+                            <span style="color:var(--text-secondary);">Индекс:</span>
+                            <span style="font-weight:700;color:var(--accent);">${p.data.score}%</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;gap:1.5rem;">
+                            <span style="color:var(--text-secondary);">Успешно:</span>
+                            <span style="color:var(--success);font-weight:600;">${p.data.passed}</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;gap:1.5rem;">
+                            <span style="color:var(--text-secondary);">Ошибки:</span>
+                            <span style="color:var(--danger);font-weight:600;">${p.data.failed}</span>
+                        </div>
+                    `;
+                    
+                    // Tooltip placement relative to SVG container
+                    const tooltipRect = tooltip.getBoundingClientRect();
+                    tooltip.style.left = (p.x - tooltipRect.width / 2) + 'px';
+                    tooltip.style.top = (p.y - tooltipRect.height - 12) + 'px';
+                });
+                
+                circle.addEventListener('mouseleave', function () {
+                    circle.setAttribute('r', '4');
+                    circle.setAttribute('fill', 'var(--bg-card-solid)');
+                    tooltip.style.display = 'none';
+                });
+                
+                svg.appendChild(circle);
+            });
+
+            // Date X-axis labels
+            const maxLabels = 5;
+            const step = Math.max(1, Math.floor(points.length / maxLabels));
+            points.forEach((p, index) => {
+                if (index % step === 0 || index === points.length - 1) {
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', p.x);
+                    text.setAttribute('y', height - 5);
+                    text.setAttribute('fill', 'var(--text-muted)');
+                    text.setAttribute('font-size', '9px');
+                    text.setAttribute('text-anchor', 'middle');
+                    text.textContent = p.data.date.split(' ')[0]; // only show date, not time
+                    svg.appendChild(text);
+                }
+            });
+        }
+        
+        drawChart();
+        window.addEventListener('resize', drawChart);
     })();
 </script>
 {% endblock %}
