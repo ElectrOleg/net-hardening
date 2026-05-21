@@ -2,6 +2,13 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from celery import Celery
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.dialects.postgresql import JSONB
+
+# Register SQLite compilers for PostgreSQL-specific types during local development/testing
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(type_, compiler, **kw):
+    return "JSON"
 
 db = SQLAlchemy()
 migrate = Migrate()

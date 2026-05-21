@@ -19,12 +19,32 @@
     }
 
     window.toggleSidebar = function () {
-        layout.classList.toggle('collapsed');
-        const isCollapsed = layout.classList.contains('collapsed');
-        localStorage.setItem('hcs-sidebar-collapsed', isCollapsed);
-        // Keep html class in sync so head script works on next page load.
-        document.documentElement.classList.toggle('sidebar-collapsed', isCollapsed);
+        if (window.innerWidth <= 768) {
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) {
+                sidebar.classList.toggle('mobile-open');
+            }
+        } else {
+            layout.classList.toggle('collapsed');
+            const isCollapsed = layout.classList.contains('collapsed');
+            localStorage.setItem('hcs-sidebar-collapsed', isCollapsed);
+            // Keep html class in sync so head script works on next page load.
+            document.documentElement.classList.toggle('sidebar-collapsed', isCollapsed);
+        }
     };
+
+    // Close sidebar on mobile when clicking outside of it
+    document.addEventListener('click', function (e) {
+        if (window.innerWidth <= 768) {
+            const sidebar = document.querySelector('.sidebar');
+            const toggleBtn = document.querySelector('.sidebar-toggle-floating');
+            if (sidebar && sidebar.classList.contains('mobile-open')) {
+                if (!sidebar.contains(e.target) && (!toggleBtn || !toggleBtn.contains(e.target))) {
+                    sidebar.classList.remove('mobile-open');
+                }
+            }
+        }
+    });
 })();
 
 // ─── User Dropdown ──────────────────────────────────────────────

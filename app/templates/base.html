@@ -27,11 +27,6 @@
                     </svg>
                     <span class="sidebar-logo-text">HCS</span>
                 </a>
-                <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="15 18 9 12 15 6" />
-                    </svg>
-                </button>
             </div>
 
             <!-- Scan button -->
@@ -189,6 +184,13 @@
                 {% endif %}
             </div>
         </aside>
+        
+        <!-- Floating Toggle Button -->
+        <button class="sidebar-toggle-floating" onclick="toggleSidebar()" title="Свернуть/развернуть боковую панель">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+            </svg>
+        </button>
 
         <!-- ═══ Main Area ═══ -->
         <div class="main-area">
