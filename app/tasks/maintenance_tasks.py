@@ -216,6 +216,9 @@ def _auto_run_scheduled_scans_inner():
                     for d in devices
                 )
                 chord_result = (task_group | scan_completion_handler.s(str(scan.id))).apply_async()
+            else:
+                from app.services.scanner import ScannerService
+                ScannerService().complete_empty_scan(str(scan.id))
             
             # Update schedule
             schedule.last_run_at = now
