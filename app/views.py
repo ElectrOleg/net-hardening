@@ -13,8 +13,12 @@ def inject_user():
     g.current_user = None
     user_id = session.get("user_id")
     if user_id:
+        import uuid
         from app.models.user import User
-        user = User.query.get(user_id)
+        try:
+            user = User.query.get(uuid.UUID(str(user_id)))
+        except (ValueError, TypeError, AttributeError):
+            user = None
         if user and user.is_active:
             g.current_user = user.to_dict()
 

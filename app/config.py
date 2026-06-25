@@ -39,8 +39,9 @@ class Settings(BaseSettings):
     AWX_URL: str = ""
     
     # Authentication
-    AUTH_ENABLED: bool = False  # Set to True in production
+    AUTH_ENABLED: bool = True  # Enabled by default for security
     API_TOKEN: str = ""  # Static API token for automation
+    METRICS_TOKEN: str = ""  # If set, requires Bearer token or ?token= to access /metrics
     
     # LDAP / Active Directory
     LDAP_ENABLED: bool = False

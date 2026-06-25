@@ -89,16 +89,26 @@ def seed_command():
 
 @click.command("seed-admin")
 @click.option("--username", default="admin", help="Admin username")
-@click.option("--password", default="admin123", help="Admin password")
+@click.option("--password", default=None, help="Admin password (will generate a random one if omitted)")
 @with_appcontext
 def seed_admin_command(username, password):
     """Create default admin user for first-time setup."""
+    import os
+    import secrets
     from app.models.user import User
 
     existing = User.query.filter_by(username=username).first()
     if existing:
         click.echo(f"User '{username}' already exists (role={existing.role})")
         return
+
+    # Check environment variable or fallback to generated password
+    env_password = os.environ.get("ADMIN_PASSWORD")
+    if not password:
+        if env_password:
+            password = env_password
+        else:
+            password = secrets.token_urlsafe(12)
 
     user = User(
         username=username,
@@ -113,4 +123,5 @@ def seed_admin_command(username, password):
     db.session.commit()
 
     click.echo(f"Created admin user '{username}' with password '{password}'")
-    click.echo("⚠️  Change the password after first login!")
+    if not env_password:
+        click.echo("⚠️  Change the password after first login!")

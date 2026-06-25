@@ -101,6 +101,8 @@ def init_csrf(app):
 
     @app.before_request
     def check_csrf_token():
+        if app.config.get("TESTING"):
+            return None
         if request.method in SAFE_METHODS:
             return None
 

@@ -4,7 +4,7 @@ from flask import Blueprint
 api_bp = Blueprint("api", __name__)
 
 # Import routes to register them
-from app.api import vendors, policies, rules, scans, results, exceptions, test, exports, remediation, compliance, admin, rule_packs, auth_api
+from app.api import vendors, policies, rules, scans, results, exceptions, test, exports, remediation, compliance, admin, rule_packs, auth_api, configs
 
 # Register nested blueprints
 from app.api.data_sources import data_sources_bp

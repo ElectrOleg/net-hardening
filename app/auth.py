@@ -78,7 +78,11 @@ def _get_current_user():
     # 2. Session
     user_id = session.get("user_id")
     if user_id:
-        user = User.query.get(user_id)
+        import uuid
+        try:
+            user = User.query.get(uuid.UUID(str(user_id)))
+        except (ValueError, TypeError, AttributeError):
+            user = None
         if user and user.is_active:
             return user
 
