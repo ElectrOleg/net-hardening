@@ -178,6 +178,7 @@ def _auto_run_scheduled_scans_inner():
     from app.extensions import db
     from app.models.scan_schedule import ScanSchedule
     from app.models.system_setting import SystemSetting
+    from app.models import Scan
     
     # Global kill switch
     if not SystemSetting.get_bool("scan.auto_enabled", False):
@@ -194,54 +195,19 @@ def _auto_run_scheduled_scans_inner():
     
     for schedule in schedules:
         try:
-            # Import scan task to queue it
-            from app.tasks.scan_tasks import scan_device_task, scan_completion_handler
-            from app.models import Scan
-            from celery import group as celery_group
-            
             # Create scan record
             scan = Scan(
-                status="running",
+                status="pending",
                 policies_filter=schedule.policies_filter,
                 devices_filter=schedule.devices_filter,
+                started_by=f"schedule: {schedule.name}",
             )
             db.session.add(scan)
             db.session.flush()  # Get scan.id
             
-            # Determine devices to scan
-            from app.models import Device
-            device_query = Device.query.filter_by(is_active=True)
-            
-            if schedule.devices_filter:
-                if "vendor" in schedule.devices_filter:
-                    device_query = device_query.filter_by(
-                        vendor_code=schedule.devices_filter["vendor"]
-                    )
-                if "group_id" in schedule.devices_filter:
-                    device_query = device_query.filter_by(
-                        group_id=schedule.devices_filter["group_id"]
-                    )
-            
-            devices = device_query.all()
-            scan.total_devices = len(devices)
-            
-            # Count applicable rules
-            from app.models import Rule
-            rules_query = Rule.query.filter_by(is_active=True)
-            if schedule.policies_filter:
-                rules_query = rules_query.filter(Rule.policy_id.in_(schedule.policies_filter))
-            scan.total_rules = rules_query.count()
-            
-            # Queue device scan tasks
-            if devices:
-                task_group = celery_group(
-                    scan_device_task.s(str(scan.id), d.hostname)
-                    for d in devices
-                )
-                chord_result = (task_group | scan_completion_handler.s(str(scan.id))).apply_async()
-            else:
-                from app.services.scanner import ScannerService
-                ScannerService().complete_empty_scan(str(scan.id))
+            # Queue the scan task
+            from app.tasks.scan_tasks import run_scan
+            run_scan.delay(str(scan.id))
             
             # Update schedule
             schedule.last_run_at = now
@@ -252,8 +218,7 @@ def _auto_run_scheduled_scans_inner():
             started += 1
             
             logger.info(
-                f"Scheduled scan '{schedule.name}' started: "
-                f"scan_id={scan.id}, devices={len(devices)}"
+                f"Scheduled scan '{schedule.name}' queued: scan_id={scan.id}"
             )
             
         except Exception as e:

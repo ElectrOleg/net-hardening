@@ -80,7 +80,7 @@ class ScannerService:
             devices = device_ids
         else:
             # Primary: get from inventory, pre-filtered by applicable rules
-            devices = self._get_devices_from_inventory(rules)
+            devices = self._get_devices_from_inventory(rules, scan.devices_filter)
             if not devices:
                 # Fallback: get from data sources (legacy behavior)
                 if data_sources:
@@ -97,7 +97,11 @@ class ScannerService:
             
         return devices
 
-    def _get_devices_from_inventory(self, rules: list[Rule] = None) -> list[str]:
+    def _get_devices_from_inventory(
+        self, 
+        rules: list[Rule] = None, 
+        devices_filter: Optional[dict] = None
+    ) -> list[str]:
         """Get active devices from inventory, pre-filtered by vendor_codes 
         from applicable rules and policy scope_filters.
         
@@ -110,7 +114,20 @@ class ScannerService:
         3. Device is included if it passes vendor filter AND matches at least
            one policy's scope_filter (or if a policy has no filter)
         """
-        all_devices = Device.query.filter_by(is_active=True).all()
+        query = Device.query.filter_by(is_active=True)
+        if devices_filter:
+            if "vendor" in devices_filter and devices_filter["vendor"]:
+                query = query.filter_by(vendor_code=devices_filter["vendor"])
+            if "group_id" in devices_filter and devices_filter["group_id"]:
+                import uuid
+                g_id = devices_filter["group_id"]
+                if isinstance(g_id, str):
+                    try:
+                        g_id = uuid.UUID(g_id)
+                    except ValueError:
+                        pass
+                query = query.filter_by(group_id=g_id)
+        all_devices = query.all()
         
         if not rules:
             hostnames = [d.hostname for d in all_devices if d.hostname]
