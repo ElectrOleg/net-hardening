@@ -95,8 +95,8 @@ def test_data_source(source_id):
         if not provider:
             return jsonify({"success": False, "message": "Failed to create provider"})
         
-        success, message = provider.test_connection()
-        provider.close()
+        with provider:
+            success, message = provider.test_connection()
         
         return jsonify({"success": success, "message": message})
         

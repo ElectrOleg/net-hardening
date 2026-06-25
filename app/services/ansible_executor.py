@@ -7,6 +7,7 @@ Supports:
 """
 import logging
 import json
+import shlex
 from typing import Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -194,22 +195,21 @@ class SSHAnsibleExecutor:
         try:
             with ConnectHandler(**device) as conn:
                 # Create directory
-                conn.send_command(f"mkdir -p {self.playbook_dir}")
+                quoted_dir = shlex.quote(self.playbook_dir)
+                conn.send_command(f"mkdir -p {quoted_dir}")
                 
-                # Upload playbook (via echo for simplicity)
-                # For production, use SCP or SFTP
+                # Upload playbook
                 playbook_path = f"{self.playbook_dir}/{playbook_name}"
-                
-                # Escape for shell
-                escaped_content = playbook_content.replace("'", "'\\''")
-                conn.send_command(f"cat > {playbook_path} << 'HCSEOF'\n{playbook_content}\nHCSEOF")
+                quoted_path = shlex.quote(playbook_path)
+                conn.send_command(f"cat > {quoted_path} << 'HCSEOF'\n{playbook_content}\nHCSEOF")
                 
                 # Build ansible-playbook command
-                cmd = f"ansible-playbook -i {self.inventory_file} {playbook_path}"
+                quoted_inventory = shlex.quote(self.inventory_file)
+                cmd = f"ansible-playbook -i {quoted_inventory} {quoted_path}"
                 
                 if extra_vars:
-                    vars_json = json.dumps(extra_vars).replace('"', '\\"')
-                    cmd += f" --extra-vars '{vars_json}'"
+                    vars_json = json.dumps(extra_vars)
+                    cmd += f" --extra-vars {shlex.quote(vars_json)}"
                 
                 if limit:
                     cmd += f" --limit '{limit}'"

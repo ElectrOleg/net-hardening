@@ -18,16 +18,24 @@ depends_on = None
 
 def upgrade():
     conn = op.get_bind()
+    uuid_default = sa.text('gen_random_uuid()') if conn.dialect.name != "sqlite" else None
 
     # ── Create table if needed ───────────────────────────────────
-    result = conn.execute(sa.text(
-        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_vendor_mappings')"
-    ))
-    if not result.scalar():
+    if conn.dialect.name == "sqlite":
+        result = conn.execute(sa.text(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='hcs_vendor_mappings'"
+        ))
+        exists = result.first() is not None
+    else:
+        result = conn.execute(sa.text(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_vendor_mappings')"
+        ))
+        exists = result.scalar()
+    if not exists:
         op.create_table(
             'hcs_vendor_mappings',
             sa.Column('id', UUID(as_uuid=True), primary_key=True,
-                      server_default=sa.text('gen_random_uuid()')),
+                      server_default=uuid_default),
             sa.Column('vendor_code', sa.String(50),
                       sa.ForeignKey('hcs_vendors.code'), nullable=False),
             sa.Column('pattern', sa.String(500), nullable=False),
@@ -67,10 +75,19 @@ def upgrade():
     # ── Seed default vendor mappings (only if table is empty) ────
     count = conn.execute(sa.text("SELECT COUNT(*) FROM hcs_vendor_mappings")).scalar()
     if count == 0:
+        import uuid
         from app.models.vendor_mapping import DEFAULT_VENDOR_MAPPINGS
+        
+        mappings_with_ids = []
+        for m in DEFAULT_VENDOR_MAPPINGS:
+            m_copy = m.copy()
+            if "id" not in m_copy:
+                m_copy["id"] = uuid.uuid4()
+            mappings_with_ids.append(m_copy)
         
         mappings_table = sa.table(
             'hcs_vendor_mappings',
+            sa.column('id', UUID),
             sa.column('vendor_code', sa.String),
             sa.column('pattern', sa.String),
             sa.column('match_field', sa.String),
@@ -78,7 +95,7 @@ def upgrade():
             sa.column('description', sa.String),
         )
         
-        op.bulk_insert(mappings_table, DEFAULT_VENDOR_MAPPINGS)
+        op.bulk_insert(mappings_table, mappings_with_ids)
 
 
 def downgrade():

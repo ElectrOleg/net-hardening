@@ -21,6 +21,11 @@ depends_on = None
 
 def _table_exists(conn, table_name: str) -> bool:
     """Check if a table already exists in the database."""
+    if conn.dialect.name == "sqlite":
+        result = conn.execute(sa.text(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=:tbl"
+        ), {"tbl": table_name})
+        return result.first() is not None
     result = conn.execute(sa.text(
         "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
         "WHERE table_name = :tbl)"
@@ -30,6 +35,11 @@ def _table_exists(conn, table_name: str) -> bool:
 
 def _index_exists(conn, index_name: str) -> bool:
     """Check if an index already exists."""
+    if conn.dialect.name == "sqlite":
+        result = conn.execute(sa.text(
+            "SELECT 1 FROM sqlite_master WHERE type='index' AND name=:idx"
+        ), {"idx": index_name})
+        return result.first() is not None
     result = conn.execute(sa.text(
         "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = :idx)"
     ), {"idx": index_name})

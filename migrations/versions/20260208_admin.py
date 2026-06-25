@@ -19,10 +19,17 @@ def upgrade():
     conn = op.get_bind()
 
     # System settings (key-value)
-    result = conn.execute(sa.text(
-        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_system_settings')"
-    ))
-    if not result.scalar():
+    if conn.dialect.name == "sqlite":
+        result = conn.execute(sa.text(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='hcs_system_settings'"
+        ))
+        exists = result.first() is not None
+    else:
+        result = conn.execute(sa.text(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_system_settings')"
+        ))
+        exists = result.scalar()
+    if not exists:
         op.create_table(
             'hcs_system_settings',
             sa.Column('key', sa.String(100), primary_key=True),
@@ -32,10 +39,17 @@ def upgrade():
         )
     
     # Scan schedules
-    result = conn.execute(sa.text(
-        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_scan_schedules')"
-    ))
-    if not result.scalar():
+    if conn.dialect.name == "sqlite":
+        result = conn.execute(sa.text(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='hcs_scan_schedules'"
+        ))
+        exists = result.first() is not None
+    else:
+        result = conn.execute(sa.text(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_scan_schedules')"
+        ))
+        exists = result.scalar()
+    if not exists:
         op.create_table(
             'hcs_scan_schedules',
             sa.Column('id', UUID(as_uuid=True), primary_key=True,

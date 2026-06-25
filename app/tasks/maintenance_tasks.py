@@ -122,11 +122,34 @@ def cleanup_old_data():
         logger.warning(f"Config snapshot cleanup failed: {e}")
         db.session.rollback()
     
+    # --- Stuck scan safety valve ---
+    stuck_cutoff = now - timedelta(hours=4)
+    stuck_count = 0
+    try:
+        stuck_scans = Scan.query.filter(
+            Scan.status.in_(["pending", "running"]),
+            Scan.started_at < stuck_cutoff
+        ).all()
+        
+        for scan in stuck_scans:
+            scan.status = "failed"
+            scan.finished_at = now
+            scan.error_message = "Scan timed out / worker terminated unexpectedly"
+            stuck_count += 1
+            
+        if stuck_count > 0:
+            db.session.commit()
+            logger.info(f"Stuck scan safety valve: marked {stuck_count} stuck scans as failed")
+    except Exception as e:
+        logger.error(f"Stuck scan safety valve failed: {e}")
+        db.session.rollback()
+    
     return {
         "scans_deleted": deleted_scans,
         "results_deleted": deleted_results,
         "devices_purged": purged,
         "config_snapshots_deleted": deleted_snapshots,
+        "stuck_scans_failed": stuck_count,
     }
 
 

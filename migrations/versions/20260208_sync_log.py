@@ -17,10 +17,17 @@ depends_on = None
 
 def upgrade():
     conn = op.get_bind()
-    result = conn.execute(sa.text(
-        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_sync_logs')"
-    ))
-    if result.scalar():
+    if conn.dialect.name == "sqlite":
+        result = conn.execute(sa.text(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='hcs_sync_logs'"
+        ))
+        exists = result.first() is not None
+    else:
+        result = conn.execute(sa.text(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_sync_logs')"
+        ))
+        exists = result.scalar()
+    if exists:
         return  # Already exists
 
     op.create_table(

@@ -227,9 +227,9 @@ class ScannerService:
         for ds in data_sources:
             provider = self._create_provider(ds)
             if provider:
-                devices = provider.list_devices()
-                all_devices.update(devices)
-                provider.close()
+                with provider:
+                    devices = provider.list_devices()
+                    all_devices.update(devices)
         
         return list(all_devices)
     
@@ -451,8 +451,8 @@ class ScannerService:
                     msg = f"Failed to create provider for source '{ds.name}' (type={ds.type})"
                     logger.warning(f"{msg} — device={device_id}")
                     return None, None, msg
-                result = provider.fetch_config(device_id, context=device_context)
-                provider.close()
+                with provider:
+                    result = provider.fetch_config(device_id, context=device_context)
                 if result.success:
                     v = result.metadata.get("vendor") if result.metadata else None
                     if v and not device_vendor:
@@ -470,12 +470,12 @@ class ScannerService:
                 for ds in data_sources:
                     provider = self._create_provider(ds)
                     if provider:
-                        result = provider.fetch_config(device_id, context=device_context)
+                        with provider:
+                            result = provider.fetch_config(device_id, context=device_context)
                         if result.success:
                             v = result.metadata.get("vendor") if result.metadata else None
                             if v and not device_vendor:
                                 device_vendor = v
-                            provider.close()
                             return result.config, v, None
                         else:
                             fetch_errors.append(f"{ds.name}: {result.error}")
@@ -483,7 +483,6 @@ class ScannerService:
                                 f"Fetch failed for device={device_id} source={ds.name} "
                                 f"(type={ds.type}): {result.error}"
                             )
-                        provider.close()
                 error_summary = "; ".join(fetch_errors) if fetch_errors else "no active data sources"
                 return None, None, error_summary
         

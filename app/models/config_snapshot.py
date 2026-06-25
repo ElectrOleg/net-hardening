@@ -11,6 +11,7 @@ from datetime import datetime
 
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.extensions import db
+from app.utils.crypto import EncryptedText
 
 
 class ConfigSnapshot(db.Model):
@@ -33,7 +34,7 @@ class ConfigSnapshot(db.Model):
     )
     
     # Config content
-    config_text = db.Column(db.Text, nullable=True)  # NULL when is_changed=False (dedup)
+    config_text = db.Column(EncryptedText, nullable=True)  # NULL when is_changed=False (dedup)
     config_hash = db.Column(db.String(64), nullable=False)  # SHA-256
     config_size = db.Column(db.Integer, default=0)  # original size in bytes
     
