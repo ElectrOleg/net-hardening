@@ -3,9 +3,11 @@
 Use case: ensure no unauthorized/unexpected config lines exist inside a block,
 e.g. object-group network entries must be valid ip prefix / address-range only.
 """
-import re
+
 import logging
-from app.engine.base import RuleChecker, CheckResult
+import re
+
+from app.engine.base import CheckResult, RuleChecker
 
 logger = logging.getLogger(__name__)
 
@@ -87,10 +89,12 @@ class BlockValidateChecker(RuleChecker):
                 # Block ended
                 blocks_found += 1
                 if block_violations:
-                    all_violations.append({
-                        "block": block_header,
-                        "violations": block_violations,
-                    })
+                    all_violations.append(
+                        {
+                            "block": block_header,
+                            "violations": block_violations,
+                        }
+                    )
                 in_block = False
                 continue
 
@@ -109,16 +113,16 @@ class BlockValidateChecker(RuleChecker):
         if in_block:
             blocks_found += 1
             if block_violations:
-                all_violations.append({
-                    "block": block_header,
-                    "violations": block_violations,
-                })
+                all_violations.append(
+                    {
+                        "block": block_header,
+                        "violations": block_violations,
+                    }
+                )
 
         if blocks_found == 0:
             if fail_on_no_blocks:
-                return CheckResult.failure(
-                    f"No blocks matching '{block_start}' found"
-                )
+                return CheckResult.failure(f"No blocks matching '{block_start}' found")
             return CheckResult.success("No blocks to validate")
 
         if all_violations:

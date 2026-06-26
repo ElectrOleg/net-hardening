@@ -4,99 +4,105 @@ Revision ID: 20260208_vmap
 Revises: 20260208_sev
 Create Date: 2026-02-08 17:15:00
 """
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects.postgresql import UUID
 
-
 # revision identifiers, used by Alembic.
-revision = '20260208_vmap'
-down_revision = '20260208_sev'
+revision = "20260208_vmap"
+down_revision = "20260208_sev"
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
     conn = op.get_bind()
-    uuid_default = sa.text('gen_random_uuid()') if conn.dialect.name != "sqlite" else None
+    uuid_default = sa.text("gen_random_uuid()") if conn.dialect.name != "sqlite" else None
 
     # ── Create table if needed ───────────────────────────────────
     if conn.dialect.name == "sqlite":
-        result = conn.execute(sa.text(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='hcs_vendor_mappings'"
-        ))
+        result = conn.execute(
+            sa.text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='hcs_vendor_mappings'")
+        )
         exists = result.first() is not None
     else:
-        result = conn.execute(sa.text(
-            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_vendor_mappings')"
-        ))
+        result = conn.execute(
+            sa.text(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'hcs_vendor_mappings')"
+            )
+        )
         exists = result.scalar()
     if not exists:
         op.create_table(
-            'hcs_vendor_mappings',
-            sa.Column('id', UUID(as_uuid=True), primary_key=True,
-                      server_default=uuid_default),
-            sa.Column('vendor_code', sa.String(50),
-                      sa.ForeignKey('hcs_vendors.code'), nullable=False),
-            sa.Column('pattern', sa.String(500), nullable=False),
-            sa.Column('match_field', sa.String(50), nullable=False,
-                      server_default='config_content'),
-            sa.Column('priority', sa.Integer, nullable=False,
-                      server_default='100'),
-            sa.Column('description', sa.String(200)),
-            sa.Column('is_active', sa.Boolean, server_default='true'),
+            "hcs_vendor_mappings",
+            sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=uuid_default),
+            sa.Column(
+                "vendor_code", sa.String(50), sa.ForeignKey("hcs_vendors.code"), nullable=False
+            ),
+            sa.Column("pattern", sa.String(500), nullable=False),
+            sa.Column(
+                "match_field", sa.String(50), nullable=False, server_default="config_content"
+            ),
+            sa.Column("priority", sa.Integer, nullable=False, server_default="100"),
+            sa.Column("description", sa.String(200)),
+            sa.Column("is_active", sa.Boolean, server_default="true"),
         )
 
     # ── Ensure ALL vendors exist (base + extended) ─────────────
     all_vendors = [
         # Base vendors (from seed)
-        ("cisco_ios",    "Cisco IOS",          "ciscoconfparse",  "Cisco IOS devices"),
-        ("cisco_nxos",   "Cisco NX-OS",        "ciscoconfparse",  "Cisco Nexus switches"),
-        ("eltex_esr",    "Eltex ESR",          "ciscoconfparse",  "Eltex ESR series routers"),
-        ("usergate",     "UserGate",           "json",            "UserGate NGFW (JSON API)"),
-        ("checkpoint",   "Check Point",        "json",            "Check Point firewalls (JSON API)"),
+        ("cisco_ios", "Cisco IOS", "ciscoconfparse", "Cisco IOS devices"),
+        ("cisco_nxos", "Cisco NX-OS", "ciscoconfparse", "Cisco Nexus switches"),
+        ("eltex_esr", "Eltex ESR", "ciscoconfparse", "Eltex ESR series routers"),
+        ("usergate", "UserGate", "json", "UserGate NGFW (JSON API)"),
+        ("checkpoint", "Check Point", "json", "Check Point firewalls (JSON API)"),
         # Extended vendors
-        ("cisco_iosxr",  "Cisco IOS-XR",       "ciscoconfparse",  "Cisco IOS-XR routers"),
-        ("cisco_iosxe",  "Cisco IOS-XE",       "ciscoconfparse",  "Cisco IOS-XE devices"),
-        ("juniper_junos", "Juniper JUNOS",      "json",            "Juniper JUNOS devices"),
-        ("arista_eos",   "Arista EOS",          "ciscoconfparse",  "Arista EOS switches"),
-        ("huawei",       "Huawei",              "ciscoconfparse",  "Huawei VRP devices"),
-        ("fortinet_fortios", "Fortinet FortiOS", "json",           "FortiGate firewalls"),
-        ("paloalto_panos", "Palo Alto PAN-OS",  "json",            "Palo Alto firewalls"),
+        ("cisco_iosxr", "Cisco IOS-XR", "ciscoconfparse", "Cisco IOS-XR routers"),
+        ("cisco_iosxe", "Cisco IOS-XE", "ciscoconfparse", "Cisco IOS-XE devices"),
+        ("juniper_junos", "Juniper JUNOS", "json", "Juniper JUNOS devices"),
+        ("arista_eos", "Arista EOS", "ciscoconfparse", "Arista EOS switches"),
+        ("huawei", "Huawei", "ciscoconfparse", "Huawei VRP devices"),
+        ("fortinet_fortios", "Fortinet FortiOS", "json", "FortiGate firewalls"),
+        ("paloalto_panos", "Palo Alto PAN-OS", "json", "Palo Alto firewalls"),
         ("mikrotik_routeros", "MikroTik RouterOS", "ciscoconfparse", "MikroTik routers"),
-        ("linux",        "Linux",               "json",            "Linux hosts"),
+        ("linux", "Linux", "json", "Linux hosts"),
     ]
     for code, name, driver, desc in all_vendors:
-        conn.execute(sa.text(
-            "INSERT INTO hcs_vendors (code, name, parser_driver, description) "
-            "VALUES (:code, :name, :driver, :desc) ON CONFLICT (code) DO NOTHING"
-        ), {"code": code, "name": name, "driver": driver, "desc": desc})
+        conn.execute(
+            sa.text(
+                "INSERT INTO hcs_vendors (code, name, parser_driver, description) "
+                "VALUES (:code, :name, :driver, :desc) ON CONFLICT (code) DO NOTHING"
+            ),
+            {"code": code, "name": name, "driver": driver, "desc": desc},
+        )
 
     # ── Seed default vendor mappings (only if table is empty) ────
     count = conn.execute(sa.text("SELECT COUNT(*) FROM hcs_vendor_mappings")).scalar()
     if count == 0:
         import uuid
+
         from app.models.vendor_mapping import DEFAULT_VENDOR_MAPPINGS
-        
+
         mappings_with_ids = []
         for m in DEFAULT_VENDOR_MAPPINGS:
             m_copy = m.copy()
             if "id" not in m_copy:
                 m_copy["id"] = uuid.uuid4()
             mappings_with_ids.append(m_copy)
-        
+
         mappings_table = sa.table(
-            'hcs_vendor_mappings',
-            sa.column('id', UUID),
-            sa.column('vendor_code', sa.String),
-            sa.column('pattern', sa.String),
-            sa.column('match_field', sa.String),
-            sa.column('priority', sa.Integer),
-            sa.column('description', sa.String),
+            "hcs_vendor_mappings",
+            sa.column("id", UUID),
+            sa.column("vendor_code", sa.String),
+            sa.column("pattern", sa.String),
+            sa.column("match_field", sa.String),
+            sa.column("priority", sa.Integer),
+            sa.column("description", sa.String),
         )
-        
+
         op.bulk_insert(mappings_table, mappings_with_ids)
 
 
 def downgrade():
-    op.drop_table('hcs_vendor_mappings')
+    op.drop_table("hcs_vendor_mappings")

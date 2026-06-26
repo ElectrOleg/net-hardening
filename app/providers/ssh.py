@@ -1,6 +1,6 @@
 """SSH Provider - fetch configs directly from devices via SSH."""
+
 import logging
-from typing import Optional
 
 from app.providers.base import ConfigSourceProvider, FetchResult
 
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class SSHProvider(ConfigSourceProvider):
     """
     Provider for fetching configurations via SSH (using Netmiko).
-    
+
     Connection params:
     {
         "device_type": "cisco_ios",  # Netmiko device type
@@ -25,7 +25,7 @@ class SSHProvider(ConfigSourceProvider):
         "ssh_config_file": "/path/to/ssh_config",
         "enable_password": "...",  // for enable mode
         "global_delay_factor": 2,  // for slow devices
-        
+
         // Jump/hop server (optional):
         "jump_host": "10.0.0.100",
         "jump_user": "admin",
@@ -34,7 +34,7 @@ class SSHProvider(ConfigSourceProvider):
         "jump_key_file": "/path/to/jump_key"
     }
     """
-    
+
     # Expanded device type map covering major network vendors
     DEVICE_TYPE_MAP = {
         # Cisco
@@ -64,7 +64,7 @@ class SSHProvider(ConfigSourceProvider):
         # CheckPoint
         "checkpoint": "checkpoint_gaia",
         "checkpoint_gaia": "checkpoint_gaia",
-        # UserGate  
+        # UserGate
         "usergate": "linux",  # UserGate CLI is Linux-like
         # Nokia
         "nokia_sros": "nokia_sros",
@@ -95,7 +95,7 @@ class SSHProvider(ConfigSourceProvider):
         "ubiquiti_edge": "ubiquiti_edgeswitch",
         "vyos": "vyos",
     }
-    
+
     # Предустановленные команды по типу устройства
     DEFAULT_COMMANDS = {
         "cisco_ios": ["show running-config"],
@@ -114,7 +114,7 @@ class SSHProvider(ConfigSourceProvider):
         "linux": ["cat /etc/network/interfaces"],
         "vyos": ["show configuration commands"],
     }
-    
+
     def __init__(self, config: dict):
         device_type = config.get("device_type", "cisco_ios")
         self.device_type = self.DEVICE_TYPE_MAP.get(device_type, device_type)
@@ -127,7 +127,7 @@ class SSHProvider(ConfigSourceProvider):
         self.ssh_config_file = config.get("ssh_config_file")
         self.enable_password = config.get("enable_password")
         self.global_delay_factor = config.get("global_delay_factor", 1)
-        
+
         # Multi-command support
         # "commands" takes priority; falls back to "command" → default for device_type
         self.commands = config.get("commands")
@@ -136,31 +136,29 @@ class SSHProvider(ConfigSourceProvider):
             if single:
                 self.commands = [single]
             else:
-                self.commands = self.DEFAULT_COMMANDS.get(
-                    self.device_type, ["show running-config"]
-                )
-        
+                self.commands = self.DEFAULT_COMMANDS.get(self.device_type, ["show running-config"])
+
         # Jump/hop server config
         self.jump_host = config.get("jump_host")
         self.jump_user = config.get("jump_user", self.username)
         self.jump_port = config.get("jump_port", 22)
         self.jump_password = config.get("jump_password")
         self.jump_key_file = config.get("jump_key_file", self.key_file)
-        
+
         # Active jump transport (reused across fetch_config calls)
         self._jump_client = None
-    
+
     def _get_jump_channel(self, target_host: str, target_port: int):
         """Create an SSH channel through the jump host to the target device.
-        
+
         Returns a Paramiko channel that can be used as Netmiko's `sock` parameter.
         """
         import paramiko
-        
+
         if self._jump_client is None:
             self._jump_client = paramiko.SSHClient()
             self._jump_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            
+
             connect_kwargs = {
                 "hostname": self.jump_host,
                 "port": self.jump_port,
@@ -171,34 +169,34 @@ class SSHProvider(ConfigSourceProvider):
                 connect_kwargs["password"] = self.jump_password
             if self.jump_key_file:
                 connect_kwargs["key_filename"] = self.jump_key_file
-            
+
             logger.info(f"Connecting to jump host {self.jump_host}:{self.jump_port}")
             self._jump_client.connect(**connect_kwargs)
-        
+
         # Open a direct-tcpip channel through the jump host to the target
         transport = self._jump_client.get_transport()
         dest_addr = (target_host, target_port)
         local_addr = ("127.0.0.1", 0)
         channel = transport.open_channel("direct-tcpip", dest_addr, local_addr)
-        
+
         return channel
-    
+
     def test_connection(self) -> tuple[bool, str]:
         """Test SSH connection to first device."""
         if not self.devices:
             return False, "No devices configured"
-        
+
         result = self.fetch_config(self.devices[0])
         if result.success:
             return True, f"Successfully connected to {self.devices[0]}"
         return False, f"Connection failed: {result.error}"
-    
+
     def fetch_config(self, device_id: str, context: dict = None) -> FetchResult:
         """Fetch config from device via SSH (supports multiple commands).
-        
+
         When multiple commands are configured, each command's output is returned
         as a separate section with a header:
-        
+
             === show running-config ===
             <output>
             === show ip access-lists ===
@@ -207,12 +205,8 @@ class SSHProvider(ConfigSourceProvider):
         try:
             from netmiko import ConnectHandler
         except ImportError:
-            return FetchResult(
-                success=False,
-                config=None,
-                error="netmiko is not installed"
-            )
-        
+            return FetchResult(success=False, config=None, error="netmiko is not installed")
+
         device_params = {
             "device_type": self.device_type,
             "host": device_id,
@@ -221,14 +215,14 @@ class SSHProvider(ConfigSourceProvider):
             "timeout": self.timeout,
             "global_delay_factor": self.global_delay_factor,
         }
-        
+
         if self.password:
             device_params["password"] = self.password
         if self.key_file:
             device_params["key_file"] = self.key_file
         if self.enable_password:
             device_params["secret"] = self.enable_password
-        
+
         # Jump host → create tunnel channel
         if self.jump_host:
             try:
@@ -237,19 +231,17 @@ class SSHProvider(ConfigSourceProvider):
             except Exception as e:
                 logger.error(f"Jump host tunnel failed for {device_id}: {e}")
                 return FetchResult(
-                    success=False,
-                    config=None,
-                    error=f"Jump host tunnel failed: {e}"
+                    success=False, config=None, error=f"Jump host tunnel failed: {e}"
                 )
         elif self.ssh_config_file:
             device_params["ssh_config_file"] = self.ssh_config_file
-            
+
         try:
             with ConnectHandler(**device_params) as conn:
                 # Enter enable mode if secret is provided
                 if self.enable_password:
                     conn.enable()
-                
+
                 if len(self.commands) == 1:
                     # Single command → return raw output
                     output = conn.send_command(self.commands[0])
@@ -260,7 +252,7 @@ class SSHProvider(ConfigSourceProvider):
                         cmd_output = conn.send_command(cmd)
                         sections.append(f"=== {cmd} ===\n{cmd_output}")
                     output = "\n\n".join(sections)
-                
+
                 return FetchResult(
                     success=True,
                     config=output,
@@ -269,31 +261,27 @@ class SSHProvider(ConfigSourceProvider):
                         "commands": self.commands,
                         "device_type": self.device_type,
                         "via_jump_host": bool(self.jump_host),
-                    }
+                    },
                 )
-                
+
         except Exception as e:
             logger.error(f"SSH error for {device_id}: {e}")
-            return FetchResult(
-                success=False,
-                config=None,
-                error=str(e)
-            )
-    
+            return FetchResult(success=False, config=None, error=str(e))
+
     def list_devices(self) -> list[str]:
         """Return configured list of devices."""
         return self.devices.copy()
-    
+
     def add_device(self, device_id: str):
         """Add device to the list."""
         if device_id not in self.devices:
             self.devices.append(device_id)
-    
+
     def remove_device(self, device_id: str):
         """Remove device from the list."""
         if device_id in self.devices:
             self.devices.remove(device_id)
-    
+
     def close(self):
         """Clean up jump host connection."""
         if self._jump_client:

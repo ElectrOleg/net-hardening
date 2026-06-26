@@ -1,5 +1,7 @@
 """Device Groups API endpoints."""
-from flask import Blueprint, request, jsonify
+
+from flask import Blueprint, jsonify, request
+
 from app.extensions import db
 from app.models import DeviceGroup, Policy
 
@@ -17,35 +19,35 @@ def list_groups():
 def create_group():
     """Create a new device group."""
     data = request.get_json()
-    
+
     if not data.get("name"):
         return jsonify({"error": "Name is required"}), 400
-    
+
     if DeviceGroup.query.filter_by(name=data["name"]).first():
         return jsonify({"error": "Group with this name already exists"}), 400
-    
+
     group = DeviceGroup(
         name=data["name"],
         description=data.get("description"),
         parent_id=data.get("parent_id"),
-        is_active=data.get("is_active", True)
+        is_active=data.get("is_active", True),
     )
-    
+
     # Assign policies
     if data.get("policy_ids"):
         policies = Policy.query.filter(Policy.id.in_(data["policy_ids"])).all()
         group.policies = policies
-    
+
     db.session.add(group)
     db.session.commit()
-    
+
     return jsonify(group.to_dict()), 201
 
 
 @device_groups_bp.route("/<uuid:group_id>", methods=["GET"])
 def get_group(group_id):
     """Get a single group with its devices."""
-    group = DeviceGroup.query.get_or_404(group_id)
+    group = db.get_or_404(DeviceGroup, group_id)
     result = group.to_dict()
     result["devices"] = [d.to_dict() for d in group.devices]
     return jsonify(result)
@@ -54,9 +56,9 @@ def get_group(group_id):
 @device_groups_bp.route("/<uuid:group_id>", methods=["PUT"])
 def update_group(group_id):
     """Update a device group."""
-    group = DeviceGroup.query.get_or_404(group_id)
+    group = db.get_or_404(DeviceGroup, group_id)
     data = request.get_json()
-    
+
     if "name" in data:
         existing = DeviceGroup.query.filter_by(name=data["name"]).first()
         if existing and existing.id != group.id:
@@ -71,7 +73,7 @@ def update_group(group_id):
     if "policy_ids" in data:
         policies = Policy.query.filter(Policy.id.in_(data["policy_ids"])).all()
         group.policies = policies
-    
+
     db.session.commit()
     return jsonify(group.to_dict())
 
@@ -79,12 +81,12 @@ def update_group(group_id):
 @device_groups_bp.route("/<uuid:group_id>", methods=["DELETE"])
 def delete_group(group_id):
     """Delete a device group."""
-    group = DeviceGroup.query.get_or_404(group_id)
-    
+    group = db.get_or_404(DeviceGroup, group_id)
+
     # Remove group reference from devices
     for device in group.devices:
         device.group_id = None
-    
+
     db.session.delete(group)
     db.session.commit()
     return "", 204

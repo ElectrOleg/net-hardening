@@ -1,13 +1,15 @@
 """Structure Checker - JSON/JMESPath checking for API-based vendors."""
+
 import jmespath
-from app.engine.base import RuleChecker, CheckResult
+
+from app.engine.base import CheckResult, RuleChecker
 
 
 class StructureChecker(RuleChecker):
     """
     Checker for structured (JSON) configurations.
     Uses JMESPath for querying nested structures.
-    
+
     Payload format:
     {
         "path": "network.interfaces[?type=='external'].security_profile",
@@ -16,7 +18,7 @@ class StructureChecker(RuleChecker):
         "all_must_match": true  // if path returns array, all items must match
     }
     """
-    
+
     OPERATORS = {
         "eq": lambda a, b: a == b,
         "neq": lambda a, b: a != b,
@@ -31,7 +33,7 @@ class StructureChecker(RuleChecker):
         "in": lambda a, b: a in b if isinstance(b, list) else False,
         "not_in": lambda a, b: a not in b if isinstance(b, list) else True,
     }
-    
+
     def validate_payload(self, payload: dict) -> list[str]:
         errors = []
         if "path" not in payload:
@@ -42,24 +44,24 @@ class StructureChecker(RuleChecker):
         if operator not in ("exists", "not_exists") and "value" not in payload:
             errors.append("'value' is required for this operator")
         return errors
-    
+
     def check(self, config: dict, payload: dict) -> CheckResult:
         if not isinstance(config, dict):
             return CheckResult.error("Configuration must be a dictionary for structure checks")
-        
+
         path = payload["path"]
         operator = payload.get("operator", "eq")
         expected_value = payload.get("value")
         all_must_match = payload.get("all_must_match", True)
-        
+
         try:
             # Query the configuration
             result = jmespath.search(path, config)
         except jmespath.exceptions.JMESPathError as e:
             return CheckResult.error(f"Invalid JMESPath: {e}")
-        
+
         op_func = self.OPERATORS[operator]
-        
+
         # Handle array results
         if isinstance(result, list):
             if not result:
@@ -67,23 +69,21 @@ class StructureChecker(RuleChecker):
                     passed = op_func(None, expected_value)
                 else:
                     return CheckResult.failure(
-                        message=f"Path '{path}' returned empty array",
-                        raw_value=result
+                        message=f"Path '{path}' returned empty array", raw_value=result
                     )
             else:
                 results = [op_func(item, expected_value) for item in result]
                 passed = all(results) if all_must_match else any(results)
         else:
             passed = op_func(result, expected_value)
-        
+
         if passed:
             return CheckResult.success(
-                message=f"Check passed: {path} {operator} {expected_value}",
-                raw_value=result
+                message=f"Check passed: {path} {operator} {expected_value}", raw_value=result
             )
         else:
             return CheckResult.failure(
                 message=f"Check failed: expected {path} {operator} {expected_value}",
                 diff_data=f"Actual value: {result}",
-                raw_value=result
+                raw_value=result,
             )

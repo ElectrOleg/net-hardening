@@ -1,54 +1,57 @@
 """Device model - internal device inventory."""
+
 import uuid
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+
 from app.extensions import db
 
 
 class Device(db.Model):
     """Device - internal representation of network devices."""
-    
+
     __tablename__ = "hcs_devices"
-    
+
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     external_id = db.Column(db.String(200))  # ID from external system
     hostname = db.Column(db.String(200), nullable=False)
     ip_address = db.Column(db.String(50))
-    
+
     # Vendor relationship
     vendor_code = db.Column(db.String(50), db.ForeignKey("hcs_vendors.code"), nullable=True)
     vendor = db.relationship("Vendor", backref="devices")
-    
+
     # Grouping
     group_id = db.Column(UUID(as_uuid=True), db.ForeignKey("hcs_device_groups.id"), nullable=True)
     group = db.relationship("DeviceGroup", back_populates="devices")
-    
+
     # Additional info
     location = db.Column(db.String(200))
     os_version = db.Column(db.String(100))
     hardware = db.Column(db.String(200))
     extra_data = db.Column(JSONB, default=dict)
-    
+
     # Sync tracking
-    source_id = db.Column(UUID(as_uuid=True), db.ForeignKey("hcs_inventory_sources.id"), nullable=True)
+    source_id = db.Column(
+        UUID(as_uuid=True), db.ForeignKey("hcs_inventory_sources.id"), nullable=True
+    )
     source = db.relationship("InventorySource", backref="devices")
     last_sync_at = db.Column(db.DateTime)
     last_scan_at = db.Column(db.DateTime)
-    
+
     # Status
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     updated_at = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
-    
+
     # M2M with Policies (device-specific policies)
     policies = db.relationship(
-        "Policy",
-        secondary="hcs_device_policies",
-        backref=db.backref("devices", lazy="dynamic")
+        "Policy", secondary="hcs_device_policies", backref=db.backref("devices", lazy="dynamic")
     )
-    
+
     def __repr__(self):
         return f"<Device {self.hostname}>"
-    
+
     def to_dict(self, include_policies=False):
         data = {
             "id": str(self.id),

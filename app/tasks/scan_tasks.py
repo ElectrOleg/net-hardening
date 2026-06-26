@@ -1,8 +1,12 @@
 """Celery tasks for scanning."""
+
 import logging
+
+from celery import chord
+
 from app.extensions import celery, db
 from app.services import ScannerService, get_notification_service
-from celery import chord
+from app.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -14,11 +18,15 @@ def scan_device_task(self, scan_id: str, device_id: str):
     """
     try:
         # Early exit if scan was cancelled
+        import uuid
+
         from app.models import Scan as ScanModel
-        scan = ScanModel.query.get(scan_id)
+
+        scan_uuid = uuid.UUID(scan_id) if isinstance(scan_id, str) else scan_id
+        scan = db.session.get(ScanModel, scan_uuid)
         if scan and scan.status == "cancelled":
             return {"device_id": device_id, "skipped": True, "reason": "cancelled"}
-        
+
         service = ScannerService()
         # process_single_device is a new method we need to expose or use existent internal
         passed, failed, errors = service.scan_single_device(scan_id, device_id)
@@ -26,7 +34,7 @@ def scan_device_task(self, scan_id: str, device_id: str):
     except Exception as e:
         logger.exception(f"Device scan failed {device_id}: {e}")
         try:
-            self.retry(exc=e, countdown=2 ** self.request.retries)
+            self.retry(exc=e, countdown=2**self.request.retries)
         except self.MaxRetriesExceededError:
             return {"device_id": device_id, "error": str(e)}
 
@@ -38,14 +46,16 @@ def scan_completion_handler(results, scan_id: str):
     Aggregates results and sends notification.
     """
     logger.info(f"All tasks for scan {scan_id} completed. Aggregating results.")
-    
+
+    import uuid
+
     from app.models import Scan
-    from datetime import datetime
-    
-    scan = Scan.query.get(scan_id)
+
+    scan_uuid = uuid.UUID(scan_id) if isinstance(scan_id, str) else scan_id
+    scan = db.session.get(Scan, scan_uuid)
     if not scan:
         return
-    
+
     # Don't overwrite cancelled status
     if scan.status == "cancelled":
         logger.info(f"Scan {scan_id} was cancelled, skipping completion.")
@@ -54,7 +64,7 @@ def scan_completion_handler(results, scan_id: str):
     total_passed = 0
     total_failed = 0
     total_errors = 0
-    
+
     # Results is a list of dicts from scan_device_task
     for res in results:
         if not isinstance(res, dict):
@@ -71,10 +81,10 @@ def scan_completion_handler(results, scan_id: str):
     scan.failed_count = total_failed
     scan.error_count = total_errors
     scan.status = "completed"
-    scan.finished_at = datetime.utcnow()
-    
+    scan.finished_at = utc_now()
+
     db.session.commit()
-    
+
     # Notification
     try:
         notifier = get_notification_service()
@@ -83,7 +93,7 @@ def scan_completion_handler(results, scan_id: str):
             score=scan.score,
             passed=scan.passed_count,
             failed=scan.failed_count,
-            devices=scan.total_devices
+            devices=scan.total_devices,
         )
     except Exception as e:
         logger.warning(f"Notification failed: {e}")
@@ -95,8 +105,8 @@ def run_scan(self, scan_id: str, device_ids: list[str] = None):
     Orchestrator: Discovers devices and launches parallel tasks.
     Protected by distributed lock to prevent duplicate execution.
     """
-    from app.utils.distributed_lock import get_lock, LockNotAcquired
-    
+    from app.utils.distributed_lock import LockNotAcquired, get_lock
+
     lock = get_lock()
     try:
         with lock.acquire(f"scan:{scan_id}", ttl=3600):
@@ -109,12 +119,12 @@ def run_scan(self, scan_id: str, device_ids: list[str] = None):
 def _run_scan_inner(self, scan_id: str, device_ids: list[str] = None):
     """Inner scan orchestration logic."""
     logger.info(f"Starting scan orchestrator: {scan_id}")
-    
+
     try:
         service = ScannerService()
         # Initialize scan (get devices, rules, set status to running)
         devices = service.initialize_scan(scan_id, device_ids)
-        
+
         if not devices:
             logger.warning(f"No devices found for scan {scan_id}")
             service.complete_empty_scan(scan_id)
@@ -123,24 +133,32 @@ def _run_scan_inner(self, scan_id: str, device_ids: list[str] = None):
         # Create a chord: parallel tasks → single callback
         job = chord(
             [scan_device_task.s(scan_id, d_id) for d_id in devices],
-            scan_completion_handler.s(scan_id)
+            scan_completion_handler.s(scan_id),
         )
         chord_result = job.apply_async()
-        
+
         # Save orchestrator task ID for revocation
+        import uuid
+
         from app.models import Scan as ScanModel
-        scan_obj = ScanModel.query.get(scan_id)
+
+        scan_uuid = uuid.UUID(scan_id) if isinstance(scan_id, str) else scan_id
+        scan_obj = db.session.get(ScanModel, scan_uuid)
         if scan_obj:
             scan_obj.celery_task_id = self.request.id
             db.session.commit()
-        
+
         logger.info(f"Launched {len(devices)} parallel scan tasks for {scan_id}")
-        
+
     except Exception as e:
         logger.exception(f"Scan orchestrator failed: {e}")
         # Mark scan as failed
+        import uuid
+
         from app.models import Scan
-        scan = Scan.query.get(scan_id)
+
+        scan_uuid = uuid.UUID(scan_id) if isinstance(scan_id, str) else scan_id
+        scan = db.session.get(Scan, scan_uuid)
         if scan:
             scan.status = "failed"
             scan.error_message = str(e)
@@ -151,16 +169,13 @@ def _run_scan_inner(self, scan_id: str, device_ids: list[str] = None):
 def scheduled_scan():
     """Periodic scan task."""
     from app.models import Scan
-    
+
     logger.info("Starting scheduled scan")
-    
-    scan = Scan(
-        started_by="scheduler",
-        status="pending"
-    )
+
+    scan = Scan(started_by="scheduler", status="pending")
     db.session.add(scan)
     db.session.commit()
-    
+
     run_scan.delay(str(scan.id))
-    
+
     return str(scan.id)

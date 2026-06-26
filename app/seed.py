@@ -1,32 +1,98 @@
 """Seed data for initial setup."""
+
 from app.extensions import db
-from app.models import Vendor, Policy, Rule
+from app.models import Policy, Rule, Vendor
 
 
 def seed_vendors():
     """Create default vendors."""
     vendors = [
-        Vendor(code="cisco_ios",    name="Cisco IOS",     parser_driver="ciscoconfparse", description="Cisco IOS devices"),
-        Vendor(code="cisco_nxos",   name="Cisco NX-OS",   parser_driver="ciscoconfparse", description="Cisco Nexus switches"),
-        Vendor(code="cisco_iosxr",  name="Cisco IOS-XR",  parser_driver="ciscoconfparse", description="Cisco IOS-XR routers"),
-        Vendor(code="cisco_iosxe",  name="Cisco IOS-XE",  parser_driver="ciscoconfparse", description="Cisco IOS-XE devices"),
-        Vendor(code="eltex_esr",    name="Eltex ESR",     parser_driver="ciscoconfparse", description="Eltex ESR series routers"),
-        Vendor(code="juniper_junos", name="Juniper JUNOS", parser_driver="json",           description="Juniper JUNOS devices"),
-        Vendor(code="arista_eos",   name="Arista EOS",    parser_driver="ciscoconfparse", description="Arista EOS switches"),
-        Vendor(code="huawei",       name="Huawei",        parser_driver="ciscoconfparse", description="Huawei VRP devices"),
-        Vendor(code="fortinet_fortios", name="Fortinet FortiOS", parser_driver="json",     description="FortiGate firewalls"),
-        Vendor(code="paloalto_panos", name="Palo Alto PAN-OS", parser_driver="json",       description="Palo Alto firewalls"),
-        Vendor(code="mikrotik_routeros", name="MikroTik RouterOS", parser_driver="ciscoconfparse", description="MikroTik routers"),
-        Vendor(code="linux",        name="Linux",         parser_driver="json",           description="Linux hosts"),
-        Vendor(code="usergate",     name="UserGate",      parser_driver="json",           description="UserGate NGFW (JSON API)"),
-        Vendor(code="checkpoint",   name="Check Point",   parser_driver="json",           description="Check Point firewalls (JSON API)"),
+        Vendor(
+            code="cisco_ios",
+            name="Cisco IOS",
+            parser_driver="ciscoconfparse",
+            description="Cisco IOS devices",
+        ),
+        Vendor(
+            code="cisco_nxos",
+            name="Cisco NX-OS",
+            parser_driver="ciscoconfparse",
+            description="Cisco Nexus switches",
+        ),
+        Vendor(
+            code="cisco_iosxr",
+            name="Cisco IOS-XR",
+            parser_driver="ciscoconfparse",
+            description="Cisco IOS-XR routers",
+        ),
+        Vendor(
+            code="cisco_iosxe",
+            name="Cisco IOS-XE",
+            parser_driver="ciscoconfparse",
+            description="Cisco IOS-XE devices",
+        ),
+        Vendor(
+            code="eltex_esr",
+            name="Eltex ESR",
+            parser_driver="ciscoconfparse",
+            description="Eltex ESR series routers",
+        ),
+        Vendor(
+            code="juniper_junos",
+            name="Juniper JUNOS",
+            parser_driver="json",
+            description="Juniper JUNOS devices",
+        ),
+        Vendor(
+            code="arista_eos",
+            name="Arista EOS",
+            parser_driver="ciscoconfparse",
+            description="Arista EOS switches",
+        ),
+        Vendor(
+            code="huawei",
+            name="Huawei",
+            parser_driver="ciscoconfparse",
+            description="Huawei VRP devices",
+        ),
+        Vendor(
+            code="fortinet_fortios",
+            name="Fortinet FortiOS",
+            parser_driver="json",
+            description="FortiGate firewalls",
+        ),
+        Vendor(
+            code="paloalto_panos",
+            name="Palo Alto PAN-OS",
+            parser_driver="json",
+            description="Palo Alto firewalls",
+        ),
+        Vendor(
+            code="mikrotik_routeros",
+            name="MikroTik RouterOS",
+            parser_driver="ciscoconfparse",
+            description="MikroTik routers",
+        ),
+        Vendor(code="linux", name="Linux", parser_driver="json", description="Linux hosts"),
+        Vendor(
+            code="usergate",
+            name="UserGate",
+            parser_driver="json",
+            description="UserGate NGFW (JSON API)",
+        ),
+        Vendor(
+            code="checkpoint",
+            name="Check Point",
+            parser_driver="json",
+            description="Check Point firewalls (JSON API)",
+        ),
     ]
-    
+
     for vendor in vendors:
-        existing = Vendor.query.get(vendor.code)
+        existing = db.session.get(Vendor, vendor.code)
         if not existing:
             db.session.add(vendor)
-    
+
     db.session.commit()
     print(f"Seeded {len(vendors)} vendors")
 
@@ -37,35 +103,29 @@ def seed_policies():
         Policy(
             name="Basic Hardening",
             description="Fundamental security configurations",
-            severity="high"
+            severity="high",
         ),
         Policy(
             name="Authentication",
             description="Authentication and authorization settings",
-            severity="critical"
+            severity="critical",
         ),
         Policy(
-            name="Network Security",
-            description="Network-level security controls",
-            severity="high"
+            name="Network Security", description="Network-level security controls", severity="high"
         ),
         Policy(
             name="Logging & Monitoring",
             description="Logging and monitoring configuration",
-            severity="medium"
+            severity="medium",
         ),
-        Policy(
-            name="PCI DSS",
-            description="PCI DSS compliance requirements",
-            severity="critical"
-        ),
+        Policy(name="PCI DSS", description="PCI DSS compliance requirements", severity="critical"),
     ]
-    
+
     for policy in policies:
         existing = Policy.query.filter_by(name=policy.name).first()
         if not existing:
             db.session.add(policy)
-    
+
     db.session.commit()
     print(f"Seeded {len(policies)} policies")
 
@@ -74,11 +134,11 @@ def seed_sample_rules():
     """Create sample rules for Cisco IOS."""
     basic_policy = Policy.query.filter_by(name="Basic Hardening").first()
     auth_policy = Policy.query.filter_by(name="Authentication").first()
-    
+
     if not basic_policy or not auth_policy:
         print("Policies not found, run seed_policies first")
         return
-    
+
     rules = [
         Rule(
             policy_id=basic_policy.id,
@@ -90,8 +150,8 @@ def seed_sample_rules():
             logic_payload={
                 "pattern": "^service password-encryption",
                 "match_mode": "must_exist",
-                "is_regex": True
-            }
+                "is_regex": True,
+            },
         ),
         Rule(
             policy_id=basic_policy.id,
@@ -103,8 +163,8 @@ def seed_sample_rules():
             logic_payload={
                 "pattern": "transport input telnet",
                 "match_mode": "must_not_exist",
-                "is_regex": False
-            }
+                "is_regex": False,
+            },
         ),
         Rule(
             policy_id=auth_policy.id,
@@ -116,8 +176,8 @@ def seed_sample_rules():
             logic_payload={
                 "pattern": "^enable secret",
                 "match_mode": "must_exist",
-                "is_regex": True
-            }
+                "is_regex": True,
+            },
         ),
         Rule(
             policy_id=basic_policy.id,
@@ -129,19 +189,17 @@ def seed_sample_rules():
             logic_payload={
                 "parent_block_start": "^interface (GigabitEthernet|TenGigabitEthernet|Ethernet)",
                 "exclude_filter": "description.*UPLINK",
-                "child_rules": [
-                    {"pattern": "no ip redirects", "mode": "must_exist"}
-                ],
-                "logic": "ALL"
-            }
+                "child_rules": [{"pattern": "no ip redirects", "mode": "must_exist"}],
+                "logic": "ALL",
+            },
         ),
     ]
-    
+
     for rule in rules:
         existing = Rule.query.filter_by(title=rule.title).first()
         if not existing:
             db.session.add(rule)
-    
+
     db.session.commit()
     print(f"Seeded {len(rules)} sample rules")
 
@@ -156,6 +214,7 @@ def seed_all():
 
 if __name__ == "__main__":
     from app import create_app
+
     app = create_app()
     with app.app_context():
         seed_all()

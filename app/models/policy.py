@@ -1,14 +1,17 @@
 """Policy model - группы проверок."""
+
 import uuid
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+
 from app.extensions import db
 
 
 class Policy(db.Model):
     """Группы проверок (политики)."""
-    
+
     __tablename__ = "hcs_policies"
-    
+
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.Text)
@@ -17,17 +20,17 @@ class Policy(db.Model):
     # Same format as Rule.applicability: {"location": "DC1", "extra_data.env": "prod"}
     # When set, the policy only applies to devices matching ALL conditions.
     scope_filter = db.Column(JSONB, nullable=True)
-    
+
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     updated_at = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
-    
+
     # Relationships
     rules = db.relationship("Rule", back_populates="policy", lazy="dynamic")
-    
+
     def __repr__(self):
         return f"<Policy {self.name}>"
-    
+
     def to_dict(self, include_rules_count=False):
         data = {
             "id": str(self.id),

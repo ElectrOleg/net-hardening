@@ -1,8 +1,9 @@
 """HCS Services."""
-from app.services.scanner import ScannerService
-from app.services.notifications import NotificationService, get_notification_service
+
 from app.services.exports import ExportService, export_service
+from app.services.notifications import NotificationService, get_notification_service
 from app.services.remediation import RemediationService, remediation_service
+from app.services.scanner import ScannerService
 
 __all__ = [
     "ScannerService",

@@ -1,15 +1,16 @@
 """Scanner Service - orchestrates the scanning process."""
+
 import logging
-from datetime import datetime
 from types import SimpleNamespace
 from typing import Optional
 
 from sqlalchemy.orm import joinedload
 
-from app.extensions import db
-from app.models import Scan, Rule, Result, RuleException, DataSource, Device
 from app.engine import RuleEvaluator
+from app.extensions import db
+from app.models import DataSource, Device, Result, Rule, RuleException, Scan
 from app.providers.base import ConfigSourceProvider
+from app.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class ScannerService:
     """
     Main scanning orchestrator.
-    
+
     Workflow:
     1. Get list of devices
     2. Get applicable rules
@@ -25,29 +26,29 @@ class ScannerService:
     4. Evaluate rules against configs
     5. Check exceptions
     6. Save results
-    
+
     Device identification convention:
         device_id is always a hostname string (Device.hostname).
         When a matching Device record exists, device_uuid stores the
         internal UUID for FK linkage in Result.
     """
-    
+
     # Per-scan caches (populated by scan_single_device)
     _cached_scan_id: Optional[str] = None
     _cached_rules: Optional[list] = None
     _cached_data_sources: Optional[list] = None
-    
+
     def __init__(self):
         self.evaluator = RuleEvaluator()
         self._cached_scan_id = None
         self._cached_rules = None
         self._cached_data_sources = None
         self._exception_set: set[tuple] = set()
-    
+
     def initialize_scan(self, scan_id: str, device_ids: Optional[list[str]] = None) -> list[str]:
         """
         Initialize scan record and return list of devices to scan.
-        
+
         Device discovery priority:
         1. Explicit device_ids parameter (from API call)
         2. Active devices from Inventory, pre-filtered by rule vendor_codes
@@ -55,26 +56,29 @@ class ScannerService:
            applicable rule are scanned)
         3. Fallback: discover from Data Sources (GitLab file listing, etc.)
         """
-        scan = Scan.query.get(scan_id)
+        import uuid
+
+        scan_uuid = uuid.UUID(scan_id) if isinstance(scan_id, str) else scan_id
+        scan = db.session.get(Scan, scan_uuid)
         if not scan:
             raise ValueError(f"Scan {scan_id} not found")
-            
+
         scan.status = "running"
         db.session.commit()
-        
+
         # Get data sources (needed for config fetching later)
         data_sources = DataSource.query.filter_by(is_active=True).all()
-        
+
         # Get active rules first (needed for device pre-filtering)
         rules = self._get_applicable_rules(scan.policies_filter)
         scan.total_rules = len(rules)
-        
+
         if not rules:
             scan.status = "completed"
-            scan.finished_at = datetime.utcnow()
+            scan.finished_at = utc_now()
             db.session.commit()
             raise ValueError("No active rules found")
-        
+
         # Get devices
         if device_ids:
             devices = device_ids
@@ -85,28 +89,26 @@ class ScannerService:
                 # Fallback: get from data sources (legacy behavior)
                 if data_sources:
                     devices = self._get_devices_from_sources(data_sources)
-        
+
         if not devices:
             logger.warning(f"No devices found for scan {scan_id}")
-        
+
         scan.total_devices = len(devices)
         db.session.commit()
-        
+
         if not data_sources:
             logger.warning("No active data sources configured — config fetching will fail")
-            
+
         return devices
 
     def _get_devices_from_inventory(
-        self, 
-        rules: list[Rule] = None, 
-        devices_filter: Optional[dict] = None
+        self, rules: list[Rule] = None, devices_filter: Optional[dict] = None
     ) -> list[str]:
-        """Get active devices from inventory, pre-filtered by vendor_codes 
+        """Get active devices from inventory, pre-filtered by vendor_codes
         from applicable rules and policy scope_filters.
-        
+
         Only returns devices that will actually have rules applied to them.
-        
+
         Logic:
         1. Get all vendor_codes from rules → device must match at least one
         2. For each policy with a scope_filter → device must match it
@@ -120,6 +122,7 @@ class ScannerService:
                 query = query.filter_by(vendor_code=devices_filter["vendor"])
             if "group_id" in devices_filter and devices_filter["group_id"]:
                 import uuid
+
                 g_id = devices_filter["group_id"]
                 if isinstance(g_id, str):
                     try:
@@ -128,12 +131,12 @@ class ScannerService:
                         pass
                 query = query.filter_by(group_id=g_id)
         all_devices = query.all()
-        
+
         if not rules:
             hostnames = [d.hostname for d in all_devices if d.hostname]
             logger.info(f"Found {len(hostnames)} active devices in inventory (no rule filter)")
             return hostnames
-        
+
         # Collect unique policy scope_filters (the ONLY device selection mechanism)
         policy_filters: dict[str, dict] = {}
         for r in rules:
@@ -142,21 +145,21 @@ class ScannerService:
                 sf = r.policy.scope_filter
                 # Treat None and {} as "no filter"
                 policy_filters[pid] = sf if (isinstance(sf, dict) and sf) else None
-        
+
         has_any_scope_filter = any(sf is not None for sf in policy_filters.values())
         logger.info(
             f"Pre-filter config: policies={len(policy_filters)}, "
             f"has_scope_filters={has_any_scope_filter}, "
-            f"scope_filters={({pid: sf for pid, sf in policy_filters.items() if sf})}"
+            f"scope_filters={ ({pid: sf for pid, sf in policy_filters.items() if sf}) }"
         )
-        
+
         matched = []
         skipped_scope = 0
-        
+
         for device in all_devices:
             if not device.hostname:
                 continue
-            
+
             # Policy scope_filter check:
             # Device must match at least one policy to be included.
             # A policy with no scope_filter matches all devices.
@@ -173,9 +176,9 @@ class ScannerService:
                 if not device_matches_any:
                     skipped_scope += 1
                     continue
-            
+
             matched.append(device.hostname)
-        
+
         logger.info(
             f"Inventory pre-filter: {len(matched)}/{len(all_devices)} devices match "
             f"(skipped: {skipped_scope} scope_filter)"
@@ -187,25 +190,29 @@ class ScannerService:
         Process a single device part of a scan.
         Returns (passed, failed, errors).
         """
-        scan = Scan.query.get(scan_id)
+        import uuid
+
+        scan_uuid = uuid.UUID(scan_id) if isinstance(scan_id, str) else scan_id
+        scan = db.session.get(Scan, scan_uuid)
         if not scan:
             return 0, 0, 0
-        
+
         # Early exit if scan was cancelled (race condition guard)
         if scan.status == "cancelled":
             return 0, 0, 0
-            
+
         # Cache rules/sources per scan to avoid N+1 queries
         if self._cached_scan_id != scan_id:
             self._cached_data_sources = DataSource.query.filter_by(is_active=True).all()
             self._cached_rules = self._get_applicable_rules(scan.policies_filter)
             self._cached_scan_id = scan_id
-            
+
             # Pre-load ALL active exceptions into a set for O(1) lookup
             from datetime import date
+
             exceptions = RuleException.query.filter(
                 RuleException.is_active == True,
-                (RuleException.expiry_date == None) | (RuleException.expiry_date >= date.today())
+                (RuleException.expiry_date == None) | (RuleException.expiry_date >= date.today()),
             ).all()
             self._exception_set = set()
             for exc in exceptions:
@@ -214,7 +221,7 @@ class ScannerService:
                 if exc.device_id is None:
                     # Global exception — mark with None key
                     self._exception_set.add((None, rid))
-        
+
         passed, failed, errors = 0, 0, 0
         try:
             passed, failed, errors = self._process_device(
@@ -223,15 +230,18 @@ class ScannerService:
         except Exception as e:
             logger.error(f"Error processing device {device_id}: {e}")
             errors += 1
-            
+
         return passed, failed, errors
 
     def complete_empty_scan(self, scan_id: str):
         """Mark scan as completed if no devices found."""
-        scan = Scan.query.get(scan_id)
+        import uuid
+
+        scan_uuid = uuid.UUID(scan_id) if isinstance(scan_id, str) else scan_id
+        scan = db.session.get(Scan, scan_uuid)
         if scan:
             scan.status = "completed"
-            scan.finished_at = datetime.utcnow()
+            scan.finished_at = utc_now()
             scan.passed_count = 0
             scan.failed_count = 0
             scan.error_count = 0
@@ -240,34 +250,32 @@ class ScannerService:
     def _get_devices_from_sources(self, data_sources: list[DataSource]) -> list[str]:
         """Collect devices from all data sources."""
         all_devices = set()
-        
+
         for ds in data_sources:
             provider = self._create_provider(ds)
             if provider:
                 with provider:
                     devices = provider.list_devices()
                     all_devices.update(devices)
-        
+
         return list(all_devices)
-    
+
     def _get_applicable_rules(self, policies_filter: Optional[list] = None) -> list[Rule]:
         """Get active rules, optionally filtered by policies.
-        
+
         Uses joinedload to eager-load Policy relationship,
         avoiding N+1 queries in _process_device scope_filter check.
         """
-        query = Rule.query.options(
-            joinedload(Rule.policy)
-        ).filter_by(is_active=True)
-        
+        query = Rule.query.options(joinedload(Rule.policy)).filter_by(is_active=True)
+
         if policies_filter:
             query = query.filter(Rule.policy_id.in_(policies_filter))
-        
+
         return query.all()
-    
+
     def _detect_vendor(self, config: str, device_obj: Optional[Device] = None) -> Optional[str]:
         """Detect vendor for a device.
-        
+
         Priority:
         1. Device inventory record (device_obj.vendor_code)
         2. VendorMapping database rules
@@ -276,68 +284,69 @@ class ScannerService:
         # 1. From inventory
         if device_obj and device_obj.vendor_code:
             return device_obj.vendor_code
-        
+
         # 2. From VendorMapping database rules
         try:
             from app.services.inventory_sync import VendorDetector
+
             vendor = VendorDetector.detect(config)
             if vendor:
                 return vendor
         except Exception as e:
             logger.debug(f"VendorDetector unavailable: {e}")
-        
+
         return None
-    
+
     def _check_applicability(self, rule: Rule, device_obj: Optional[Device]) -> bool:
         """Check if a rule applies to a device based on rule.applicability conditions.
-        
+
         Returns True if the rule should be applied (all conditions match or no conditions set).
-        
+
         Condition key formats:
         - "field_name"           → exact match against Device.field_name
         - "field_name_regex"     → regex match against Device.field_name
         - "field_name_contains"  → substring match against Device.field_name
         - "extra_data.key"       → exact match against Device.extra_data["key"]
         - "extra_data.key_regex" → regex match against Device.extra_data["key"]
-        
+
         Condition values:
         - string  → single match
         - list    → OR match (device matches if ANY value in list matches)
-        
+
         All conditions are AND-joined. If device_obj is None, conditions
         referencing device fields are skipped (permissive).
         """
         import re as re_module
-        
+
         conditions = rule.applicability
         if not conditions or not isinstance(conditions, dict):
             return True  # No conditions → rule applies to all
-        
+
         if device_obj is None:
             # Can't check device fields without a device record → permissive
             return True
-        
+
         extra = device_obj.extra_data or {}
-        
+
         for cond_key, cond_value in conditions.items():
             if cond_value is None:
                 continue
-            
+
             # Resolve the device value for this condition
             device_value = self._resolve_device_field(device_obj, extra, cond_key)
-            
+
             if device_value is None:
                 # Field doesn't exist on device → condition fails (strict)
                 logger.debug(
                     f"Applicability reject: field '{cond_key}' not found on device {device_obj.hostname}"
                 )
                 return False
-            
+
             device_value_str = str(device_value).lower()
-            
+
             # Normalize cond_value to a list for uniform handling
             cond_values = cond_value if isinstance(cond_value, list) else [cond_value]
-            
+
             # Determine match type from key suffix
             if cond_key.endswith("_regex"):
                 # Regex: match if ANY pattern matches
@@ -359,13 +368,13 @@ class ScannerService:
                 # Exact match (case-insensitive): match if ANY value equals
                 if not any(str(cv).lower() == device_value_str for cv in cond_values):
                     return False
-        
+
         return True
-    
+
     @staticmethod
     def _resolve_device_field(device_obj: Device, extra: dict, cond_key: str):
         """Resolve a condition key to a device field value.
-        
+
         Strips _regex/_contains suffixes, then checks:
         1. extra_data.X path → extra["X"]
         2. Standard Device attribute
@@ -374,39 +383,35 @@ class ScannerService:
         field_key = cond_key
         for suffix in ("_regex", "_contains"):
             if field_key.endswith(suffix):
-                field_key = field_key[:-len(suffix)]
+                field_key = field_key[: -len(suffix)]
                 break
-        
+
         # Check extra_data path: "extra_data.department" → extra["department"]
         if field_key.startswith("extra_data."):
             extra_key = field_key[11:]  # strip "extra_data."
             return extra.get(extra_key)
-        
+
         # Standard Device attribute
         return getattr(device_obj, field_key, None)
 
     def _process_device(
-        self, 
-        scan: Scan, 
-        device_id: str, 
-        rules: list[Rule],
-        data_sources: list[DataSource]
+        self, scan: Scan, device_id: str, rules: list[Rule], data_sources: list[DataSource]
     ) -> tuple[int, int, int]:
         """Process a single device. Returns (passed, failed, errors)."""
         passed = 0
         failed = 0
         errors = 0
-        
+
         # Resolve Device UUID from inventory
         device_obj = Device.query.filter(
             (Device.hostname == device_id) | (Device.ip_address == device_id)
         ).first()
         device_uuid = device_obj.id if device_obj else None
-        
+
         # Normalize device_id to canonical hostname (fixes IP/hostname mixing)
         if device_obj:
             device_id = device_obj.hostname
-        
+
         # Pre-filter by Policy scope_filter (skip entire policy if device doesn't match)
         if device_obj:
             _policy_cache: dict[str, bool] = {}
@@ -423,31 +428,34 @@ class ScannerService:
                 if _policy_cache[pid]:
                     filtered_rules.append(rule)
             rules = filtered_rules
-        
+
         # --- Group rules by data_source_id ---
         # None key = rules that should use any available source (legacy/default behavior)
         from collections import defaultdict
+
         rule_groups: dict[str | None, list[Rule]] = defaultdict(list)
         for rule in rules:
             ds_key = str(rule.data_source_id) if rule.data_source_id else None
             rule_groups[ds_key].append(rule)
-        
+
         # Build a lookup of data sources by id
         ds_by_id = {str(ds.id): ds for ds in data_sources}
-        
+
         # Cache for fetched configs: data_source_id -> (config, vendor, error_detail)
         config_cache: dict[str | None, tuple[str | None, str | None, str | None]] = {}
-        
+
         device_vendor = None  # Will be set once from first successful fetch
-        
-        def _fetch_config_for_source(ds_id: str | None) -> tuple[str | None, str | None, str | None]:
+
+        def _fetch_config_for_source(
+            ds_id: str | None,
+        ) -> tuple[str | None, str | None, str | None]:
             """Fetch config for a specific source id, or any source if None.
-            
+
             Returns:
                 (config, vendor, error_detail) — error_detail is None on success.
             """
             nonlocal device_vendor
-            
+
             # Build context dict for path_template substitution
             device_context = {"hostname": device_id, "device_id": device_id, "ip": device_id}
             if device_obj:
@@ -455,7 +463,7 @@ class ScannerService:
                 if device_obj.extra_data and isinstance(device_obj.extra_data, dict):
                     for k, v in device_obj.extra_data.items():
                         device_context[k] = str(v) if v else ""
-            
+
             if ds_id is not None:
                 # Specific data source
                 ds = ds_by_id.get(ds_id)
@@ -500,17 +508,19 @@ class ScannerService:
                                 f"Fetch failed for device={device_id} source={ds.name} "
                                 f"(type={ds.type}): {result.error}"
                             )
-                error_summary = "; ".join(fetch_errors) if fetch_errors else "no active data sources"
+                error_summary = (
+                    "; ".join(fetch_errors) if fetch_errors else "no active data sources"
+                )
                 return None, None, error_summary
-        
+
         # --- Process each rule group ---
         for ds_key, group_rules in rule_groups.items():
             # Fetch config (with caching to avoid redundant fetches)
             if ds_key not in config_cache:
                 config_cache[ds_key] = _fetch_config_for_source(ds_key)
-            
+
             config, _vendor, _fetch_error = config_cache[ds_key]
-            
+
             # --- Save config snapshot (if we have a config and device UUID) ---
             if config is not None and device_uuid:
                 try:
@@ -523,7 +533,7 @@ class ScannerService:
                     )
                 except Exception as e:
                     logger.warning(f"Failed to save config snapshot for {device_id}: {e}")
-            
+
             if config is None:
                 # Config unavailable for this source — mark all rules as ERROR
                 ds_name = ds_by_id[ds_key].name if ds_key and ds_key in ds_by_id else "any"
@@ -537,16 +547,16 @@ class ScannerService:
                         device_uuid=device_uuid,
                         rule_id=rule.id,
                         status="ERROR",
-                        message=error_msg
+                        message=error_msg,
                     )
                     db.session.add(result)
                     errors += 1
                 continue
-            
+
             # Detect vendor once (from first successful config)
             if not device_vendor:
                 device_vendor = self._detect_vendor(config, device_obj)
-            
+
             # Evaluate each rule against its source's config
             # Note: rule.vendor_code is a parser hint only, NOT a device filter.
             # Device selection is handled exclusively by policy scope_filter.
@@ -563,19 +573,17 @@ class ScannerService:
                         device_uuid=device_uuid,
                         rule_id=rule.id,
                         status="SKIPPED",
-                        message="Exception/waiver active"
+                        message="Exception/waiver active",
                     )
                     db.session.add(result)
                     continue
-                
+
                 # 4. Evaluate rule
                 try:
                     check_result = self.evaluator.evaluate(
-                        config=config,
-                        logic_type=rule.logic_type,
-                        logic_payload=rule.logic_payload
+                        config=config, logic_type=rule.logic_type, logic_payload=rule.logic_payload
                     )
-                    
+
                     result = Result(
                         scan_id=scan.id,
                         device_id=device_id,
@@ -584,16 +592,16 @@ class ScannerService:
                         status=check_result.status.value,
                         message=check_result.message,
                         diff_data=check_result.diff_data,
-                        raw_value=str(check_result.raw_value) if check_result.raw_value else None
+                        raw_value=str(check_result.raw_value) if check_result.raw_value else None,
                     )
-                    
+
                     if check_result.passed:
                         passed += 1
                     elif check_result.status.value == "ERROR":
                         errors += 1
                     else:
                         failed += 1
-                        
+
                 except Exception as e:
                     logger.error(f"Error evaluating rule {rule.id} for {device_id}: {e}")
                     result = Result(
@@ -602,42 +610,41 @@ class ScannerService:
                         device_uuid=device_uuid,
                         rule_id=rule.id,
                         status="ERROR",
-                        message=str(e)
+                        message=str(e),
                     )
                     errors += 1
-                
+
                 db.session.add(result)
-        
+
         try:
             db.session.commit()
         except Exception as e:
             db.session.rollback()
             logger.error(f"Failed to commit results for device {device_id}: {e}")
             raise
-        
+
         return passed, failed, errors
-    
+
     def _has_active_exception(self, device_id: str, rule_id) -> bool:
         """Check for active exception for device + rule.
-        
+
         Uses pre-loaded _exception_set for O(1) lookup.
         Checks both device-specific and global (device_id=None) exceptions.
         """
         rid = str(rule_id)
-        return (device_id, rid) in self._exception_set or \
-               (None, rid) in self._exception_set
-    
+        return (device_id, rid) in self._exception_set or (None, rid) in self._exception_set
+
     def _create_provider(self, ds: DataSource) -> Optional[ConfigSourceProvider]:
         """Create appropriate provider using Registry."""
-        from app.core.registry import get_config_provider
         from app.core.credentials import resolve_credential
-        
+        from app.core.registry import get_config_provider
+
         # Get credentials via CredentialResolver
         token = resolve_credential(ds.credentials_ref) if ds.credentials_ref else ""
-        
+
         # Prepare config
         config = dict(ds.connection_params or {})
-        
+
         # Provider-type-aware credential injection
         if token:
             if ds.type in ("gitlab", "api", "checkpoint", "fortigate", "usergate", "paloalto"):
@@ -648,13 +655,13 @@ class ScannerService:
                 config.setdefault("api_key", token)
             if ds.type in ("paloalto",):
                 config.setdefault("api_key", token)
-             
+
         try:
             return get_config_provider(ds.type, config)
         except ValueError as e:
             logger.warning(f"Failed to create provider for {ds.type}: {e}")
             return None
-    
+
     def _save_config_snapshot(
         self,
         device_uuid,
@@ -664,22 +671,25 @@ class ScannerService:
         vendor_code: str | None,
     ):
         """Save a config snapshot with SHA-256 deduplication.
-        
+
         If the config hash matches the last snapshot for this device,
         only metadata is stored (config_text=NULL, is_changed=False).
         """
-        from app.models.config_snapshot import ConfigSnapshot
         import uuid as uuid_mod
-        
+
+        from app.models.config_snapshot import ConfigSnapshot
+
         config_hash = ConfigSnapshot.compute_hash(config_text)
-        
+
         # Find the last snapshot for this device
-        last_snap = ConfigSnapshot.query.filter_by(
-            device_id=device_uuid
-        ).order_by(ConfigSnapshot.collected_at.desc()).first()
-        
+        last_snap = (
+            ConfigSnapshot.query.filter_by(device_id=device_uuid)
+            .order_by(ConfigSnapshot.collected_at.desc())
+            .first()
+        )
+
         is_changed = (not last_snap) or (last_snap.config_hash != config_hash)
-        
+
         # Parse source_id to UUID if it's a valid string
         source_uuid = None
         if source_id:
@@ -687,7 +697,7 @@ class ScannerService:
                 source_uuid = uuid_mod.UUID(source_id)
             except (ValueError, AttributeError):
                 pass
-        
+
         snapshot = ConfigSnapshot(
             device_id=device_uuid,
             source_id=source_uuid,
@@ -699,40 +709,38 @@ class ScannerService:
             is_changed=is_changed,
             prev_snapshot_id=last_snap.id if last_snap else None,
         )
-        
+
         # Compute diff summary for changed configs
         if is_changed and last_snap:
             prev_text = last_snap.get_config_text()
             if prev_text:
                 snapshot.diff_summary = self._compute_diff_summary(prev_text, config_text)
-        
+
         db.session.add(snapshot)
         # Don't commit here — let the caller's transaction handle it
-        
+
         logger.debug(
             f"Config snapshot saved: device={device_uuid} "
             f"changed={is_changed} hash={config_hash[:12]}..."
         )
-    
+
     @staticmethod
     def _compute_diff_summary(old_text: str, new_text: str) -> str:
         """Compute a human-readable diff summary between two configs."""
         import difflib
-        
+
         old_lines = old_text.splitlines()
         new_lines = new_text.splitlines()
-        
+
         diff = list(difflib.unified_diff(old_lines, new_lines, lineterm=""))
-        
+
         added = sum(1 for l in diff if l.startswith("+") and not l.startswith("+++"))
         removed = sum(1 for l in diff if l.startswith("-") and not l.startswith("---"))
-        
+
         parts = []
         if added:
             parts.append(f"+{added} lines")
         if removed:
             parts.append(f"-{removed} lines")
-        
+
         return ", ".join(parts) if parts else "modified"
-
-

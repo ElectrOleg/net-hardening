@@ -1,9 +1,9 @@
 """User model — local and LDAP-backed accounts."""
+
 import uuid
-from datetime import datetime
 
 from sqlalchemy.dialects.postgresql import UUID
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
 

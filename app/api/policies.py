@@ -1,5 +1,7 @@
 """Policies API endpoints."""
-from flask import request, jsonify
+
+from flask import jsonify, request
+
 from app.api import api_bp
 from app.api.pagination import paginate_query
 from app.extensions import db
@@ -18,7 +20,7 @@ def list_policies():
 @api_bp.route("/policies/<uuid:policy_id>", methods=["GET"])
 def get_policy(policy_id):
     """Get policy by ID."""
-    policy = Policy.query.get_or_404(policy_id)
+    policy = db.get_or_404(Policy, policy_id)
     return jsonify(policy.to_dict(include_rules_count=True))
 
 
@@ -26,34 +28,34 @@ def get_policy(policy_id):
 def create_policy():
     """Create a new policy."""
     data = request.get_json()
-    
+
     if not data.get("name"):
         return jsonify({"error": "name is required"}), 400
-    
+
     policy = Policy(
         name=data["name"],
         description=data.get("description"),
         severity=data.get("severity", "medium"),
         scope_filter=data.get("scope_filter"),
-        is_active=data.get("is_active", True)
+        is_active=data.get("is_active", True),
     )
-    
+
     db.session.add(policy)
     db.session.commit()
-    
+
     return jsonify(policy.to_dict()), 201
 
 
 @api_bp.route("/policies/<uuid:policy_id>", methods=["PUT"])
 def update_policy(policy_id):
     """Update policy."""
-    policy = Policy.query.get_or_404(policy_id)
+    policy = db.get_or_404(Policy, policy_id)
     data = request.get_json()
-    
+
     for field in ["name", "description", "severity", "scope_filter", "is_active"]:
         if field in data:
             setattr(policy, field, data[field])
-    
+
     db.session.commit()
     return jsonify(policy.to_dict())
 
@@ -61,7 +63,7 @@ def update_policy(policy_id):
 @api_bp.route("/policies/<uuid:policy_id>", methods=["DELETE"])
 def delete_policy(policy_id):
     """Delete policy (soft delete by deactivating)."""
-    policy = Policy.query.get_or_404(policy_id)
+    policy = db.get_or_404(Policy, policy_id)
     policy.is_active = False
     db.session.commit()
     return "", 204

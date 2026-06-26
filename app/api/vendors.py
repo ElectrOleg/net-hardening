@@ -1,5 +1,7 @@
 """Vendors API endpoints."""
-from flask import request, jsonify
+
+from flask import jsonify, request
+
 from app.api import api_bp
 from app.extensions import db
 from app.models import Vendor
@@ -15,7 +17,7 @@ def list_vendors():
 @api_bp.route("/vendors/<code>", methods=["GET"])
 def get_vendor(code):
     """Get vendor by code."""
-    vendor = Vendor.query.get_or_404(code)
+    vendor = db.get_or_404(Vendor, code)
     return jsonify(vendor.to_dict())
 
 
@@ -23,39 +25,39 @@ def get_vendor(code):
 def create_vendor():
     """Create a new vendor."""
     data = request.get_json()
-    
+
     if not data.get("code") or not data.get("name"):
         return jsonify({"error": "code and name are required"}), 400
-    
-    if Vendor.query.get(data["code"]):
+
+    if db.session.get(Vendor, data["code"]):
         return jsonify({"error": "Vendor already exists"}), 409
-    
+
     vendor = Vendor(
         code=data["code"],
         name=data["name"],
         parser_driver=data.get("parser_driver"),
-        description=data.get("description")
+        description=data.get("description"),
     )
-    
+
     db.session.add(vendor)
     db.session.commit()
-    
+
     return jsonify(vendor.to_dict()), 201
 
 
 @api_bp.route("/vendors/<code>", methods=["PUT"])
 def update_vendor(code):
     """Update vendor."""
-    vendor = Vendor.query.get_or_404(code)
+    vendor = db.get_or_404(Vendor, code)
     data = request.get_json()
-    
+
     if "name" in data:
         vendor.name = data["name"]
     if "parser_driver" in data:
         vendor.parser_driver = data["parser_driver"]
     if "description" in data:
         vendor.description = data["description"]
-    
+
     db.session.commit()
     return jsonify(vendor.to_dict())
 
@@ -63,23 +65,24 @@ def update_vendor(code):
 @api_bp.route("/vendors/<code>", methods=["DELETE"])
 def delete_vendor(code):
     """Delete vendor."""
-    from app.models import Rule, Device
-    vendor = Vendor.query.get_or_404(code)
-    
+    from app.models import Device, Rule
+
+    vendor = db.get_or_404(Vendor, code)
+
     # Check for dependent records
     rule_count = Rule.query.filter_by(vendor_code=code).count()
     device_count = Device.query.filter_by(vendor_code=code).count()
-    
+
     if rule_count > 0 or device_count > 0:
         parts = []
         if rule_count:
             parts.append(f"{rule_count} rule(s)")
         if device_count:
             parts.append(f"{device_count} device(s)")
-        return jsonify({
-            "error": f"Cannot delete: {' and '.join(parts)} reference this vendor."
-        }), 409
-    
+        return jsonify(
+            {"error": f"Cannot delete: {' and '.join(parts)} reference this vendor."}
+        ), 409
+
     db.session.delete(vendor)
     db.session.commit()
     return "", 204

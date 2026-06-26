@@ -3,9 +3,11 @@
 Use case: verify that exactly the right set of objects/hosts/interfaces exist,
 no more and no less (or subset/superset variants).
 """
-import re
+
 import logging
-from app.engine.base import RuleChecker, CheckResult
+import re
+
+from app.engine.base import CheckResult, RuleChecker
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +134,8 @@ class SetMatchChecker(RuleChecker):
 
         return CheckResult.failure(
             message=f"Set mismatch ({mode}): {'; '.join(parts)}",
-            diff_data=f"Found:    {sorted(found_set)}\nExpected: {sorted(expected)}\n" + "\n".join(parts),
+            diff_data=f"Found:    {sorted(found_set)}\nExpected: {sorted(expected)}\n"
+            + "\n".join(parts),
             details={
                 "found": sorted(found_raw),
                 "expected": sorted(expected_set),

@@ -5,8 +5,9 @@ Supports:
 - File: file:///path/to/secret
 - Vault stub: vault://secret/path#key (requires hvac)
 """
-import os
+
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -15,25 +16,25 @@ logger = logging.getLogger(__name__)
 
 class CredentialResolver:
     """Resolve credentials from various sources.
-    
+
     Usage:
         resolver = CredentialResolver()
         password = resolver.resolve("env://DB_PASSWORD")
         token = resolver.resolve("file:///run/secrets/api_token")
         secret = resolver.resolve("vault://secret/data/gitlab#token")
-        
+
         # Legacy: plain env var name
         password = resolver.resolve("MY_PASSWORD")
     """
-    
+
     def __init__(self, vault_url: Optional[str] = None, vault_token: Optional[str] = None):
         self.vault_url = vault_url or os.environ.get("VAULT_ADDR")
         self.vault_token = vault_token or os.environ.get("VAULT_TOKEN")
         self._vault_client = None
-    
+
     def resolve(self, ref: str) -> str:
         """Resolve a credential reference to its actual value.
-        
+
         Args:
             ref: Credential reference string. Formats:
                 - "env://VAR_NAME" - environment variable (explicit)
@@ -41,15 +42,15 @@ class CredentialResolver:
                 - "vault://secret/path#key" - HashiCorp Vault
                 - "VAR_NAME" - env var name; if not found, used as literal value
                 - "glpat-xxx..." - literal token value (used as-is)
-                
+
         Returns:
             Resolved credential string, or empty string if not found.
         """
         if not ref:
             return ""
-        
+
         ref = ref.strip()
-        
+
         try:
             if ref.startswith("env://"):
                 return self._from_env(ref[6:])
@@ -67,62 +68,57 @@ class CredentialResolver:
         except Exception as e:
             logger.error(f"Failed to resolve credential '{ref}': {e}")
             return ""
-    
+
     def _from_env(self, var_name: str) -> str:
         """Resolve from environment variable."""
         value = os.environ.get(var_name, "")
         if not value:
             logger.debug(f"Environment variable '{var_name}' not set or empty")
         return value
-    
+
     def _from_file(self, file_path: str) -> str:
         """Resolve from file contents."""
         path = Path(file_path)
         if not path.exists():
             logger.warning(f"Credential file not found: {file_path}")
             return ""
-        
+
         try:
             return path.read_text().strip()
         except Exception as e:
             logger.error(f"Failed to read credential file {file_path}: {e}")
             return ""
-    
+
     def _from_vault(self, vault_path: str) -> str:
         """Resolve from HashiCorp Vault.
-        
+
         Format: secret/path#key
         """
         if not self.vault_url:
             logger.warning("VAULT_ADDR not configured, cannot resolve vault credentials")
             return ""
-        
+
         try:
             import hvac
         except ImportError:
             logger.error("hvac not installed. pip install hvac")
             return ""
-        
+
         # Parse path and key
         if "#" in vault_path:
             path, key = vault_path.rsplit("#", 1)
         else:
             path = vault_path
             key = "value"
-        
+
         try:
             if self._vault_client is None:
-                self._vault_client = hvac.Client(
-                    url=self.vault_url,
-                    token=self.vault_token
-                )
-            
-            secret = self._vault_client.secrets.kv.v2.read_secret_version(
-                path=path
-            )
+                self._vault_client = hvac.Client(url=self.vault_url, token=self.vault_token)
+
+            secret = self._vault_client.secrets.kv.v2.read_secret_version(path=path)
             data = secret.get("data", {}).get("data", {})
             return str(data.get(key, ""))
-            
+
         except Exception as e:
             logger.error(f"Failed to read from Vault at '{vault_path}': {e}")
             return ""

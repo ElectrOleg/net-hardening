@@ -1,14 +1,17 @@
 """Flask extensions initialization."""
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
+
 from celery import Celery
-from sqlalchemy.ext.compiler import compiles
+from flask_migrate import Migrate
+from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
+
 
 # Register SQLite compilers for PostgreSQL-specific types during local development/testing
 @compiles(JSONB, "sqlite")
 def compile_jsonb_sqlite(type_, compiler, **kw):
     return "JSON"
+
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -18,7 +21,7 @@ celery = Celery()
 def init_celery(app):
     """Initialize Celery with Flask app context."""
     celery.conf.update(app.config.get("CELERY", {}))
-    
+
     # Celery Beat schedule for periodic tasks
     celery.conf.beat_schedule = {
         "auto-sync-inventory": {
@@ -35,25 +38,25 @@ def init_celery(app):
         },
     }
     celery.conf.timezone = "UTC"
-    
+
     # Queue routing — allows running separate workers per task type.
     # Start workers with: celery worker -Q scan,sync,maintenance
     # Or split across machines: celery worker -Q scan (on collector nodes)
     celery.conf.task_routes = {
-        "hcs.scan_*":       {"queue": "scan"},
-        "hcs.sync_*":       {"queue": "sync"},
-        "hcs.cleanup_*":    {"queue": "maintenance"},
-        "hcs.auto_run_*":   {"queue": "maintenance"},
-        "hcs.collector_*":  {"queue": "maintenance"},
+        "hcs.scan_*": {"queue": "scan"},
+        "hcs.sync_*": {"queue": "sync"},
+        "hcs.cleanup_*": {"queue": "maintenance"},
+        "hcs.auto_run_*": {"queue": "maintenance"},
+        "hcs.collector_*": {"queue": "maintenance"},
     }
     # Default queue for unrouted tasks
     celery.conf.task_default_queue = "default"
-    
+
     class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):
             with app.app_context():
                 return self.run(*args, **kwargs)
-    
+
     celery.Task = ContextTask
     return celery
 
@@ -61,33 +64,36 @@ def init_celery(app):
 def init_csrf(app):
     """
     CSRF protection via double-submit cookie pattern.
-    
+
     - Sets a `csrf_token` cookie on every response.
     - Mutating requests (POST/PUT/DELETE) to /api/* must include
       X-CSRF-Token header matching the cookie value.
     - Safe methods (GET/HEAD/OPTIONS) are always allowed.
     """
     import secrets
-    from flask import request, jsonify
+
+    from flask import jsonify, request
 
     SAFE_METHODS = frozenset(["GET", "HEAD", "OPTIONS"])
 
     @app.before_request
     def ensure_csrf_cookie():
         """If no csrf_token cookie exists, generate and inject one.
-        
+
         This ensures the cookie is available for the first request.
         The cookie will be set on the response via after_request.
         """
         if "csrf_token" not in request.cookies:
             # Store token in g so after_request can set the cookie
             from flask import g
+
             g._new_csrf_token = secrets.token_hex(32)
 
     @app.after_request
     def set_csrf_cookie(response):
         from flask import g
-        new_token = getattr(g, '_new_csrf_token', None)
+
+        new_token = getattr(g, "_new_csrf_token", None)
         if new_token:
             response.set_cookie(
                 "csrf_token",
@@ -130,4 +136,3 @@ def init_csrf(app):
             return jsonify({"error": "CSRF token mismatch"}), 403
 
         return None
-

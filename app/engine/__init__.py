@@ -1,16 +1,17 @@
 """HCS Rule Engine - движок проверок."""
-from app.engine.base import RuleChecker, CheckResult
-from app.engine.simple_match import SimpleMatchChecker
-from app.engine.block_match import BlockMatchChecker
-from app.engine.structure_check import StructureChecker
-from app.engine.version_check import VersionChecker
-from app.engine.textfsm_check import TextFSMChecker
-from app.engine.xml_check import XMLChecker
+
 from app.engine.advanced_block import AdvancedBlockChecker
-from app.engine.composite_check import CompositeChecker
+from app.engine.base import CheckResult, RuleChecker
+from app.engine.block_match import BlockMatchChecker
 from app.engine.block_validate import BlockValidateChecker
-from app.engine.set_match import SetMatchChecker
+from app.engine.composite_check import CompositeChecker
 from app.engine.evaluator import RuleEvaluator
+from app.engine.set_match import SetMatchChecker
+from app.engine.simple_match import SimpleMatchChecker
+from app.engine.structure_check import StructureChecker
+from app.engine.textfsm_check import TextFSMChecker
+from app.engine.version_check import VersionChecker
+from app.engine.xml_check import XMLChecker
 
 __all__ = [
     "RuleChecker",
@@ -27,4 +28,3 @@ __all__ = [
     "SetMatchChecker",
     "RuleEvaluator",
 ]
-

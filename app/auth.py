@@ -9,12 +9,15 @@ Decorators:
   - require_auth  — enforces login (session or Bearer token)
   - require_role  — enforces minimum role level
 """
+
 import functools
 import logging
-from datetime import datetime
 from typing import Optional
 
-from flask import request, jsonify, session, g, redirect, url_for
+from flask import g, jsonify, redirect, request, session, url_for
+
+from app.extensions import db
+from app.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +30,7 @@ ROLE_HIERARCHY = {"admin": 3, "operator": 2, "viewer": 1}
 
 def require_auth(f):
     """Decorator: require authenticated session or Bearer token."""
+
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         from app.config import settings
@@ -51,6 +55,7 @@ def require_auth(f):
 
 def require_role(*roles):
     """Decorator: require specific role(s). Must be placed after @require_auth."""
+
     def decorator(f):
         @functools.wraps(f)
         def decorated(*args, **kwargs):
@@ -61,7 +66,9 @@ def require_role(*roles):
                     return jsonify({"error": "Insufficient permissions"}), 403
                 return redirect(url_for("web.dashboard"))
             return f(*args, **kwargs)
+
         return decorated
+
     return decorator
 
 
@@ -79,8 +86,9 @@ def _get_current_user():
     user_id = session.get("user_id")
     if user_id:
         import uuid
+
         try:
-            user = User.query.get(uuid.UUID(str(user_id)))
+            user = db.session.get(User, uuid.UUID(str(user_id)))
         except (ValueError, TypeError, AttributeError):
             user = None
         if user and user.is_active:
@@ -106,13 +114,14 @@ def _validate_api_token(token: str):
 #   Authentication Logic
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+
 def authenticate(username: str, password: str) -> Optional["User"]:
     """Authenticate user via local DB or LDAP.
 
     Returns User on success, None on failure.
     """
-    from app.models.user import User
     from app.config import settings
+    from app.models.user import User
 
     if not username or not password:
         return None
@@ -122,8 +131,9 @@ def authenticate(username: str, password: str) -> Optional["User"]:
     # 1. Try local authentication
     user = User.query.filter_by(username=username, auth_source="local").first()
     if user and user.is_active and user.check_password(password):
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = utc_now()
         from app.extensions import db
+
         db.session.commit()
         return user
 
@@ -140,6 +150,7 @@ def authenticate(username: str, password: str) -> Optional["User"]:
 #   LDAP / Active Directory
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+
 def ldap_authenticate(username: str, password: str) -> Optional["User"]:
     """Authenticate against AD via LDAP/LDAPS.
 
@@ -150,7 +161,7 @@ def ldap_authenticate(username: str, password: str) -> Optional["User"]:
 
     try:
         import ldap3
-        from ldap3 import Server, Connection, SUBTREE, Tls
+        from ldap3 import SUBTREE, Connection, Server, Tls
     except ImportError:
         logger.error("ldap3 package not installed — pip install ldap3")
         return None
@@ -160,6 +171,7 @@ def ldap_authenticate(username: str, password: str) -> Optional["User"]:
         tls_config = None
         if settings.LDAP_USE_SSL or settings.LDAP_STARTTLS:
             import ssl
+
             validate_map = {
                 "NONE": ssl.CERT_NONE,
                 "OPTIONAL": ssl.CERT_OPTIONAL,
@@ -263,8 +275,8 @@ def _resolve_ldap_role(member_of: list[str]) -> str:
 
 def _upsert_ldap_user(username: str, display_name: str, email: str, role: str):
     """Create or update User record for LDAP user."""
-    from app.models.user import User
     from app.extensions import db
+    from app.models.user import User
 
     user = User.query.filter_by(username=username).first()
 
@@ -274,7 +286,7 @@ def _upsert_ldap_user(username: str, display_name: str, email: str, role: str):
         user.email = email
         user.role = role
         user.auth_source = "ldap"
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = utc_now()
     else:
         user = User(
             username=username,
@@ -283,7 +295,7 @@ def _upsert_ldap_user(username: str, display_name: str, email: str, role: str):
             auth_source="ldap",
             role=role,
             is_active=True,
-            last_login_at=datetime.utcnow(),
+            last_login_at=utc_now(),
         )
         db.session.add(user)
 
@@ -296,6 +308,7 @@ def _upsert_ldap_user(username: str, display_name: str, email: str, role: str):
 #   LDAP Connection Test
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+
 def test_ldap_connection(config: dict) -> dict:
     """Test LDAP connection with provided or saved settings.
 
@@ -303,7 +316,7 @@ def test_ldap_connection(config: dict) -> dict:
     """
     try:
         import ldap3
-        from ldap3 import Server, Connection, Tls
+        from ldap3 import Connection, Server, Tls
     except ImportError:
         return {"success": False, "message": "ldap3 package not installed (pip install ldap3)"}
 
@@ -324,6 +337,7 @@ def test_ldap_connection(config: dict) -> dict:
         tls_config = None
         if use_ssl or starttls:
             import ssl
+
             validate_map = {
                 "NONE": ssl.CERT_NONE,
                 "OPTIONAL": ssl.CERT_OPTIONAL,

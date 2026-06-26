@@ -29,3 +29,11 @@ pysnmp>=6.0    # SNMP
 python-dotenv>=1.0
 pyyaml>=6.0
 requests>=2.31
+croniter>=2.0
+
+# LDAP & Vault Support
+ldap3>=2.9
+hvac>=2.1
+
+# Dev Dependencies / Linter
+ruff>=0.3

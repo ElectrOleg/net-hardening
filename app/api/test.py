@@ -1,5 +1,7 @@
 """Test/Sandbox API endpoints for Rule Builder."""
-from flask import request, jsonify
+
+from flask import jsonify, request
+
 from app.api import api_bp
 from app.engine import RuleEvaluator
 
@@ -8,7 +10,7 @@ from app.engine import RuleEvaluator
 def test_rule():
     """
     Test a rule against sample configuration (sandbox mode).
-    
+
     Request body:
     {
         "config": "... config text ...",
@@ -17,21 +19,19 @@ def test_rule():
     }
     """
     data = request.get_json()
-    
+
     if not data.get("config"):
         return jsonify({"error": "config is required"}), 400
     if not data.get("logic_type"):
         return jsonify({"error": "logic_type is required"}), 400
     if not data.get("logic_payload"):
         return jsonify({"error": "logic_payload is required"}), 400
-    
+
     evaluator = RuleEvaluator()
     result = evaluator.test_rule(
-        config=data["config"],
-        logic_type=data["logic_type"],
-        logic_payload=data["logic_payload"]
+        config=data["config"], logic_type=data["logic_type"], logic_payload=data["logic_payload"]
     )
-    
+
     return jsonify(result)
 
 
@@ -43,35 +43,28 @@ def test_parse():
     """
     data = request.get_json()
     config = data.get("config", "")
-    
+
     try:
         from ciscoconfparse2 import CiscoConfParse
+
         parse = CiscoConfParse(config.splitlines())
-        
+
         # Get all parent objects
         parents = []
         for obj in parse.objs:
             if not obj.parent or obj.parent.text == "":
-                parents.append({
-                    "text": obj.text,
-                    "linenum": obj.linenum,
-                    "children": [
-                        {"text": c.text, "linenum": c.linenum}
-                        for c in obj.children
-                    ]
-                })
-        
-        return jsonify({
-            "success": True,
-            "total_lines": len(parse.objs),
-            "structure": parents
-        })
-        
+                parents.append(
+                    {
+                        "text": obj.text,
+                        "linenum": obj.linenum,
+                        "children": [{"text": c.text, "linenum": c.linenum} for c in obj.children],
+                    }
+                )
+
+        return jsonify({"success": True, "total_lines": len(parse.objs), "structure": parents})
+
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        })
+        return jsonify({"success": False, "error": str(e)})
 
 
 @api_bp.route("/test/logic-types", methods=["GET"])
@@ -85,8 +78,8 @@ def get_logic_types():
                 "pattern": {"type": "string", "required": True},
                 "match_mode": {"type": "enum", "values": ["must_exist", "must_not_exist"]},
                 "is_regex": {"type": "boolean", "default": False},
-                "case_insensitive": {"type": "boolean", "default": False}
-            }
+                "case_insensitive": {"type": "boolean", "default": False},
+            },
         },
         "block_match": {
             "name": "Block Context Match",
@@ -95,19 +88,22 @@ def get_logic_types():
                 "parent_block_start": {"type": "string", "required": True},
                 "exclude_filter": {"type": "string"},
                 "child_rules": {"type": "array", "required": True},
-                "logic": {"type": "enum", "values": ["ALL", "ANY"], "default": "ALL"}
-            }
+                "logic": {"type": "enum", "values": ["ALL", "ANY"], "default": "ALL"},
+            },
         },
         "structure_check": {
             "name": "Structure Check",
             "description": "JSON/JMESPath checking for API configs",
             "payload_schema": {
                 "path": {"type": "string", "required": True},
-                "operator": {"type": "enum", "values": ["eq", "neq", "contains", "gt", "lt", "exists"]},
+                "operator": {
+                    "type": "enum",
+                    "values": ["eq", "neq", "contains", "gt", "lt", "exists"],
+                },
                 "value": {"type": "any"},
-                "all_must_match": {"type": "boolean", "default": True}
-            }
-        }
+                "all_must_match": {"type": "boolean", "default": True},
+            },
+        },
     }
-    
+
     return jsonify(types)

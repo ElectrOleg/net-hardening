@@ -1,26 +1,27 @@
 """HCS Flask Application Configuration."""
-import os
+
 import secrets
-from pydantic_settings import BaseSettings
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
-    
+
     # Flask
     SECRET_KEY: str = ""  # Will be auto-generated if not set
     DEBUG: bool = True
-    
+
     # Database
     DATABASE_URL: str = "postgresql://hcs:hcs@localhost:5432/hcs"
-    
+
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
-    
+
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
-    
+
     # GitLab
     GITLAB_URL: str = ""
     GITLAB_TOKEN: str = ""
@@ -37,17 +38,17 @@ class Settings(BaseSettings):
     ANSIBLE_PLAYBOOK_DIR: str = "/tmp/hcs_playbooks"
     ANSIBLE_INVENTORY: str = "/etc/ansible/hosts"
     AWX_URL: str = ""
-    
+
     # Authentication
     AUTH_ENABLED: bool = True  # Enabled by default for security
     API_TOKEN: str = ""  # Static API token for automation
     METRICS_TOKEN: str = ""  # If set, requires Bearer token or ?token= to access /metrics
-    
+
     # LDAP / Active Directory
     LDAP_ENABLED: bool = False
-    LDAP_SERVER: str = ""          # ldap://dc.example.com or ldaps://dc.example.com
-    LDAP_PORT: int = 389           # 636 for LDAPS
-    LDAP_USE_SSL: bool = False     # True for LDAPS
+    LDAP_SERVER: str = ""  # ldap://dc.example.com or ldaps://dc.example.com
+    LDAP_PORT: int = 389  # 636 for LDAPS
+    LDAP_USE_SSL: bool = False  # True for LDAPS
     LDAP_STARTTLS: bool = False
     LDAP_BIND_DN: str = ""
     LDAP_BIND_PASSWORD: str = ""
@@ -59,11 +60,12 @@ class Settings(BaseSettings):
     LDAP_ADMIN_GROUP: str = ""
     LDAP_OPERATOR_GROUP: str = ""
     LDAP_CERT_VALIDATION: str = "REQUIRED"  # NONE | OPTIONAL | REQUIRED
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"  # Allow extra env vars like FLASK_APP without error
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",  # Allow extra env vars like FLASK_APP without error
+    )
 
 
 settings = Settings()
@@ -71,6 +73,7 @@ settings = Settings()
 # Auto-generate SECRET_KEY if not provided
 if not settings.SECRET_KEY:
     import warnings
+
     settings.SECRET_KEY = secrets.token_hex(32)
     warnings.warn(
         "SECRET_KEY not set in environment — using auto-generated ephemeral key. "
@@ -82,9 +85,9 @@ if not settings.SECRET_KEY:
 
 class FlaskConfig:
     """Flask configuration class."""
-    
+
     SECRET_KEY = settings.SECRET_KEY
-    
+
     # SQLAlchemy
     SQLALCHEMY_DATABASE_URI = settings.DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -92,7 +95,7 @@ class FlaskConfig:
         "pool_pre_ping": True,
         "pool_recycle": 300,
     }
-    
+
     # Celery
     CELERY = {
         "broker_url": settings.CELERY_BROKER_URL,

@@ -1,11 +1,14 @@
 """Authentication API — login, logout, user management, LDAP settings."""
-from flask import jsonify, request, session
-from app.api import api_bp
-from app.extensions import db
-from app.auth import require_auth, require_role, authenticate, test_ldap_connection
 
+from flask import jsonify, request, session
+
+from app.api import api_bp
+from app.auth import authenticate, require_auth, require_role, test_ldap_connection
+from app.extensions import db
+from app.models.user import User
 
 # ─── Login / Logout ───────────────────────────────────────────────
+
 
 @api_bp.route("/auth/login", methods=["POST"])
 def api_login():
@@ -33,10 +36,12 @@ def api_login():
     session["role"] = user.role
     session.permanent = True
 
-    return jsonify({
-        "message": "Login successful",
-        "user": user.to_dict(),
-    })
+    return jsonify(
+        {
+            "message": "Login successful",
+            "user": user.to_dict(),
+        }
+    )
 
 
 @api_bp.route("/auth/logout", methods=["POST"])
@@ -51,17 +56,18 @@ def api_logout():
 def api_me():
     """Get current user info."""
     from flask import g
+
     return jsonify(g.current_user)
 
 
 # ─── User Management (admin only) ─────────────────────────────────
+
 
 @api_bp.route("/admin/users", methods=["GET"])
 @require_auth
 @require_role("admin")
 def list_users():
     """List all users."""
-    from app.models.user import User
     users = User.query.order_by(User.username).all()
     return jsonify([u.to_dict() for u in users])
 
@@ -75,8 +81,6 @@ def create_user():
     Body: {"username": "...", "password": "...", "display_name": "...",
            "email": "...", "role": "viewer|operator|admin"}
     """
-    from app.models.user import User
-
     data = request.get_json()
     if not data:
         return jsonify({"error": "JSON body required"}), 400
@@ -117,9 +121,7 @@ def create_user():
 @require_role("admin")
 def update_user(user_id):
     """Update user properties (role, active, display_name, email, password)."""
-    from app.models.user import User
-
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     data = request.get_json()
 
     if "display_name" in data:
@@ -146,10 +148,9 @@ def update_user(user_id):
 @require_role("admin")
 def delete_user(user_id):
     """Deactivate a user (soft delete)."""
-    from app.models.user import User
     from flask import g
 
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
 
     # Prevent self-deletion
     current = g.current_user
@@ -164,6 +165,7 @@ def delete_user(user_id):
 
 # ─── LDAP Settings ─────────────────────────────────────────────────
 
+
 @api_bp.route("/admin/ldap/settings", methods=["GET"])
 @require_auth
 @require_role("admin")
@@ -172,11 +174,20 @@ def get_ldap_settings():
     from app.models.system_setting import SystemSetting
 
     ldap_keys = [
-        "ldap_enabled", "ldap_server", "ldap_port", "ldap_use_ssl",
-        "ldap_starttls", "ldap_bind_dn", "ldap_bind_password",
-        "ldap_base_dn", "ldap_user_filter", "ldap_attr_username",
-        "ldap_attr_email", "ldap_attr_display_name",
-        "ldap_admin_group", "ldap_operator_group",
+        "ldap_enabled",
+        "ldap_server",
+        "ldap_port",
+        "ldap_use_ssl",
+        "ldap_starttls",
+        "ldap_bind_dn",
+        "ldap_bind_password",
+        "ldap_base_dn",
+        "ldap_user_filter",
+        "ldap_attr_username",
+        "ldap_attr_email",
+        "ldap_attr_display_name",
+        "ldap_admin_group",
+        "ldap_operator_group",
         "ldap_cert_validation",
     ]
 
@@ -207,11 +218,20 @@ def update_ldap_settings():
         return jsonify({"error": "JSON object required"}), 400
 
     allowed_keys = {
-        "ldap_enabled", "ldap_server", "ldap_port", "ldap_use_ssl",
-        "ldap_starttls", "ldap_bind_dn", "ldap_bind_password",
-        "ldap_base_dn", "ldap_user_filter", "ldap_attr_username",
-        "ldap_attr_email", "ldap_attr_display_name",
-        "ldap_admin_group", "ldap_operator_group",
+        "ldap_enabled",
+        "ldap_server",
+        "ldap_port",
+        "ldap_use_ssl",
+        "ldap_starttls",
+        "ldap_bind_dn",
+        "ldap_bind_password",
+        "ldap_base_dn",
+        "ldap_user_filter",
+        "ldap_attr_username",
+        "ldap_attr_email",
+        "ldap_attr_display_name",
+        "ldap_admin_group",
+        "ldap_operator_group",
         "ldap_cert_validation",
     }
 
