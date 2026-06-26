@@ -100,3 +100,66 @@ def test_configs_blueprint_rbac(client, session, admin_user, operator_user, view
     res = client.get(f"/api/configs/{snap.id}/raw")
     assert res.status_code == 200
     assert "secret password plain" in res.text
+
+
+def test_get_ldap_setting_helper(session):
+    """Test _get_ldap_setting helper with db overrides and env fallbacks."""
+    from app.auth import _get_ldap_setting
+    from app.models.system_setting import SystemSetting
+
+    # Ensure clean slate / verify defaults
+    assert _get_ldap_setting("ldap_enabled") is False
+    assert _get_ldap_setting("ldap_port") == 389
+
+    # Add DB setting
+    session.add(SystemSetting(key="ldap_enabled", value="true"))
+    session.add(SystemSetting(key="ldap_port", value="636"))
+    session.add(SystemSetting(key="ldap_server", value="ldaps://ldap.example.com"))
+    session.commit()
+
+    # Now verify it reads from database
+    assert _get_ldap_setting("ldap_enabled") is True
+    assert _get_ldap_setting("ldap_port") == 636
+    assert _get_ldap_setting("ldap_server") == "ldaps://ldap.example.com"
+
+    # Cleanup settings
+    SystemSetting.query.filter(
+        SystemSetting.key.in_(["ldap_enabled", "ldap_port", "ldap_server"])
+    ).delete()
+    session.commit()
+
+
+def test_ldap_test_connection_masked_password(client, admin_user, session):
+    """Test that LDAP connection test replaces masked password with DB stored value."""
+    from unittest.mock import patch
+
+    from app.models.system_setting import SystemSetting
+
+    _login(client, "admin", "admin_pass")
+
+    # Store real password in DB
+    session.add(SystemSetting(key="ldap_bind_password", value="real_secret_password"))
+    session.commit()
+
+    # Send request with masked password
+    with patch("app.api.auth_api.test_ldap_connection") as mock_test_conn:
+        mock_test_conn.return_value = {"success": True, "message": "Success"}
+
+        payload = {
+            "server": "ldap.example.com",
+            "port": 389,
+            "bind_dn": "cn=admin",
+            "bind_password": "••••••••",
+            "use_ssl": False,
+        }
+        res = client.post("/api/admin/ldap/test", json=payload)
+        assert res.status_code == 200
+
+        # Verify mock received the resolved password from DB
+        mock_test_conn.assert_called_once()
+        called_config = mock_test_conn.call_args[0][0]
+        assert called_config["bind_password"] == "real_secret_password"
+
+    # Cleanup
+    SystemSetting.query.filter_by(key="ldap_bind_password").delete()
+    session.commit()

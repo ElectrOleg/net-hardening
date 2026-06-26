@@ -272,6 +272,13 @@ def test_ldap():
             "base_dn": data.get("base_dn", ""),
             "cert_validation": data.get("cert_validation", "REQUIRED"),
         }
+        if config["bind_password"] == "••••••••":
+            from app.config import settings
+            from app.models.system_setting import SystemSetting
+
+            config["bind_password"] = SystemSetting.get(
+                "ldap_bind_password", settings.LDAP_BIND_PASSWORD
+            )
     else:
         config = _load_ldap_config_from_db()
 

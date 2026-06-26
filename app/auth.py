@@ -115,12 +115,40 @@ def _validate_api_token(token: str):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
+def _get_ldap_setting(key: str, default=None):
+    """Retrieve an LDAP setting from the database SystemSetting table,
+    falling back to settings from the config/env if not found or empty.
+    """
+    from app.config import settings
+    from app.models.system_setting import SystemSetting
+
+    db_key = key.lower()
+    config_key = key.upper()
+    if not config_key.startswith("LDAP_"):
+        config_key = f"LDAP_{config_key}"
+
+    env_default = getattr(settings, config_key, default)
+
+    setting = SystemSetting.query.filter_by(key=db_key).first()
+    if setting is not None:
+        val = setting.value
+        if isinstance(env_default, bool):
+            return val.lower() in ("true", "1", "yes", "on")
+        elif isinstance(env_default, int):
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                return env_default
+        else:
+            return val
+    return env_default
+
+
 def authenticate(username: str, password: str) -> Optional["User"]:
     """Authenticate user via local DB or LDAP.
 
     Returns User on success, None on failure.
     """
-    from app.config import settings
     from app.models.user import User
 
     if not username or not password:
@@ -138,7 +166,7 @@ def authenticate(username: str, password: str) -> Optional["User"]:
         return user
 
     # 2. Try LDAP if enabled
-    if getattr(settings, "LDAP_ENABLED", False):
+    if _get_ldap_setting("ldap_enabled"):
         ldap_result = ldap_authenticate(username, password)
         if ldap_result:
             return ldap_result
@@ -157,8 +185,6 @@ def ldap_authenticate(username: str, password: str) -> Optional["User"]:
     On first successful bind, creates a local User record with
     auth_source='ldap' and syncs display_name + email from AD.
     """
-    from app.config import settings
-
     try:
         import ldap3
         from ldap3 import SUBTREE, Connection, Server, Tls
@@ -169,7 +195,20 @@ def ldap_authenticate(username: str, password: str) -> Optional["User"]:
     try:
         # Build server config
         tls_config = None
-        if settings.LDAP_USE_SSL or settings.LDAP_STARTTLS:
+        use_ssl = _get_ldap_setting("ldap_use_ssl")
+        starttls = _get_ldap_setting("ldap_starttls")
+        cert_validation = _get_ldap_setting("ldap_cert_validation")
+        server_url = _get_ldap_setting("ldap_server")
+        port = _get_ldap_setting("ldap_port")
+        bind_dn = _get_ldap_setting("ldap_bind_dn")
+        bind_password = _get_ldap_setting("ldap_bind_password")
+        user_filter_tpl = _get_ldap_setting("ldap_user_filter")
+        attr_username = _get_ldap_setting("ldap_attr_username")
+        attr_email = _get_ldap_setting("ldap_attr_email")
+        attr_display_name = _get_ldap_setting("ldap_attr_display_name")
+        base_dn = _get_ldap_setting("ldap_base_dn")
+
+        if use_ssl or starttls:
             import ssl
 
             validate_map = {
@@ -178,13 +217,13 @@ def ldap_authenticate(username: str, password: str) -> Optional["User"]:
                 "REQUIRED": ssl.CERT_REQUIRED,
             }
             tls_config = Tls(
-                validate=validate_map.get(settings.LDAP_CERT_VALIDATION, ssl.CERT_REQUIRED),
+                validate=validate_map.get(cert_validation, ssl.CERT_REQUIRED),
             )
 
         server = Server(
-            settings.LDAP_SERVER,
-            port=settings.LDAP_PORT,
-            use_ssl=settings.LDAP_USE_SSL,
+            server_url,
+            port=port,
+            use_ssl=use_ssl,
             tls=tls_config,
             get_info=ldap3.ALL,
         )
@@ -192,26 +231,26 @@ def ldap_authenticate(username: str, password: str) -> Optional["User"]:
         # Step 1: Bind with service account to find user DN
         service_conn = Connection(
             server,
-            user=settings.LDAP_BIND_DN,
-            password=settings.LDAP_BIND_PASSWORD,
+            user=bind_dn,
+            password=bind_password,
             auto_bind=True,
             raise_exceptions=True,
         )
 
-        if settings.LDAP_STARTTLS and not settings.LDAP_USE_SSL:
+        if starttls and not use_ssl:
             service_conn.start_tls()
 
         # Search for user
-        user_filter = settings.LDAP_USER_FILTER.replace("{username}", username)
+        user_filter = user_filter_tpl.replace("{username}", username)
         attrs = [
-            settings.LDAP_ATTR_USERNAME,
-            settings.LDAP_ATTR_EMAIL,
-            settings.LDAP_ATTR_DISPLAY_NAME,
+            attr_username,
+            attr_email,
+            attr_display_name,
             "memberOf",
         ]
 
         service_conn.search(
-            search_base=settings.LDAP_BASE_DN,
+            search_base=base_dn,
             search_filter=user_filter,
             search_scope=SUBTREE,
             attributes=attrs,
@@ -235,15 +274,15 @@ def ldap_authenticate(username: str, password: str) -> Optional["User"]:
             raise_exceptions=True,
         )
 
-        if settings.LDAP_STARTTLS and not settings.LDAP_USE_SSL:
+        if starttls and not use_ssl:
             user_conn.start_tls()
 
         # If we reach here, auth succeeded
         user_conn.unbind()
 
         # Extract attributes
-        display_name = str(getattr(entry, settings.LDAP_ATTR_DISPLAY_NAME, username))
-        email = str(getattr(entry, settings.LDAP_ATTR_EMAIL, ""))
+        display_name = str(getattr(entry, attr_display_name, username))
+        email = str(getattr(entry, attr_email, ""))
         member_of = [str(g) for g in getattr(entry, "memberOf", [])]
 
         # Determine role from AD group membership
@@ -259,10 +298,8 @@ def ldap_authenticate(username: str, password: str) -> Optional["User"]:
 
 def _resolve_ldap_role(member_of: list[str]) -> str:
     """Map AD group membership to HCS role."""
-    from app.config import settings
-
-    admin_group = getattr(settings, "LDAP_ADMIN_GROUP", "")
-    operator_group = getattr(settings, "LDAP_OPERATOR_GROUP", "")
+    admin_group = _get_ldap_setting("ldap_admin_group", "")
+    operator_group = _get_ldap_setting("ldap_operator_group", "")
 
     member_of_lower = [g.lower() for g in member_of]
 
