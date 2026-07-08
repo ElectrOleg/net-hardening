@@ -565,6 +565,16 @@
                             <div class="type-card-title">Set Match</div>
                             <div class="type-card-desc">Точное/подмножеств. совпадение набора</div>
                         </div>
+                        <div class="type-card" data-type="composite_check" onclick="selectType(this)">
+                            <svg class="type-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <rect x="3" y="3" width="7" height="9" rx="1" />
+                                <rect x="14" y="3" width="7" height="9" rx="1" />
+                                <rect x="3" y="14" width="18" height="7" rx="1" />
+                            </svg>
+                            <div class="type-card-title">Composite Check</div>
+                            <div class="type-card-desc">Комбинация проверок на разные секции</div>
+                        </div>
                     </div>
                     <select class="form-select" id="logic_type" style="display:none;">
                         <option value="simple_match">Simple Match</option>
@@ -575,6 +585,7 @@
                         <option value="xml_check">XML Check</option>
                         <option value="block_validate">Block Validate</option>
                         <option value="set_match">Set Match</option>
+                        <option value="composite_check">Composite Check</option>
                     </select>
                 </div>
 
@@ -874,6 +885,25 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- 9. Composite Check -->
+                    <div id="form_composite_check" class="logic-form" style="display: none;">
+                        <div class="form-group mb-3">
+                            <label class="step-label"><span class="step-num">1</span> Логический оператор</label>
+                            <select class="form-select" id="comp_operator" onchange="syncVisualToJson()">
+                                <option value="all">ALL (AND) — Все условия должны выполниться</option>
+                                <option value="any">ANY (OR) — Хотя бы одно условие должно выполниться</option>
+                            </select>
+                        </div>
+                        <div class="nested-group-container">
+                            <label class="step-label mb-2"><span class="step-num">2</span> Условия для секций конфига</label>
+                            <div id="comp_conditions_container" class="flex flex-col gap-3 mb-3"></div>
+                            <button type="button" class="btn btn-secondary w-full" style="border-style: dashed;"
+                                onclick="addCompositeConditionRow()">
+                                + Добавить условие секции
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- MANUAL JSON EDITOR -->
@@ -965,7 +995,8 @@
         textfsm_check: { template: "", column: "STATUS", operator: "all_eq", value: "up" },
         xml_check: { xpath: "//system/services/ssh", operator: "exists" },
         block_validate: { block_start: "^\\s*object-group\\s+network\\s+\\S+", block_end: "^\\s*exit\\s*$", skip_lines: ["^\\s*$"], allowed_patterns: ["^\\s*ip\\s+prefix\\s+.+$", "^\\s*description\\s+.+$"], case_insensitive: false, fail_on_no_blocks: false },
-        set_match: { collect_pattern: "^\\s*object-group\\s+service\\s+(\\S+)", capture_group: 1, expected_set: ["ITEM_A", "ITEM_B"], mode: "exact", case_insensitive: false }
+        set_match: { collect_pattern: "^\\s*object-group\\s+service\\s+(\\S+)", capture_group: 1, expected_set: ["ITEM_A", "ITEM_B"], mode: "exact", case_insensitive: false },
+        composite_check: { conditions: [{ section: "_default", checker: "simple_match", payload: { pattern: "^service password-encryption", match_mode: "must_exist", is_regex: true } }], operator: "all" }
     };
 
     let isManualMode = false;
@@ -1167,6 +1198,11 @@
                     mode: document.getElementById('setm_mode').value,
                     case_insensitive: document.getElementById('setm_case').checked
                 };
+            } else if (type === 'composite_check') {
+                payload = {
+                    conditions: getCompositeConditions(),
+                    operator: document.getElementById('comp_operator').value
+                };
             } else {
                 return;
             }
@@ -1238,6 +1274,19 @@
                 document.getElementById('setm_expected').value = (payload.expected_set || []).join('\n');
                 document.getElementById('setm_mode').value = payload.mode || 'exact';
                 document.getElementById('setm_case').checked = !!payload.case_insensitive;
+            } else if (type === 'composite_check') {
+                document.getElementById('comp_operator').value = payload.operator || 'all';
+                
+                // Rebuild conditions container
+                const container = document.getElementById('comp_conditions_container');
+                container.innerHTML = '';
+                if (payload.conditions && Array.isArray(payload.conditions)) {
+                    payload.conditions.forEach(cond => {
+                        addCompositeConditionRow(cond.section, cond.checker, cond.payload);
+                    });
+                } else {
+                    addCompositeConditionRow(); // Empty default row
+                }
             }
 
         } catch (e) {
@@ -1284,6 +1333,80 @@
         const noValOps = ['exists', 'not_exists'];
         document.getElementById('sc_value_group').style.display = noValOps.includes(op) ? 'none' : 'block';
         syncVisualToJson();
+    }
+
+    function addCompositeConditionRow(section = '_default', checker = 'simple_match', payloadObj = {}) {
+        const container = document.getElementById('comp_conditions_container');
+        const div = document.createElement('div');
+        div.className = 'comp-condition-row p-3 mb-2 rounded border border-light';
+        div.style.background = 'var(--hcs-bg-secondary)';
+        
+        // Convert payload object to string for display/edit
+        const payloadStr = typeof payloadObj === 'string' 
+            ? payloadObj 
+            : JSON.stringify(payloadObj, null, 2);
+
+        div.innerHTML = `
+            <div class="grid grid-2 gap-2 mb-2">
+                <div class="form-group">
+                    <label class="text-xs font-bold text-muted mb-1 block">Секция конфига / Команда</label>
+                    <input type="text" class="form-input comp-section" placeholder="e.g. show running-config or _default" value="${section.replace(/"/g, '&quot;')}">
+                </div>
+                <div class="form-group">
+                    <label class="text-xs font-bold text-muted mb-1 block">Тип проверки (Checker)</label>
+                    <select class="form-select comp-checker">
+                        <option value="simple_match" ${checker === 'simple_match' ? 'selected' : ''}>Simple Match</option>
+                        <option value="block_match" ${checker === 'block_match' ? 'selected' : ''}>Block Match</option>
+                        <option value="structure_check" ${checker === 'structure_check' ? 'selected' : ''}>Structure Check</option>
+                        <option value="version_check" ${checker === 'version_check' ? 'selected' : ''}>Version Check</option>
+                        <option value="textfsm_check" ${checker === 'textfsm_check' ? 'selected' : ''}>TextFSM Check</option>
+                        <option value="xml_check" ${checker === 'xml_check' ? 'selected' : ''}>XML/XPath Check</option>
+                        <option value="block_validate" ${checker === 'block_validate' ? 'selected' : ''}>Block Validate</option>
+                        <option value="set_match" ${checker === 'set_match' ? 'selected' : ''}>Set Match</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group mb-2">
+                <label class="text-xs font-bold text-muted mb-1 block">Параметры проверки (Payload JSON)</label>
+                <textarea class="form-textarea font-mono text-xs comp-payload" rows="4" placeholder="Введите JSON параметры под-проверки...">${payloadStr}</textarea>
+            </div>
+            <div class="flex justify-end">
+                <button type="button" class="btn btn-ghost btn-sm text-danger flex items-center gap-1" onclick="this.parentElement.parentElement.remove(); syncVisualToJson()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="12"></line>
+                    </svg>
+                    Удалить условие
+                </button>
+            </div>
+        `;
+        container.appendChild(div);
+
+        // Add input listeners
+        div.querySelectorAll('input, select, textarea').forEach(el => {
+            el.addEventListener('input', syncVisualToJson);
+            el.addEventListener('change', syncVisualToJson);
+        });
+        
+        syncVisualToJson();
+    }
+
+    function getCompositeConditions() {
+        const rows = document.querySelectorAll('#comp_conditions_container .comp-condition-row');
+        return Array.from(rows).map(row => {
+            let payloadVal = {};
+            try {
+                const rawPayload = row.querySelector('.comp-payload').value.trim();
+                payloadVal = rawPayload ? JSON.parse(rawPayload) : {};
+            } catch (e) {
+                payloadVal = row.querySelector('.comp-payload').value;
+            }
+            return {
+                section: row.querySelector('.comp-section').value.trim(),
+                checker: row.querySelector('.comp-checker').value,
+                payload: payloadVal
+            };
+        });
     }
 
     function loadSampleConfig() {
@@ -1492,7 +1615,7 @@ end`;
             // auto-switch to JSON Mode so user sees the payload
             const visualTypes = ['simple_match', 'block_match', 'structure_check',
                                  'version_check', 'textfsm_check', 'xml_check',
-                                 'block_validate', 'set_match'];
+                                 'block_validate', 'set_match', 'composite_check'];
             if (!visualTypes.includes(rule.logic_type)) {
                 document.getElementById('manualModeToggle').checked = true;
                 toggleManualMode();
