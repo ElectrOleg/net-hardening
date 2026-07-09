@@ -368,7 +368,11 @@
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
-                const data = JSON.parse(e.target.result);
+                const rawText = e.target.result.trimStart();
+                if (rawText.startsWith('<')) {
+                    throw new Error('Файл похож на HTML, а не JSON. Скачайте raw JSON-файл.');
+                }
+                const data = JSON.parse(rawText);
                 const rules = data.rules || data;
                 if (!Array.isArray(rules)) {
                     throw new Error('Expected "rules" array in JSON');
@@ -405,7 +409,20 @@
                     dry_run: dryRun
                 })
             });
-            const result = await resp.json();
+            const responseText = await resp.text();
+            const contentType = resp.headers.get('content-type') || '';
+            let result = null;
+
+            if (contentType.includes('application/json')) {
+                result = JSON.parse(responseText);
+            } else {
+                const preview = responseText.trim().slice(0, 200).replace(/\s+/g, ' ');
+                throw new Error(`HTTP ${resp.status}: сервер вернул не JSON. ${preview}`);
+            }
+
+            if (!resp.ok) {
+                throw new Error(result.error || `HTTP ${resp.status}`);
+            }
 
             let html = `<div class="card" style="background: var(--surface-secondary); padding: 1rem;">`;
             html += dryRun ? '<strong>🔍 Dry Run результат:</strong><br>' : '<strong>✅ Импорт завершён:</strong><br>';
