@@ -1,12 +1,13 @@
 {
+  "version": "1.0",
   "_comment": "HCS Rule Pack: Eltex MES Switch Hardening Checks",
   "rules": [
     {
-      "title": "Hostname format",
+      "title": "Eltex MES hostname format",
       "vendor_code": "eltex_mes",
       "logic_type": "simple_match",
       "logic_payload": {
-        "pattern": "^hostname S-MOW-\\S+-\\d+",
+        "pattern": "^hostname\\s+S-MOW-\\S+-\\d+\\s*$",
         "match_mode": "must_exist",
         "is_regex": true
       },
@@ -15,20 +16,20 @@
       "remediation": "hostname S-MOW-<location>-<num>"
     },
     {
-      "title": "Warning login banner",
+      "title": "Eltex MES warning login banner",
       "vendor_code": "eltex_mes",
       "logic_type": "simple_match",
       "logic_payload": {
-        "pattern": "^banner login \\^C",
+        "pattern": "^banner\\s+login\\s+\\^C\\s*$",
         "match_mode": "must_exist",
         "is_regex": true
       },
       "severity": "medium",
       "description": "На коммутаторе должен быть настроен предупреждающий баннер при входе.",
-      "remediation": "banner login ^C\n<banner text>\n^C"
+      "remediation": "banner login ^C\n<warning banner text>\n^C"
     },
     {
-      "title": "AAA Authentication and TACACS Servers",
+      "title": "Eltex MES AAA, TACACS and local users",
       "vendor_code": "eltex_mes",
       "logic_type": "composite_check",
       "logic_payload": {
@@ -37,7 +38,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^aaa new-model",
+              "pattern": "^aaa\\s+authentication\\s+mode\\s+break\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -46,7 +47,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^aaa authentication login default group tacacs\\+ local",
+              "pattern": "^aaa\\s+authentication\\s+login\\s+authorization\\s+default\\s+tacacs\\s+local\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -55,35 +56,92 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^aaa accounting login default start-stop group tacacs\\+",
+              "pattern": "^aaa\\s+authentication\\s+login\\s+authorization\\s+LOCAL\\s+local\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
           },
           {
             "section": "_default",
-            "checker": "set_match",
+            "checker": "simple_match",
             "payload": {
-              "collect_pattern": "^\\s*tacacs-server host (\\S+)",
-              "capture_group": 1,
-              "expected_set": [
-                "10.164.96.149",
-                "10.164.96.152",
-                "172.19.64.56"
-              ],
-              "mode": "subset",
-              "case_insensitive": false
+              "pattern": "^aaa\\s+authentication\\s+login\\s+authorization\\s+TACPLUS\\s+tacacs\\s+local\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa\\s+accounting\\s+login\\s+start-stop\\s+group\\s+tacacs\\+\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa\\s+accounting\\s+commands\\s+stop-only\\s+group\\s+tacacs\\+\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^encrypted\\s+tacacs-server\\s+host\\s+10\\.164\\.96\\.149\\s+key\\s+.+\\s+priority\\s+10\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^encrypted\\s+tacacs-server\\s+host\\s+10\\.164\\.96\\.152\\s+key\\s+.+\\s+priority\\s+20\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^encrypted\\s+tacacs-server\\s+host\\s+172\\.19\\.64\\.56\\s+key\\s+.+\\s+priority\\s+30\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^username\\s+admin\\s+password\\s+.+\\s+privilege\\s+15\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^username\\s+imost\\s+password\\s+.+\\s+privilege\\s+15\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
             }
           }
         ],
         "operator": "all"
       },
       "severity": "critical",
-      "description": "Конфигурация AAA и TACACS+ серверов для аутентификации и аккаунтинга на коммутаторе.",
-      "remediation": "aaa new-model\naaa authentication login default group tacacs+ local\naaa accounting login default start-stop group tacacs+\ntacacs-server host 10.164.96.149 key <key>\ntacacs-server host 10.164.96.152 key <key>\ntacacs-server host 172.19.64.56 key <key>"
+      "description": "Проверяет обязательную конфигурацию AAA, TACACS+ серверов и локальных пользователей admin/imost.",
+      "remediation": "aaa authentication mode break\naaa authentication login authorization default tacacs local\naaa authentication login authorization LOCAL local\naaa authentication login authorization TACPLUS tacacs local\naaa accounting login start-stop group tacacs+\naaa accounting commands stop-only group tacacs+\nencrypted tacacs-server host 10.164.96.149 key <key> priority 10\nencrypted tacacs-server host 10.164.96.152 key <key> priority 20\nencrypted tacacs-server host 172.19.64.56 key <key> priority 30\nusername admin password <password> privilege 15\nusername imost password <password> privilege 15"
     },
     {
-      "title": "SNMP Server Access Control",
+      "title": "Eltex MES SNMPv3 access",
       "vendor_code": "eltex_mes",
       "logic_type": "composite_check",
       "logic_payload": {
@@ -92,7 +150,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^snmp-server community \\S+ ro \\S+",
+              "pattern": "^snmp-server\\s+server\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -101,7 +159,25 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^snmp-server group \\S+ v3 auth",
+              "pattern": "^snmp-server\\s+engineID\\s+local\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^snmp-server\\s+group\\s+snmpv3group\\s+v3\\s+auth\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^encrypted\\s+snmp-server\\s+user\\s+\\S+\\s+snmpv3group\\s+v3\\s+auth\\s+sha\\s+.+\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -110,27 +186,46 @@
         "operator": "all"
       },
       "severity": "high",
-      "description": "Конфигурация параметров SNMP-доступа на коммутаторе.",
-      "remediation": "snmp-server community <community> ro <acl>\nsnmp-server group <group> v3 auth"
+      "description": "Проверяет включение SNMP-сервера и наличие SNMPv3-группы snmpv3group с auth sha пользователем.",
+      "remediation": "snmp-server server\nsnmp-server engineID local\nsnmp-server group snmpv3group v3 auth\nencrypted snmp-server user <user> snmpv3group v3 auth sha <auth-key>"
     },
     {
-      "title": "NTP Services Configuration",
+      "title": "Eltex MES NTP configuration",
       "vendor_code": "eltex_mes",
       "logic_type": "composite_check",
       "logic_payload": {
         "conditions": [
           {
             "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^clock\\s+timezone\\s+MSK\\s+\\+3\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^clock\\s+source\\s+ntp\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
             "checker": "set_match",
             "payload": {
-              "collect_pattern": "^\\s*ntp server (\\S+)",
+              "collect_pattern": "^\\s*ntp\\s+server\\s+(\\S+)\\s*$",
               "capture_group": 1,
               "expected_set": [
-                "172.31.12.20",
-                "172.31.13.20",
-                "172.19.64.61"
+                "10.164.91.32",
+                "10.164.91.34",
+                "10.164.91.36",
+                "10.164.91.38"
               ],
-              "mode": "subset",
+              "mode": "superset",
               "case_insensitive": false
             }
           }
@@ -138,53 +233,144 @@
         "operator": "all"
       },
       "severity": "medium",
-      "description": "Синхронизация времени с NTP-серверами.",
-      "remediation": "ntp server 172.31.12.20\nntp server 172.31.13.20\nntp server 172.19.64.61"
+      "description": "Проверяет часовой пояс MSK, источник времени NTP и обязательные NTP-серверы.",
+      "remediation": "clock timezone MSK +3\nclock source ntp\nntp server 10.164.91.32\nntp server 10.164.91.34\nntp server 10.164.91.36\nntp server 10.164.91.38"
     },
     {
-      "title": "Logging Hosts Configuration",
+      "title": "Eltex MES logging configuration",
       "vendor_code": "eltex_mes",
       "logic_type": "composite_check",
       "logic_payload": {
         "conditions": [
           {
             "section": "_default",
-            "checker": "set_match",
+            "checker": "simple_match",
             "payload": {
-              "collect_pattern": "^\\s*logging host (\\S+)",
-              "capture_group": 1,
-              "expected_set": [
-                "172.31.12.4",
-                "172.31.13.4",
-                "10.164.100.151",
-                "172.17.203.186"
-              ],
-              "mode": "subset",
-              "case_insensitive": false
+              "pattern": "^logging\\s+host\\s+172\\.31\\.12\\.4\\s+facility\\s+local0\\s+severity\\s+notifications\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging\\s+host\\s+172\\.31\\.13\\.4\\s+facility\\s+local0\\s+severity\\s+notifications\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging\\s+host\\s+10\\.164\\.100\\.151\\s+port\\s+8020\\s+facility\\s+local0\\s+severity\\s+notifications\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging\\s+buffered\\s+debugging\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging\\s+cli-commands\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging\\s+origin-id\\s+hostname\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging\\s+aggregation\\s+on\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
             }
           }
         ],
         "operator": "all"
       },
       "severity": "high",
-      "description": "Настройка отправки логов системных событий на syslog-сервера сбора.",
-      "remediation": "logging host 172.31.12.4\nlogging host 172.31.13.4\nlogging host 10.164.100.151\nlogging host 172.17.203.186"
+      "description": "Проверяет обязательные syslog-серверы и локальные параметры логирования.",
+      "remediation": "logging host 172.31.12.4 facility local0 severity notifications\nlogging host 172.31.13.4 facility local0 severity notifications\nlogging host 10.164.100.151 port 8020 facility local0 severity notifications\nlogging buffered debugging\nlogging cli-commands\nlogging origin-id hostname\nlogging aggregation on"
     },
     {
-      "title": "Domain Name Lookup",
+      "title": "Eltex MES domain and DNS configuration",
+      "vendor_code": "eltex_mes",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^ip\\s+domain\\s+name\\s+\\S+\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^ip\\s+name-server\\s+172\\.17\\.145\\.60\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "medium",
+      "description": "Проверяет имя DNS-домена устройства и обязательный DNS-сервер.",
+      "remediation": "ip domain name <domain>\nip name-server 172.17.145.60"
+    },
+    {
+      "title": "Eltex MES SSH server enabled",
       "vendor_code": "eltex_mes",
       "logic_type": "simple_match",
       "logic_payload": {
-        "pattern": "^ip domain-lookup",
+        "pattern": "^ip\\s+ssh\\s+server\\s*$",
         "match_mode": "must_exist",
         "is_regex": true
       },
-      "severity": "low",
-      "description": "Разрешение DNS имен на коммутаторе должно быть включено.",
-      "remediation": "ip domain-lookup"
+      "severity": "high",
+      "description": "SSH-сервер должен быть включен на устройстве.",
+      "remediation": "ip ssh server"
     },
     {
-      "title": "SSH Server Configuration",
+      "title": "Eltex MES telnet server disabled",
+      "vendor_code": "eltex_mes",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^no\\s+ip\\s+telnet\\s+server\\s*$",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "high",
+      "description": "Telnet-сервер должен быть явно отключен.",
+      "remediation": "no ip telnet server"
+    },
+    {
+      "title": "Eltex MES HTTP and HTTPS services disabled",
       "vendor_code": "eltex_mes",
       "logic_type": "composite_check",
       "logic_payload": {
@@ -193,7 +379,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^ip ssh server",
+              "pattern": "^no\\s+ip\\s+http\\s+server\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -202,7 +388,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^ip ssh timeout 30",
+              "pattern": "^no\\s+ip\\s+http\\s+secure-server\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -211,51 +397,20 @@
         "operator": "all"
       },
       "severity": "high",
-      "description": "Включение SSH сервера и настройка тайм-аута сессий.",
-      "remediation": "ip ssh server\nip ssh timeout 30"
-    },
-    {
-      "title": "Disable HTTP/HTTPS Services",
-      "vendor_code": "eltex_mes",
-      "logic_type": "composite_check",
-      "logic_payload": {
-        "conditions": [
-          {
-            "section": "_default",
-            "checker": "simple_match",
-            "payload": {
-              "pattern": "^no ip http server",
-              "match_mode": "must_exist",
-              "is_regex": true
-            }
-          },
-          {
-            "section": "_default",
-            "checker": "simple_match",
-            "payload": {
-              "pattern": "^no ip http secure-server",
-              "match_mode": "must_exist",
-              "is_regex": true
-            }
-          }
-        ],
-        "operator": "all"
-      },
-      "severity": "high",
-      "description": "Веб-сервисы HTTP и HTTPS должны быть отключены для снижения вектора атак.",
+      "description": "HTTP и HTTPS сервисы должны быть явно отключены.",
       "remediation": "no ip http server\nno ip http secure-server"
     },
     {
-      "title": "STP Mode Rapid-PVST",
+      "title": "Eltex MES STP rapid-pvst mode",
       "vendor_code": "eltex_mes",
       "logic_type": "simple_match",
       "logic_payload": {
-        "pattern": "^spanning-tree mode rapid-pvst",
+        "pattern": "^spanning-tree\\s+mode\\s+rapid-pvst\\s*$",
         "match_mode": "must_exist",
         "is_regex": true
       },
       "severity": "medium",
-      "description": "Режим STP должен быть настроен в rapid-pvst.",
+      "description": "Для STP должен быть настроен режим rapid-pvst.",
       "remediation": "spanning-tree mode rapid-pvst"
     }
   ]
