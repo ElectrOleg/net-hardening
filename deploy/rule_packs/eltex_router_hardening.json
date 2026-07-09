@@ -1,12 +1,13 @@
 {
+  "version": "1.0",
   "_comment": "HCS Rule Pack: Eltex ESR Router Hardening Checks",
   "rules": [
     {
-      "title": "Hostname format",
+      "title": "Eltex ESR hostname format",
       "vendor_code": "eltex_esr",
       "logic_type": "simple_match",
       "logic_payload": {
-        "pattern": "^hostname (pvpn|avpn)-mow-\\S+-\\d+",
+        "pattern": "^hostname\\s+(pvpn|avpn)-mow-\\S+-\\d+\\s*$",
         "match_mode": "must_exist",
         "is_regex": true
       },
@@ -15,20 +16,20 @@
       "remediation": "hostname pvpn-mow-<location>-<num>"
     },
     {
-      "title": "Warning login banner",
+      "title": "Eltex ESR warning login banner",
       "vendor_code": "eltex_esr",
       "logic_type": "simple_match",
       "logic_payload": {
-        "pattern": "^banner login \\^C",
+        "pattern": "^banner\\s+login\\s+\\^C\\s*$",
         "match_mode": "must_exist",
         "is_regex": true
       },
       "severity": "medium",
       "description": "На устройстве должен быть настроен предупреждающий баннер при входе.",
-      "remediation": "banner login ^C\n<banner text>\n^C"
+      "remediation": "banner login ^C\n<warning banner text>\n^C"
     },
     {
-      "title": "AAA Authentication and TACACS Servers",
+      "title": "Eltex ESR AAA and TACACS configuration",
       "vendor_code": "eltex_esr",
       "logic_type": "composite_check",
       "logic_payload": {
@@ -37,7 +38,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^aaa authentication mode break",
+              "pattern": "^aaa\\s+authentication\\s+mode\\s+break\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -46,7 +47,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^aaa authentication login CONSOLE tacacs local",
+              "pattern": "^aaa\\s+authentication\\s+login\\s+CONSOLE\\s+tacacs\\s+local\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -55,7 +56,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^aaa authentication login SSH tacacs local",
+              "pattern": "^aaa\\s+authentication\\s+login\\s+SSH\\s+tacacs\\s+local\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -64,7 +65,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^aaa authentication login LOCAL local",
+              "pattern": "^aaa\\s+authentication\\s+login\\s+LOCAL\\s+local\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -73,7 +74,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^aaa accounting login start-stop tacacs",
+              "pattern": "^aaa\\s+accounting\\s+login\\s+start-stop\\s+tacacs\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -82,7 +83,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^aaa accounting commands stop-only tacacs",
+              "pattern": "^aaa\\s+accounting\\s+commands\\s+stop-only\\s+tacacs\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -91,35 +92,85 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^aaa authentication attempts max-fail 10 600",
+              "pattern": "^aaa\\s+authentication\\s+attempts\\s+max-fail\\s+10\\s+600\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
           },
           {
             "section": "_default",
-            "checker": "set_match",
+            "checker": "simple_match",
             "payload": {
-              "collect_pattern": "^\\s*tacacs-server host (\\S+)",
-              "capture_group": 1,
-              "expected_set": [
-                "10.164.96.149",
-                "10.164.96.152",
-                "172.19.64.56"
+              "pattern": "^tacacs-server\\s+host\\s+10\\.164\\.96\\.149(?:\\s+vrf\\s+\\S+)?\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*tacacs-server\\s+host\\s+10\\.164\\.96\\.149(?:\\s+vrf\\s+\\S+)?\\s*$",
+              "child_rules": [
+                {"pattern": "^\\s*authentication\\s+key\\s+ascii-text\\s+.+$", "mode": "must_exist"},
+                {"pattern": "^\\s*source-interface\\s+\\S+\\s*$", "mode": "must_exist"}
               ],
-              "mode": "subset",
-              "case_insensitive": false
+              "logic": "ALL"
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^tacacs-server\\s+host\\s+10\\.164\\.96\\.152(?:\\s+vrf\\s+\\S+)?\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*tacacs-server\\s+host\\s+10\\.164\\.96\\.152(?:\\s+vrf\\s+\\S+)?\\s*$",
+              "child_rules": [
+                {"pattern": "^\\s*authentication\\s+key\\s+ascii-text\\s+.+$", "mode": "must_exist"},
+                {"pattern": "^\\s*priority\\s+2\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*source-interface\\s+\\S+\\s*$", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^tacacs-server\\s+host\\s+172\\.19\\.64\\.56(?:\\s+vrf\\s+\\S+)?\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*tacacs-server\\s+host\\s+172\\.19\\.64\\.56(?:\\s+vrf\\s+\\S+)?\\s*$",
+              "child_rules": [
+                {"pattern": "^\\s*authentication\\s+key\\s+ascii-text\\s+.+$", "mode": "must_exist"},
+                {"pattern": "^\\s*priority\\s+3\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*source-interface\\s+\\S+\\s*$", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
             }
           }
         ],
         "operator": "all"
       },
       "severity": "critical",
-      "description": "Конфигурация AAA аутентификации и авторизации через TACACS сервера.",
-      "remediation": "aaa authentication mode break\naaa authentication login CONSOLE tacacs local\naaa authentication login SSH tacacs local\naaa authentication login LOCAL local\naaa accounting login start-stop tacacs\naaa accounting commands stop-only tacacs\naaa authentication attempts max-fail 10 600"
+      "description": "Проверяет обязательную конфигурацию AAA и TACACS+ серверов с ключами, приоритетами и source-interface.",
+      "remediation": "aaa authentication mode break\naaa authentication login CONSOLE tacacs local\naaa authentication login SSH tacacs local\naaa authentication login LOCAL local\naaa accounting login start-stop tacacs\naaa accounting commands stop-only tacacs\naaa authentication attempts max-fail 10 600\ntacacs-server host 10.164.96.149 [vrf <VRF>]\n authentication key ascii-text <key>\n source-interface <IF>\ntacacs-server host 10.164.96.152 [vrf <VRF>]\n authentication key ascii-text <key>\n priority 2\n source-interface <IF>\ntacacs-server host 172.19.64.56 [vrf <VRF>]\n authentication key ascii-text <key>\n priority 3\n source-interface <IF>"
     },
     {
-      "title": "SNMP Server Access Control",
+      "title": "Eltex ESR SNMP access configuration",
       "vendor_code": "eltex_esr",
       "logic_type": "composite_check",
       "logic_payload": {
@@ -128,7 +179,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^snmp-server$",
+              "pattern": "^snmp-server\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -137,7 +188,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^snmp-server dscp 16",
+              "pattern": "^snmp-server\\s+dscp\\s+16\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -146,7 +197,16 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^snmp-server location \\S+",
+              "pattern": "^snmp-server\\s+location\\s+\\S+\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^snmp-server\\s+user\\s+\\S+\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -155,13 +215,14 @@
             "section": "_default",
             "checker": "block_match",
             "payload": {
-              "parent_block_start": "^\\s*snmp-server user \\S+",
+              "parent_block_start": "^\\s*snmp-server\\s+user\\s+\\S+\\s*$",
               "child_rules": [
-                {"pattern": "access \\S+", "mode": "must_exist"},
-                {"pattern": "authentication algorithm sha1", "mode": "must_exist"},
-                {"pattern": "authentication access auth", "mode": "must_exist"},
-                {"pattern": "authentication key ascii-text \\S+", "mode": "must_exist"},
-                {"pattern": "enable", "mode": "must_exist"}
+                {"pattern": "^\\s*access\\s+\\S+\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*authentication\\s+algorithm\\s+sha1\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*authentication\\s+access\\s+auth\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*authentication\\s+key\\s+ascii-text\\s+.+$", "mode": "must_exist"},
+                {"pattern": "^\\s*(?:no\\s+)?client-list\\s+\\S+\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*enable\\s*$", "mode": "must_exist"}
               ],
               "logic": "ALL"
             }
@@ -170,11 +231,11 @@
         "operator": "all"
       },
       "severity": "high",
-      "description": "Конфигурация SNMP сервера, шифрования и авторизации пользователей.",
-      "remediation": "snmp-server\nsnmp-server dscp 16\nsnmp-server location <location>\nsnmp-server user <user> ..."
+      "description": "Проверяет SNMP-сервер, DSCP, location и SNMP user block с auth sha1, key, client-list и enable.",
+      "remediation": "snmp-server\nsnmp-server dscp 16\nsnmp-server location <location>\nsnmp-server user <user>\n access <TYPE>\n authentication algorithm sha1\n authentication access auth\n authentication key ascii-text <key>\n [no] client-list <NAME>\n enable"
     },
     {
-      "title": "NTP Services Configuration",
+      "title": "Eltex ESR NTP configuration",
       "vendor_code": "eltex_esr",
       "logic_type": "composite_check",
       "logic_payload": {
@@ -183,7 +244,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^ntp enable",
+              "pattern": "^ntp\\s+enable\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -192,7 +253,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^ntp access-addresses NTP",
+              "pattern": "^ntp\\s+access-addresses\\s+NTP\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -201,26 +262,86 @@
             "section": "_default",
             "checker": "set_match",
             "payload": {
-              "collect_pattern": "^\\s*ntp server (\\S+)",
+              "collect_pattern": "^\\s*ntp\\s+server\\s+(\\S+)(?:\\s+vrf\\s+\\S+)?\\s*$",
               "capture_group": 1,
               "expected_set": [
                 "172.31.12.20",
                 "172.31.13.20",
                 "172.19.64.61"
               ],
-              "mode": "subset",
+              "mode": "superset",
               "case_insensitive": false
             }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^ntp\\s+server\\s+172\\.31\\.12\\.20(?:\\s+vrf\\s+\\S+)?\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*ntp\\s+server\\s+172\\.31\\.12\\.20(?:\\s+vrf\\s+\\S+)?\\s*$",
+              "child_rules": [
+                {"pattern": "^\\s*maxpoll\\s+12\\s*$", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^ntp\\s+server\\s+172\\.31\\.13\\.20(?:\\s+vrf\\s+\\S+)?\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*ntp\\s+server\\s+172\\.31\\.13\\.20(?:\\s+vrf\\s+\\S+)?\\s*$",
+              "child_rules": [
+                {"pattern": "^\\s*maxpoll\\s+12\\s*$", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^ntp\\s+server\\s+172\\.19\\.64\\.61(?:\\s+vrf\\s+\\S+)?\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*ntp\\s+server\\s+172\\.19\\.64\\.61(?:\\s+vrf\\s+\\S+)?\\s*$",
+              "child_rules": [
+                {"pattern": "^\\s*maxpoll\\s+12\\s*$", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
           }
         ],
         "operator": "all"
       },
       "severity": "medium",
-      "description": "Параметры синхронизации времени NTP и разрешенные серверы.",
-      "remediation": "ntp enable\nntp access-addresses NTP\nntp server 172.31.12.20\nntp server 172.31.13.20\nntp server 172.19.64.61"
+      "description": "Проверяет NTP, access-addresses NTP, обязательные NTP-серверы и maxpoll 12 в каждом server block.",
+      "remediation": "ntp enable\nntp access-addresses NTP\nntp server 172.31.12.20 [vrf <VRF>]\n maxpoll 12\nntp server 172.31.13.20 [vrf <VRF>]\n maxpoll 12\nntp server 172.19.64.61 [vrf <VRF>]\n maxpoll 12"
     },
     {
-      "title": "Logging Base Parameters",
+      "title": "Eltex ESR logging configuration",
       "vendor_code": "eltex_esr",
       "logic_type": "composite_check",
       "logic_payload": {
@@ -229,7 +350,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^syslog max-files 3",
+              "pattern": "^syslog\\s+max-files\\s+3\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -238,7 +359,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^syslog file-size 1024",
+              "pattern": "^syslog\\s+file-size\\s+1024\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -247,7 +368,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^syslog cli-commands",
+              "pattern": "^syslog\\s+cli-commands\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -256,7 +377,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^syslog sequence-numbers",
+              "pattern": "^syslog\\s+sequence-numbers\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -265,91 +386,225 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^logging syslog configuration",
+              "pattern": "^syslog\\s+file\\s+tmpsys:syslog/default\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
           },
-          {
-            "section": "_default",
-            "checker": "simple_match",
-            "payload": {
-              "pattern": "^logging login on-failure",
-              "match_mode": "must_exist",
-              "is_regex": true
-            }
-          },
-          {
-            "section": "_default",
-            "checker": "simple_match",
-            "payload": {
-              "pattern": "^logging userinfo",
-              "match_mode": "must_exist",
-              "is_regex": true
-            }
-          }
-        ],
-        "operator": "all"
-      },
-      "severity": "medium",
-      "description": "Базовые параметры системного логирования и аудита.",
-      "remediation": "syslog max-files 3\nsyslog file-size 1024\nsyslog cli-commands\nsyslog sequence-numbers\nlogging syslog configuration\nlogging login on-failure\nlogging userinfo"
-    },
-    {
-      "title": "Logging Hosts Configuration",
-      "vendor_code": "eltex_esr",
-      "logic_type": "composite_check",
-      "logic_payload": {
-        "conditions": [
           {
             "section": "_default",
             "checker": "block_match",
             "payload": {
-              "parent_block_start": "^\\s*syslog host SYSLOG_SRV1",
+              "parent_block_start": "^\\s*syslog\\s+file\\s+tmpsys:syslog/default\\s*$",
               "child_rules": [
-                {"pattern": "remote-address 172.31.12.4", "mode": "must_exist"},
-                {"pattern": "severity info", "mode": "must_exist"},
-                {"pattern": "match not process-name dns", "mode": "must_exist"}
+                {"pattern": "^\\s*severity\\s+info\\s*$", "mode": "must_exist"}
               ],
               "logic": "ALL"
             }
           },
           {
             "section": "_default",
-            "checker": "block_match",
+            "checker": "simple_match",
             "payload": {
-              "parent_block_start": "^\\s*syslog host SYSLOG_SRV2",
-              "child_rules": [
-                {"pattern": "remote-address 172.31.13.4", "mode": "must_exist"},
-                {"pattern": "severity info", "mode": "must_exist"},
-                {"pattern": "match not process-name dns", "mode": "must_exist"}
-              ],
-              "logic": "ALL"
+              "pattern": "^syslog\\s+file\\s+tmpsys:syslog/ipsec\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
             }
           },
           {
             "section": "_default",
             "checker": "block_match",
             "payload": {
-              "parent_block_start": "^\\s*syslog host ELK",
+              "parent_block_start": "^\\s*syslog\\s+file\\s+tmpsys:syslog/ipsec\\s*$",
               "child_rules": [
-                {"pattern": "remote-address 10.164.100.151", "mode": "must_exist"},
-                {"pattern": "severity info", "mode": "must_exist"},
-                {"pattern": "port 8020", "mode": "must_exist"}
+                {"pattern": "^\\s*severity\\s+debug\\s*$", "mode": "must_exist"}
               ],
               "logic": "ALL"
             }
           },
           {
             "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^syslog\\s+file\\s+tmpsys:syslog/debug\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
             "checker": "block_match",
             "payload": {
-              "parent_block_start": "^\\s*syslog host SOC",
+              "parent_block_start": "^\\s*syslog\\s+file\\s+tmpsys:syslog/debug\\s*$",
               "child_rules": [
-                {"pattern": "remote-address 172.17.203.186", "mode": "must_exist"},
-                {"pattern": "severity notice", "mode": "must_exist"},
-                {"pattern": "transport tcp", "mode": "must_exist"},
-                {"pattern": "port 1519", "mode": "must_exist"}
+                {"pattern": "^\\s*severity\\s+debug\\s*$", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^syslog\\s+monitor\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*syslog\\s+monitor\\s*$",
+              "child_rules": [
+                {"pattern": "^\\s*severity\\s+none\\s*$", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging\\s+syslog\\s+configuration\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging\\s+login\\s+on-failure\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging\\s+firewall\\s+configuration\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging\\s+aaa\\s+configuration\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging\\s+acl\\s+configuration\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging\\s+userinfo\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^syslog\\s+host\\s+SYSLOG_SRV1\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*syslog\\s+host\\s+SYSLOG_SRV1\\s*$",
+              "child_rules": [
+                {"pattern": "^\\s*remote-address\\s+172\\.31\\.12\\.4\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*severity\\s+info\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*source-address\\s+\\S+\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*match\\s+not\\s+process-name\\s+dns\\s*$", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^syslog\\s+host\\s+SYSLOG_SRV2\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*syslog\\s+host\\s+SYSLOG_SRV2\\s*$",
+              "child_rules": [
+                {"pattern": "^\\s*remote-address\\s+172\\.31\\.13\\.4\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*severity\\s+info\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*source-address\\s+\\S+\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*match\\s+not\\s+process-name\\s+dns\\s*$", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^syslog\\s+host\\s+ELK\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*syslog\\s+host\\s+ELK\\s*$",
+              "child_rules": [
+                {"pattern": "^\\s*remote-address\\s+10\\.164\\.100\\.151\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*severity\\s+info\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*port\\s+8020\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*source-address\\s+\\S+\\s*$", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^syslog\\s+host\\s+SOC\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*syslog\\s+host\\s+SOC\\s*$",
+              "child_rules": [
+                {"pattern": "^\\s*remote-address\\s+172\\.17\\.203\\.186\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*severity\\s+notice\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*transport\\s+tcp\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*port\\s+1519\\s*$", "mode": "must_exist"},
+                {"pattern": "^\\s*source-address\\s+\\S+\\s*$", "mode": "must_exist"}
               ],
               "logic": "ALL"
             }
@@ -358,15 +613,15 @@
         "operator": "all"
       },
       "severity": "high",
-      "description": "Параметры отправки логов на удаленные сервера сбора (Syslog SRV, ELK, SOC).",
-      "remediation": "syslog host SOC\n remote-address 172.17.203.186\n severity notice\n transport tcp\n port 1519\nexit"
+      "description": "Проверяет локальное логирование, logging audit-команды и отправку syslog на SYSLOG_SRV1/SYSLOG_SRV2/ELK/SOC.",
+      "remediation": "syslog max-files 3\nsyslog file-size 1024\nsyslog cli-commands\nsyslog sequence-numbers\nsyslog file tmpsys:syslog/default\n severity info\nsyslog file tmpsys:syslog/ipsec\n severity debug\nsyslog file tmpsys:syslog/debug\n severity debug\nsyslog monitor\n severity none\nlogging syslog configuration\nlogging login on-failure\nlogging firewall configuration\nlogging aaa configuration\nlogging acl configuration\nlogging userinfo\nsyslog host SYSLOG_SRV1\n remote-address 172.31.12.4\n severity info\n source-address <src-addr>\n match not process-name dns\nsyslog host SYSLOG_SRV2\n remote-address 172.31.13.4\n severity info\n source-address <src-addr>\n match not process-name dns\nsyslog host ELK\n remote-address 10.164.100.151\n severity info\n port 8020\n source-address <src-addr>\nsyslog host SOC\n remote-address 172.17.203.186\n severity notice\n transport tcp\n port 1519\n source-address <src-addr>"
     },
     {
-      "title": "Domain Name Lookup",
+      "title": "Eltex ESR domain lookup enabled",
       "vendor_code": "eltex_esr",
       "logic_type": "simple_match",
       "logic_payload": {
-        "pattern": "^domain lookup enable",
+        "pattern": "^domain\\s+lookup\\s+enable\\s*$",
         "match_mode": "must_exist",
         "is_regex": true
       },
@@ -375,7 +630,7 @@
       "remediation": "domain lookup enable"
     },
     {
-      "title": "SSH Server Hardening",
+      "title": "Eltex ESR SSH server configuration",
       "vendor_code": "eltex_esr",
       "logic_type": "composite_check",
       "logic_payload": {
@@ -384,7 +639,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^ip ssh server$",
+              "pattern": "^ip\\s+ssh\\s+server(?:\\s+vrf\\s+\\S+)?\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -393,7 +648,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^ip ssh dscp 32",
+              "pattern": "^ip\\s+ssh\\s+dscp\\s+32\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -402,7 +657,7 @@
             "section": "_default",
             "checker": "simple_match",
             "payload": {
-              "pattern": "^ip ssh authentication timeout 30",
+              "pattern": "^ip\\s+ssh\\s+authentication\\s+timeout\\s+30\\s*$",
               "match_mode": "must_exist",
               "is_regex": true
             }
@@ -411,21 +666,39 @@
         "operator": "all"
       },
       "severity": "high",
-      "description": "Настройка SSH-сервера и лимитов безопасности.",
-      "remediation": "ip ssh server\nip ssh dscp 32\nip ssh authentication timeout 30"
+      "description": "Проверяет SSH server, optional VRF, DSCP 32 и authentication timeout 30.",
+      "remediation": "ip ssh server [vrf <VRF>]\nip ssh dscp 32\nip ssh authentication timeout 30"
     },
     {
-      "title": "Disable Global VRF Route Leak",
+      "title": "Eltex ESR VRF configuration",
       "vendor_code": "eltex_esr",
-      "logic_type": "simple_match",
+      "logic_type": "composite_check",
       "logic_payload": {
-        "pattern": "^no ip vrf all",
-        "match_mode": "must_exist",
-        "is_regex": true
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^(?:no\\s+)?ip\\s+vrf\\s+(?!all\\s*$)\\S+\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^no\\s+ip\\s+vrf\\s+all\\s*$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          }
+        ],
+        "operator": "all"
       },
       "severity": "medium",
-      "description": "Глобальный VRF маршрут должен быть отключен для изоляции.",
-      "remediation": "no ip vrf all"
+      "description": "Проверяет наличие настройки конкретного VRF и запрет глобального VRF all.",
+      "remediation": "[no] ip vrf <VRF>\nno ip vrf all"
     }
   ]
 }
