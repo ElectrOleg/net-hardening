@@ -1,0 +1,431 @@
+{
+  "_comment": "HCS Rule Pack: Eltex ESR Router Hardening Checks",
+  "rules": [
+    {
+      "title": "Hostname format",
+      "vendor_code": "eltex_esr",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^hostname (pvpn|avpn)-mow-\\S+-\\d+",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "Имя устройства должно соответствовать стандарту: pvpn/avpn-mow-{location}-{num}.",
+      "remediation": "hostname pvpn-mow-<location>-<num>"
+    },
+    {
+      "title": "Warning login banner",
+      "vendor_code": "eltex_esr",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^banner login \\^C",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "На устройстве должен быть настроен предупреждающий баннер при входе.",
+      "remediation": "banner login ^C\n<banner text>\n^C"
+    },
+    {
+      "title": "AAA Authentication and TACACS Servers",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa authentication mode break",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa authentication login CONSOLE tacacs local",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa authentication login SSH tacacs local",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa authentication login LOCAL local",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa accounting login start-stop tacacs",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa accounting commands stop-only tacacs",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^aaa authentication attempts max-fail 10 600",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "set_match",
+            "payload": {
+              "collect_pattern": "^\\s*tacacs-server host (\\S+)",
+              "capture_group": 1,
+              "expected_set": [
+                "10.164.96.149",
+                "10.164.96.152",
+                "172.19.64.56"
+              ],
+              "mode": "subset",
+              "case_insensitive": false
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "critical",
+      "description": "Конфигурация AAA аутентификации и авторизации через TACACS сервера.",
+      "remediation": "aaa authentication mode break\naaa authentication login CONSOLE tacacs local\naaa authentication login SSH tacacs local\naaa authentication login LOCAL local\naaa accounting login start-stop tacacs\naaa accounting commands stop-only tacacs\naaa authentication attempts max-fail 10 600"
+    },
+    {
+      "title": "SNMP Server Access Control",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^snmp-server$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^snmp-server dscp 16",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^snmp-server location \\S+",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*snmp-server user \\S+",
+              "child_rules": [
+                {"pattern": "access \\S+", "mode": "must_exist"},
+                {"pattern": "authentication algorithm sha1", "mode": "must_exist"},
+                {"pattern": "authentication access auth", "mode": "must_exist"},
+                {"pattern": "authentication key ascii-text \\S+", "mode": "must_exist"},
+                {"pattern": "enable", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "high",
+      "description": "Конфигурация SNMP сервера, шифрования и авторизации пользователей.",
+      "remediation": "snmp-server\nsnmp-server dscp 16\nsnmp-server location <location>\nsnmp-server user <user> ..."
+    },
+    {
+      "title": "NTP Services Configuration",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^ntp enable",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^ntp access-addresses NTP",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "set_match",
+            "payload": {
+              "collect_pattern": "^\\s*ntp server (\\S+)",
+              "capture_group": 1,
+              "expected_set": [
+                "172.31.12.20",
+                "172.31.13.20",
+                "172.19.64.61"
+              ],
+              "mode": "subset",
+              "case_insensitive": false
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "medium",
+      "description": "Параметры синхронизации времени NTP и разрешенные серверы.",
+      "remediation": "ntp enable\nntp access-addresses NTP\nntp server 172.31.12.20\nntp server 172.31.13.20\nntp server 172.19.64.61"
+    },
+    {
+      "title": "Logging Base Parameters",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^syslog max-files 3",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^syslog file-size 1024",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^syslog cli-commands",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^syslog sequence-numbers",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging syslog configuration",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging login on-failure",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^logging userinfo",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "medium",
+      "description": "Базовые параметры системного логирования и аудита.",
+      "remediation": "syslog max-files 3\nsyslog file-size 1024\nsyslog cli-commands\nsyslog sequence-numbers\nlogging syslog configuration\nlogging login on-failure\nlogging userinfo"
+    },
+    {
+      "title": "Logging Hosts Configuration",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*syslog host SYSLOG_SRV1",
+              "child_rules": [
+                {"pattern": "remote-address 172.31.12.4", "mode": "must_exist"},
+                {"pattern": "severity info", "mode": "must_exist"},
+                {"pattern": "match not process-name dns", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*syslog host SYSLOG_SRV2",
+              "child_rules": [
+                {"pattern": "remote-address 172.31.13.4", "mode": "must_exist"},
+                {"pattern": "severity info", "mode": "must_exist"},
+                {"pattern": "match not process-name dns", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*syslog host ELK",
+              "child_rules": [
+                {"pattern": "remote-address 10.164.100.151", "mode": "must_exist"},
+                {"pattern": "severity info", "mode": "must_exist"},
+                {"pattern": "port 8020", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "block_match",
+            "payload": {
+              "parent_block_start": "^\\s*syslog host SOC",
+              "child_rules": [
+                {"pattern": "remote-address 172.17.203.186", "mode": "must_exist"},
+                {"pattern": "severity notice", "mode": "must_exist"},
+                {"pattern": "transport tcp", "mode": "must_exist"},
+                {"pattern": "port 1519", "mode": "must_exist"}
+              ],
+              "logic": "ALL"
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "high",
+      "description": "Параметры отправки логов на удаленные сервера сбора (Syslog SRV, ELK, SOC).",
+      "remediation": "syslog host SOC\n remote-address 172.17.203.186\n severity notice\n transport tcp\n port 1519\nexit"
+    },
+    {
+      "title": "Domain Name Lookup",
+      "vendor_code": "eltex_esr",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^domain lookup enable",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "low",
+      "description": "Разрешение доменных имен DNS должно быть включено.",
+      "remediation": "domain lookup enable"
+    },
+    {
+      "title": "SSH Server Hardening",
+      "vendor_code": "eltex_esr",
+      "logic_type": "composite_check",
+      "logic_payload": {
+        "conditions": [
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^ip ssh server$",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^ip ssh dscp 32",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          },
+          {
+            "section": "_default",
+            "checker": "simple_match",
+            "payload": {
+              "pattern": "^ip ssh authentication timeout 30",
+              "match_mode": "must_exist",
+              "is_regex": true
+            }
+          }
+        ],
+        "operator": "all"
+      },
+      "severity": "high",
+      "description": "Настройка SSH-сервера и лимитов безопасности.",
+      "remediation": "ip ssh server\nip ssh dscp 32\nip ssh authentication timeout 30"
+    },
+    {
+      "title": "Disable Global VRF Route Leak",
+      "vendor_code": "eltex_esr",
+      "logic_type": "simple_match",
+      "logic_payload": {
+        "pattern": "^no ip vrf all",
+        "match_mode": "must_exist",
+        "is_regex": true
+      },
+      "severity": "medium",
+      "description": "Глобальный VRF маршрут должен быть отключен для изоляции.",
+      "remediation": "no ip vrf all"
+    }
+  ]
+}

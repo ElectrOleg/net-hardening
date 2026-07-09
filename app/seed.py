@@ -38,6 +38,12 @@ def seed_vendors():
             description="Eltex ESR series routers",
         ),
         Vendor(
+            code="eltex_mes",
+            name="Eltex MES",
+            parser_driver="ciscoconfparse",
+            description="Eltex MES series switches",
+        ),
+        Vendor(
             code="juniper_junos",
             name="Juniper JUNOS",
             parser_driver="json",

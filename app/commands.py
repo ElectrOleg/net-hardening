@@ -21,6 +21,7 @@ def seed_command():
         {"code": "arista_eos", "name": "Arista EOS", "parser_driver": "ciscoconfparse"},
         {"code": "huawei", "name": "Huawei VRP", "parser_driver": "ciscoconfparse"},
         {"code": "eltex_esr", "name": "Eltex ESR", "parser_driver": "ciscoconfparse"},
+        {"code": "eltex_mes", "name": "Eltex MES", "parser_driver": "ciscoconfparse"},
         {"code": "fortinet_fortios", "name": "Fortinet FortiOS", "parser_driver": "json"},
         {"code": "paloalto_panos", "name": "Palo Alto PAN-OS", "parser_driver": "json"},
         {
