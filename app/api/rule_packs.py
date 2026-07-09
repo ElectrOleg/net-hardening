@@ -3,10 +3,13 @@
 import logging
 
 from flask import jsonify, request
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api import api_bp
 from app.extensions import db
+from app.models.exception import RuleException
 from app.models.policy import Policy
+from app.models.result import Result
 from app.models.rule import Rule
 from app.models.vendor import Vendor
 
@@ -122,11 +125,7 @@ def import_rules():
         "skipped": 0,
         "errors": [],
     }
-
-    # In replace mode, delete existing rules for this policy
-    if mode == "replace" and not dry_run:
-        deleted = Rule.query.filter_by(policy_id=policy_id).delete()
-        results["deleted"] = deleted
+    rules_to_import = []
 
     for i, rule_data in enumerate(rules_data):
         title = rule_data.get("title", "").strip()
@@ -166,22 +165,52 @@ def import_rules():
             results["imported"] += 1
             continue
 
-        rule = Rule(
-            policy_id=policy_id,
-            title=title,
-            vendor_code=vendor_code,
-            logic_type=logic_type,
-            logic_payload=logic_payload,
-            severity=rule_data.get("severity", "medium"),
-            description=rule_data.get("description"),
-            remediation=rule_data.get("remediation"),
-            applicability=rule_data.get("applicability"),
+        rules_to_import.append(
+            Rule(
+                policy_id=policy_id,
+                title=title,
+                vendor_code=vendor_code,
+                logic_type=logic_type,
+                logic_payload=logic_payload,
+                severity=rule_data.get("severity", "medium"),
+                description=rule_data.get("description"),
+                remediation=rule_data.get("remediation"),
+                applicability=rule_data.get("applicability"),
+            )
         )
-        db.session.add(rule)
         results["imported"] += 1
 
+    if not dry_run and mode == "replace" and results["errors"]:
+        return jsonify(results), 207
+
     if not dry_run:
-        db.session.commit()
+        try:
+            if mode == "replace":
+                existing_rule_ids = [
+                    rule_id
+                    for (rule_id,) in db.session.query(Rule.id)
+                    .filter_by(policy_id=policy_id)
+                    .all()
+                ]
+                results["deleted"] = len(existing_rule_ids)
+
+                if existing_rule_ids:
+                    Result.query.filter(Result.rule_id.in_(existing_rule_ids)).delete(
+                        synchronize_session=False
+                    )
+                    RuleException.query.filter(
+                        RuleException.rule_id.in_(existing_rule_ids)
+                    ).delete(synchronize_session=False)
+                    Rule.query.filter(Rule.id.in_(existing_rule_ids)).delete(
+                        synchronize_session=False
+                    )
+
+            db.session.add_all(rules_to_import)
+            db.session.commit()
+        except SQLAlchemyError as exc:
+            db.session.rollback()
+            logger.exception("Rule import failed")
+            return jsonify({"error": "Rule import failed", "detail": str(exc)}), 500
 
     results["dry_run"] = dry_run
     return jsonify(results), 200 if not results["errors"] else 207
